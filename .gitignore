@@ -30,3 +30,6 @@ neis-mvp/
 ### NEIS MVP run kit runtime output (mvp/run.sh) ###
 mvp/work/
 mvp/results/
+
+### NEIS database (US-02) ###
+neis.db

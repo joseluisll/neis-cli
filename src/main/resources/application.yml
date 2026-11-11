@@ -1,6 +1,21 @@
 spring:
   application:
     name: neis
+  datasource:
+    # Persistence layer (US-02, epic #2): SQLite3 is the database of the
+    # first iteration. The database file location is externalized via
+    # neis.db.path (relaxed binding env override NEIS_DB_PATH).
+    url: jdbc:sqlite:${neis.db.path:./neis.db}
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    # The schema is owned by the migrations (US-02.3), never by Hibernate:
+    # no implicit DDL from the ORM.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
 
 logging:
   level:

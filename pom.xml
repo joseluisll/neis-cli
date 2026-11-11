@@ -46,6 +46,26 @@
             <version>${jsoup.version}</version>
         </dependency>
 
+        <!-- Persistence layer (US-02, epic #2): ORM over SQLite3. All DB
+             access stays behind repository ports (owner decision recorded
+             in issue #15). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- SQLite3 JDBC driver; version managed by the Spring Boot BOM. -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+        </dependency>
+        <!-- Hibernate community dialects (SQLiteDialect); version locked to
+             the Hibernate ORM version the Boot BOM manages. -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
+            <version>${hibernate.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
