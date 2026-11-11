@@ -28,12 +28,17 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "neis.ai.enabled", havingValue = "true")
 public class SpringAiConnector implements AiAssistantPort {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(SpringAiConnector.class);
+
     private final ChatModel chatModel;
+    private final String model;
 
     public SpringAiConnector(
             @Value("${neis.ai.api-key}") String apiKey,
             @Value("${neis.ai.base-url}") String baseUrl,
             @Value("${neis.ai.model:}") String model) {
+        this.model = model == null || model.isBlank() ? "(provider default)" : model;
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
@@ -49,8 +54,25 @@ public class SpringAiConnector implements AiAssistantPort {
                 .build();
     }
 
+    /**
+     * One explicit trace per AI call: model, prompt/answer sizes and
+     * elapsed time — the operational shape of the call, never its
+     * protocol (no prompt or answer bodies).
+     */
     @Override
     public String complete(String prompt) {
-        return chatModel.call(prompt);
+        long start = System.nanoTime();
+        try {
+            String answer = chatModel.call(prompt);
+            log.info("[AI] call: model={}, prompt {} chars -> answer {} chars in {} ms",
+                    model, prompt.length(), answer == null ? 0 : answer.length(),
+                    (System.nanoTime() - start) / 1_000_000);
+            return answer;
+        } catch (RuntimeException e) {
+            log.warn("[AI] call failed after {} ms: {}: {}",
+                    (System.nanoTime() - start) / 1_000_000,
+                    e.getClass().getSimpleName(), e.getMessage());
+            throw e;
+        }
     }
 }

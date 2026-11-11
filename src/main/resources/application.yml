@@ -7,6 +7,10 @@ logging:
     # Debug visibility for what the shell is doing (command registration,
     # runner selection, command execution).
     org.springframework.shell: debug
+    # Explicit decision-level traces of the AI component (US-01.3): what
+    # the AI decided, what was stored/rejected/skipped, and one line per
+    # call (model, sizes, elapsed). Protocol bodies are never logged.
+    es.jllopez.neis: info
 
 neis:
   name: NEIS

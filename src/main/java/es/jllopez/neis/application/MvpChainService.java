@@ -17,6 +17,8 @@ import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
 import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -80,6 +82,9 @@ public class MvpChainService {
                     "ul li", "a[href]");
     private static final List<String> FALLBACK_EVENT_SELECTORS =
             List.of(".event-item", ".event-entry", "article", "ul li", "a[href]");
+
+    /** Explicit, decision-level traces of the AI component (US-01.3). */
+    private static final Logger log = LoggerFactory.getLogger(MvpChainService.class);
 
     private final ContentScrapePort scrapePort;
     private final SimplifyPort simplifyPort;
@@ -288,18 +293,33 @@ public class MvpChainService {
                             "pageUrlPattern");
                     if (repairedPattern != null && patternMatches(base, repairedPattern)) {
                         evidence.add("page URL pattern repaired by AI: " + repairedPattern);
+                        log.info("[AI] {}: page URL pattern repaired: {}",
+                                address.id(), repairedPattern);
                         pageUrlPattern = repairedPattern;
                     } else {
                         evidence.add("page URL pattern rejected (did not match the address "
                                 + base + "); iteration needs a valid pattern");
+                        log.warn("[AI] {}: page URL pattern rejected - pagination "
+                                + "iteration will be skipped", address.id());
                         pageUrlPattern = null;
                     }
                 }
+                // One verdict line, AFTER the repair loop: the reported
+                // pageUrlPattern is the FINAL one (repaired or dropped).
+                log.info("[AI] {}: capability detection: pagination={}, filtering={}{}",
+                        address.id(),
+                        paginationSection != null && isTrue(paginationSection, "detected"),
+                        filteringSection != null && isTrue(filteringSection, "detected"),
+                        (correctedAddress == null ? "" : ", address correction proposed")
+                                + (pageUrlPattern == null ? ""
+                                : ", pageUrlPattern=" + pageUrlPattern));
             } catch (RuntimeException e) {
                 evidence.add("AI capability call failed: " + e.getMessage());
+                log.warn("[AI] {}: AI capability call failed: {}", address.id(), e.getMessage());
             }
         } else {
             evidence.add("AI not configured — generic HTML5 heuristics used");
+            log.info("[AI] {}: AI not configured - generic HTML5 heuristics only", address.id());
         }
 
         // The generic HTML5 heuristics run regardless of the AI answer:
@@ -374,6 +394,8 @@ public class MvpChainService {
                 stored.get().filterSelector()) == 1) {
             zoneSelector = stored.get().filterSelector();
             zoneSource = "stored";
+            log.info("[AI] {}: filter zone from stored selector - AI skipped ({})",
+                    address.id(), zoneSelector);
         } else {
             // 2. AI identification, validated by probe, persisted merged.
             AiAssistantPort ai = aiPort.getIfAvailable();
@@ -387,17 +409,24 @@ public class MvpChainService {
                         final String zone = candidate;
                         zoneSelector = candidate;
                         zoneSource = "ai";
+                        log.info("[AI] {}: filter zone identified - stored: {}",
+                                address.id(), zone);
                         stored.ifPresent(s -> selectorStore.save(new StoredSelectors(
                                 s.addressId(), s.kind(), s.selector(), zone,
                                 s.discoveredBy(), s.discoveredAt(), s.notes())));
                     } else {
                         note = "AI did not yield a valid filter-zone selector";
+                        log.warn("[AI] {}: AI did not yield a valid filter-zone selector"
+                                + " - whole-page scope", address.id());
                     }
                 } catch (RuntimeException e) {
                     note = "AI filter-zone call failed: " + e.getMessage();
+                    log.warn("[AI] {}: AI filter-zone call failed: {}",
+                            address.id(), e.getMessage());
                 }
             } else {
                 note = "AI not configured — whole-page scope";
+                log.info("[AI] {}: AI not configured - whole-page filter scope", address.id());
             }
         }
 
@@ -414,14 +443,20 @@ public class MvpChainService {
                 String answer = ai.complete(AiPromptCatalog.filtersPrompt(scopeHtml));
                 List<FilterDefinition> filters = parseFilters(answer);
                 if (!filters.isEmpty()) {
+                    log.info("[AI] {}: {} filter field(s) extracted: {}",
+                            address.id(), filters.size(),
+                            filters.stream().map(FilterDefinition::name).toList());
                     return new FilterOutcome(filters, "ai", zoneSelectorF, zoneSourceF, note);
                 }
+                log.warn("[AI] {}: AI found no filter fields - generic select parsing used",
+                        address.id());
                 return new FilterOutcome(
                         exposedFilterDetector.parseSelects(scopeHtml), "fallback",
                         zoneSelectorF, zoneSourceF,
                         note == null ? "AI found no filter fields — generic select parsing used"
                                 : note + "; generic select parsing used");
             } catch (RuntimeException e) {
+                log.warn("[AI] {}: AI filter call failed: {}", address.id(), e.getMessage());
                 return new FilterOutcome(exposedFilterDetector.parseSelects(scopeHtml),
                         "fallback", zoneSelectorF, zoneSourceF,
                         (note == null ? "" : note + "; ") + "AI filter call failed: "
@@ -457,33 +492,43 @@ public class MvpChainService {
         }
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai == null) {
+            log.info("[AI] {}: AI not configured - no filter criterion can be chosen to apply",
+                    address.id());
             return FilterApplication.skipped(
                     "AI not configured — no criterion can be chosen to apply");
         }
+        // The connector's supported requests serve both the AI prompt
+        // (the choice must be servable) and the coherence guard below —
+        // fetched once.
+        final List<String> supported = scrapePort.supportedFilterRequests(address);
         String answer;
         try {
-            List<String> supported = scrapePort.supportedFilterRequests(address);
             answer = ai.complete(
                     AiPromptCatalog.applyFilterPrompt(outcome.filters(), address, supported));
         } catch (RuntimeException e) {
+            log.warn("[AI] {}: AI filter-apply call failed: {}", address.id(), e.getMessage());
             return FilterApplication.skipped("AI filter-apply call failed: " + e.getMessage());
         }
         String field = jsonField(answer, "field");
         String value = jsonField(answer, "value");
         String request = jsonField(answer, "request");
         if (field == null || request == null || request.isBlank()) {
+            log.warn("[AI] {}: AI chose no applicable filter criterion", address.id());
             return FilterApplication.skipped("AI chose no applicable filter criterion");
         }
+        log.info("[AI] {}: filter criterion chosen: {} = {} (request: {})",
+                address.id(), field, value, request);
         // Coherence guard: when the connector constrains what it can
         // apply, the chosen criterion must correspond to one of its
         // supported requests (matched leniently on the request text or
         // the chosen value).
-        List<String> supported = scrapePort.supportedFilterRequests(address);
         if (!supported.isEmpty()) {
             boolean coherent = supported.stream().anyMatch(s ->
                     lower(s).contains(lower(request))
                             || (value != null && lower(s).contains(lower(value))));
             if (!coherent) {
+                log.warn("[AI] {}: coherence guard rejected '{} = {}' (supported: {})",
+                        address.id(), field, value, String.join("; ", supported));
                 return FilterApplication.skipped("AI chose a criterion the connector "
                         + "cannot apply (supported: " + String.join("; ", supported) + ")");
             }
@@ -535,6 +580,8 @@ public class MvpChainService {
         if (stored.isPresent()) {
             StoredSelectors s = stored.get();
             if (valid(simplifiedHtml, s.selector(), kind, address)) {
+                log.info("[AI] {}: stored selector valid - AI skipped ({})",
+                        address.id(), s.selector());
                 return new SelectorSelection(s.selector(), "stored",
                         new PageAnalysis(s.kind(), s.kind().equals("news") ? s.selector() : null,
                                 s.kind().equals("event") ? s.selector() : null, false,
@@ -543,6 +590,8 @@ public class MvpChainService {
                                         + s.notes()));
             }
             // Stored selector went stale -> fall through to re-identification.
+            log.info("[AI] {}: stored selector stale - re-identifying with the AI",
+                    address.id());
         }
 
         // 2. AI identification: classification prompt, then the selector
@@ -556,7 +605,11 @@ public class MvpChainService {
                         AiPromptCatalog.classificationPrompt(simplifiedHtml, kind));
                 String parsed = parseClassification(classAnswer);
                 if (parsed != null) {
+                    log.info("[AI] {}: classification: {}", address.id(), parsed);
                     classification = parsed;
+                } else {
+                    log.info("[AI] {}: classification answer not recognized ({}), keeping {}",
+                            address.id(), snippet(classAnswer), kind);
                 }
                 String selectorAnswer = ai.complete(
                         kind.equals("news")
@@ -566,6 +619,8 @@ public class MvpChainService {
                 String reasoning = jsonField(selectorAnswer, "reasoning");
                 if (selector != null && !selector.isBlank()
                         && valid(simplifiedHtml, selector, kind, address)) {
+                    log.info("[AI] {}: selector identified and validated - stored for reuse: {}",
+                            address.id(), selector);
                     selectorStore.save(new StoredSelectors(address.id(), kind,
                             selector, "ai", LocalDate.now().toString(),
                             reasoning == null ? "" : reasoning));
@@ -577,11 +632,15 @@ public class MvpChainService {
                 }
                 aiNotes = "AI did not yield a valid selector"
                         + (reasoning == null || reasoning.isBlank() ? "" : ": " + reasoning);
+                log.warn("[AI] {}: AI selector did not validate - heuristic fallback used",
+                        address.id());
             } catch (RuntimeException e) {
                 aiNotes = "AI call failed: " + e.getMessage();
+                log.warn("[AI] {}: AI call failed: {}", address.id(), e.getMessage());
             }
         } else {
             aiNotes = "AI integration point not configured (neis.ai.enabled / MELIOUS_API_KEY)";
+            log.info("[AI] {}: AI not configured - heuristic fallback selectors", address.id());
         }
 
         // 3. Static heuristic fallback (not persisted — the point is to
@@ -630,6 +689,17 @@ public class MvpChainService {
             return "other";
         }
         return null;
+    }
+
+    /** Up to the first 60 characters of an AI answer (whole answer,
+     * whitespace-flattened), for the trace logs — never the full
+     * answer body. */
+    private String snippet(String answer) {
+        if (answer == null || answer.isBlank()) {
+            return "(empty)";
+        }
+        String oneLine = answer.trim().replaceAll("\\s+", " ");
+        return oneLine.length() <= 60 ? oneLine : oneLine.substring(0, 60) + "...";
     }
 
     private String jsonField(String json, String field) {
