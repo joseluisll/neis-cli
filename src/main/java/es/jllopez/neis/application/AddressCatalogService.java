@@ -3,6 +3,7 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.port.AddressCatalogPort;
+import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,9 +24,12 @@ import java.util.Set;
 public class AddressCatalogService {
 
     private final AddressCatalogPort catalogPort;
+    private final UrlSyntaxValidator urlValidator;
 
-    public AddressCatalogService(AddressCatalogPort catalogPort) {
+    public AddressCatalogService(AddressCatalogPort catalogPort,
+                                 UrlSyntaxValidator urlValidator) {
         this.catalogPort = catalogPort;
+        this.urlValidator = urlValidator;
     }
 
     /** Every registered address, ordered by id. */
@@ -54,6 +58,7 @@ public class AddressCatalogService {
      */
     public Address create(String id, String name, String description,
                           String url, AddressType type) {
+        requireValidUrl(url);
         String addressId = (id == null || id.isBlank())
                 ? nextAddressId().orElseThrow()
                 : id;
@@ -74,6 +79,7 @@ public class AddressCatalogService {
      */
     public Address update(String id, String name, String description,
                           String url, AddressType type) {
+        requireValidUrl(url); // null keeps the current (validated) URL
         Address current = byId(id);
         return catalogPort.save(new Address(current.id(),
                 name != null ? name : current.name(),
@@ -104,5 +110,19 @@ public class AddressCatalogService {
                 .max()
                 .orElse(0);
         return Optional.of(String.format("ADDR-%03d", max + 1));
+    }
+
+    /**
+     * Syntactic URL validation at creation/edit time (US-04.1, issue
+     * #21): no address enters the catalog with a malformed URL.
+     */
+    private void requireValidUrl(String url) {
+        if (url == null) {
+            return; // update: null keeps the current URL
+        }
+        urlValidator.validate(url).ifPresent(reason -> {
+            throw new IllegalArgumentException(
+                    "Invalid address URL — " + reason);
+        });
     }
 }

@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AddressCatalogServiceTest {
 
     private final AddressCatalogService catalog =
-            new AddressCatalogService(new InMemoryAddressCatalogPort());
+            new AddressCatalogService(new InMemoryAddressCatalogPort(),
+                    new UrlSyntaxValidator());
 
     @Test
     void createAssignsTheNextFreeAddrNnnIdWhenOmitted() {
@@ -101,5 +103,21 @@ class AddressCatalogServiceTest {
         Address a = catalog.create("ADDR-001", "Source A", null,
                 "https://example.eu/a", AddressType.URL_NEWS);
         assertTrue(a.capabilities().isEmpty());
+    }
+
+    @Test
+    void createAndEditRejectMalformedUrls() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> catalog.create("ADDR-001", "Bad", null, "not a url",
+                        AddressType.URL_NEWS));
+        assertTrue(e.getMessage().contains("Invalid address URL"));
+
+        catalog.create("ADDR-002", "Good", null, "https://example.eu/g",
+                AddressType.URL_NEWS);
+        IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+                () -> catalog.update("ADDR-002", null, null, "ftp://example.eu/x", null));
+        assertTrue(e2.getMessage().contains("http or https"));
+        // The address is untouched by the refused edit.
+        assertEquals("https://example.eu/g", catalog.byId("ADDR-002").url());
     }
 }

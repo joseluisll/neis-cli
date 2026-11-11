@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
+import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,5 +22,11 @@ public class DomainServiceConfig {
     @Bean
     public ExposedFilterDetector exposedFilterDetector() {
         return new ExposedFilterDetector();
+    }
+
+    /** Syntactic URL validation (US-04.1, issue #21). */
+    @Bean
+    public UrlSyntaxValidator urlSyntaxValidator() {
+        return new UrlSyntaxValidator();
     }
 }

@@ -16,6 +16,7 @@ import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
 import es.jllopez.neis.testsupport.SeedAddresses;
+import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -50,7 +52,8 @@ class MvpChainServiceTest {
      *  issue #62 example addresses (the production catalog is the
      *  database-backed connector, exercised by the persistence tests). */
     private final AddressCatalogService catalog = new AddressCatalogService(
-            new InMemoryAddressCatalogPort(SeedAddresses.all()));
+            new InMemoryAddressCatalogPort(SeedAddresses.all()),
+            new UrlSyntaxValidator());
     private final SimplifyPort simplifyPort = new JsoupSimplifyConnector();
     private final SelectorExtractionPort extractionPort = new JsoupSelectorConnector();
     private final PaginationDetector paginationDetector = new PaginationDetector();
@@ -126,7 +129,25 @@ class MvpChainServiceTest {
     private MvpChainService service(ObjectProvider<AiAssistantPort> ai) {
         return new MvpChainService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
-                ai, catalog, workDir.toString());
+                ai, catalog, new UrlSyntaxValidator(), workDir.toString());
+    }
+
+    @Test
+    void chainRefusesAnAddressWithAMalformedUrl() {
+        Address bad = new Address("ADDR-010", "Bad URL", "https://exa mple.eu/news",
+                AddressType.URL_NEWS);
+        AddressCatalogService badCatalog = new AddressCatalogService(
+                new InMemoryAddressCatalogPort(List.of(bad)), new UrlSyntaxValidator());
+        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(aiAnswering("news",
+                        "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
+                badCatalog, new UrlSyntaxValidator(), workDir.toString());
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> chain.run(bad));
+        assertTrue(e.getMessage().contains("ADDR-010"));
+        assertTrue(e.getMessage().contains("invalid"));
     }
 
     /** AI stub answering the task-specific prompt catalog (issue #90). */
@@ -570,7 +591,7 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
         MvpChainService service = new MvpChainService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -619,7 +640,7 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         MvpChainService service = new MvpChainService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -661,7 +682,7 @@ class MvpChainServiceTest {
                         + "\"reasoning\":\"ignored the constraint\"}");
         MvpChainService service = new MvpChainService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -706,7 +727,7 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         MvpChainService service = new MvpChainService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 

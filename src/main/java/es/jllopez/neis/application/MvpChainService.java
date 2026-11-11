@@ -17,6 +17,7 @@ import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
 import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
+import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -94,6 +95,7 @@ public class MvpChainService {
     private final ExposedFilterDetector exposedFilterDetector;
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
+    private final UrlSyntaxValidator urlValidator;
     private final String workDir;
 
     public MvpChainService(ContentScrapePort scrapePort,
@@ -104,6 +106,7 @@ public class MvpChainService {
                            ExposedFilterDetector exposedFilterDetector,
                            ObjectProvider<AiAssistantPort> aiPort,
                            AddressCatalogService addressCatalog,
+                           UrlSyntaxValidator urlValidator,
                            @Value("${neis.mvp.work-dir:./neis-mvp}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
@@ -113,11 +116,18 @@ public class MvpChainService {
         this.exposedFilterDetector = exposedFilterDetector;
         this.aiPort = aiPort;
         this.addressCatalog = addressCatalog;
+        this.urlValidator = urlValidator;
         this.workDir = workDir;
     }
 
     /** Runs the whole static chain for one address. */
     public MvpChainResult run(Address address) {
+        // Eligibility pre-check (US-04.1, issue #21): the URL must be
+        // syntactically valid BEFORE the chain uses the address.
+        urlValidator.validate(address.url()).ifPresent(reason -> {
+            throw new IllegalArgumentException("Address " + address.id()
+                    + " cannot be used — its URL is invalid: " + reason);
+        });
         // SCRAPE (US-06.1 slice): obtain HTML5 for the address.
         ScrapeResult scrape = scrapePort.scrape(address);
         Path addressDir = addressDir(address);
