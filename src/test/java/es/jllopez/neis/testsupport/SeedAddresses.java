@@ -18,6 +18,8 @@ public final class SeedAddresses {
     }
 
     public static List<Address> all() {
+        // The seed fixtures represent verified addresses (US-04.3): the
+        // MVP chain only runs on addresses that are valid AND verified.
         return List.of(
                 new Address("ADDR-001",
                         "EU Digital Identity Wallet - News",
@@ -91,5 +93,14 @@ public final class SeedAddresses {
                                 + "paginated (?pages=N); no filter controls.",
                         "https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed",
                         AddressType.URL_NEWS));
+    }
+
+    /** Seed data of issue #62, marked as verified (US-04.3 fixtures). */
+    public static List<Address> verified() {
+        return all().stream()
+                .map(a -> a.withVerification(
+                        es.jllopez.neis.domain.model.VerificationStatus.VERIFIED,
+                        "2026-11-11T00:00:00Z"))
+                .toList();
     }
 }

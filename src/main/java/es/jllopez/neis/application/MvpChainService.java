@@ -122,12 +122,19 @@ public class MvpChainService {
 
     /** Runs the whole static chain for one address. */
     public MvpChainResult run(Address address) {
-        // Eligibility pre-check (US-04.1, issue #21): the URL must be
-        // syntactically valid BEFORE the chain uses the address.
+        // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
+        // must be syntactically valid and the address verified BEFORE
+        // the chain uses it.
         urlValidator.validate(address.url()).ifPresent(reason -> {
             throw new IllegalArgumentException("Address " + address.id()
                     + " cannot be used — its URL is invalid: " + reason);
         });
+        if (!address.isVerified()) {
+            throw new IllegalStateException("Address " + address.id()
+                    + " is not eligible: verification status is "
+                    + address.verificationStatus()
+                    + " — verify it first with 'address verify'");
+        }
         // SCRAPE (US-06.1 slice): obtain HTML5 for the address.
         ScrapeResult scrape = scrapePort.scrape(address);
         Path addressDir = addressDir(address);
@@ -235,13 +242,33 @@ public class MvpChainService {
                 application == null ? null : application.note());
     }
 
-    /** Runs the chain for every address of the static catalog. */
+    /** Runs the chain for every address of the static catalog.
+     * Ineligible addresses (US-04.3: invalid URL or not verified) are
+     * skipped and reported in the log. */
     public List<MvpChainResult> runAll() {
         List<MvpChainResult> results = new ArrayList<>();
         for (Address address : addressCatalog.list()) {
+            String ineligible = ineligibilityReason(address);
+            if (ineligible != null) {
+                log.warn("Skipping {} for the batch run: {}", address.id(), ineligible);
+                continue;
+            }
             results.add(run(address));
         }
         return results;
+    }
+
+    /** The reason the address is not eligible for an executor
+     * (US-04.3, issue #23), or null when it is eligible. */
+    private String ineligibilityReason(Address address) {
+        String invalidUrl = urlValidator.validate(address.url()).orElse(null);
+        if (invalidUrl != null) {
+            return "URL is invalid: " + invalidUrl;
+        }
+        if (!address.isVerified()) {
+            return "verification status is " + address.verificationStatus();
+        }
+        return null;
     }
 
     /**

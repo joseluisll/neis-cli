@@ -52,7 +52,7 @@ class MvpChainServiceTest {
      *  issue #62 example addresses (the production catalog is the
      *  database-backed connector, exercised by the persistence tests). */
     private final AddressCatalogService catalog = new AddressCatalogService(
-            new InMemoryAddressCatalogPort(SeedAddresses.all()),
+            new InMemoryAddressCatalogPort(SeedAddresses.verified()),
             new UrlSyntaxValidator());
     private final SimplifyPort simplifyPort = new JsoupSimplifyConnector();
     private final SelectorExtractionPort extractionPort = new JsoupSelectorConnector();
@@ -148,6 +148,46 @@ class MvpChainServiceTest {
                 () -> chain.run(bad));
         assertTrue(e.getMessage().contains("ADDR-010"));
         assertTrue(e.getMessage().contains("invalid"));
+    }
+
+    @Test
+    void chainRefusesAnUnverifiedAddress() {
+        // Freshly registered addresses start UNVERIFIED (US-04.2).
+        Address unverified = new Address("ADDR-011", "Unverified",
+                "https://example.eu/news", AddressType.URL_NEWS);
+        AddressCatalogService catalog2 = new AddressCatalogService(
+                new InMemoryAddressCatalogPort(List.of(unverified)), new UrlSyntaxValidator());
+        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(aiAnswering("news",
+                        "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
+                catalog2, new UrlSyntaxValidator(), workDir.toString());
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> chain.run(unverified));
+        assertTrue(e.getMessage().contains("not eligible"));
+        assertTrue(e.getMessage().contains("UNVERIFIED"));
+        assertTrue(e.getMessage().contains("address verify"));
+    }
+
+    @Test
+    void runAllSkipsIneligibleAddresses() {
+        Address good = SeedAddresses.verified().get(0);
+        Address unverified = new Address("ADDR-011", "Unverified",
+                "https://example.eu/news", AddressType.URL_NEWS);
+        AddressCatalogService catalog2 = new AddressCatalogService(
+                new InMemoryAddressCatalogPort(List.of(good, unverified)),
+                new UrlSyntaxValidator());
+        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(aiAnswering("news",
+                        "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
+                catalog2, new UrlSyntaxValidator(), workDir.toString());
+
+        List<MvpChainResult> results = chain.runAll();
+
+        assertEquals(1, results.size());
+        assertEquals(good.id(), results.get(0).address().id());
     }
 
     /** AI stub answering the task-specific prompt catalog (issue #90). */
@@ -454,7 +494,9 @@ class MvpChainServiceTest {
         // Registered under the parent path; the AI recognizes the actual
         // listing lives under /en/events/upcoming-events and corrects it.
         Address looselyRegistered = new Address("ADDR-008", "EMA events",
-                "https://www.ema.europa.eu/en/events", AddressType.URL_EVENTS);
+                "https://www.ema.europa.eu/en/events", AddressType.URL_EVENTS)
+                .withVerification(es.jllopez.neis.domain.model.VerificationStatus.VERIFIED,
+                        "2026-11-11T00:00:00Z");
         AiAssistantPort ai = aiAnswering("event",
                 "{\"selector\":\"article.ema-event--teaser\",\"reasoning\":\"\"}",
                 "{\"pagination\":{\"detected\":true,"

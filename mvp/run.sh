@@ -38,6 +38,32 @@ if [[ -d "$ROOT_DIR/neis-mvp/selectors" ]] && ! ls "$WORK_DIR"/selectors/*.json 
   cp -R "$ROOT_DIR"/neis-mvp/selectors/*.json "$WORK_DIR/selectors/" 2>/dev/null || true
 fi
 
+# The address catalog is database-backed (US-03) and ships EMPTY (owner
+# decision: no automatic seeding). Fail early with copy-paste guidance
+# instead of letting the chain run into an empty catalog.
+ADDR_COUNT=0
+if [[ -f "$NEIS_DB_PATH" ]]; then
+  ADDR_COUNT="$(sqlite3 "$NEIS_DB_PATH" 'SELECT COUNT(*) FROM addresses;' 2>/dev/null || echo 0)"
+fi
+if [[ "$ADDR_COUNT" -eq 0 ]]; then
+  cat >&2 <<'EOF'
+The address catalog is empty (fresh installs start empty - no automatic seeding).
+Register the addresses you want, then verify them (only verified addresses are
+eligible for the chain, US-04). Example (issue #62 seed set):
+
+  start.sh address add --id ADDR-001 --name 'EU Digital Identity Wallet - News' \
+    --type URL_NEWS --description 'EUDI Wallet project news (Confluence)' \
+    --url 'https://ec.europa.eu/digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/712507533/News'
+  start.sh address add --id ADDR-005 --name 'HaDEA - Events' --type URL_EVENTS \
+    --url 'https://hadea.ec.europa.eu/events_en'
+  start.sh address verify --all true
+
+(see the repo's issue #62 for the full seed set; the chain's SCRAPE step
+serves bundled fixtures keyed by address id, so the id is what matters)
+EOF
+  exit 1
+fi
+
 # Warn when sources are newer than the packaged jar (start.sh only builds
 # when the jar is missing entirely).
 JAR="$(ls -t "$ROOT_DIR"/target/neis-*.jar 2>/dev/null | head -1 || true)"
@@ -63,7 +89,7 @@ set -o pipefail
 # The same extraction is kept per run (results-<TS>.txt) alongside the
 # per-run raw log (raw-<TS>.log), so every run keeps its results and
 # its log together.
-awk '/^(MVP chain for|Static MVP address catalog:)/{found=1} found' "$RAW" \
+awk '/^(MVP chain for|Registered address catalog:)/{found=1} found' "$RAW" \
   | grep -vE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+' \
   > "$RESULTS_DIR/last-run.txt" || true
 

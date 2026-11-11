@@ -49,6 +49,17 @@ public class MvpCommands {
             }
             out.append(render(result));
         }
+        // Batch-run eligibility note (US-04.3): skipped addresses are
+        // named here, not just in the log.
+        if (all) {
+            int total = addressCatalog.list().size();
+            if (results.size() < total) {
+                out.append("\n").append(total - results.size())
+                        .append(" of ").append(total)
+                        .append(" addresses skipped: not eligible (invalid URL or not "
+                                + "verified — see 'address verify')");
+            }
+        }
         return out.toString();
     }
 
