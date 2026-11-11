@@ -30,7 +30,7 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
                     + "|\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{4}"
                     + "|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},?\\s+\\d{4}");
 
-    /** Epoch-milliseconds span (year 2000-2033 era machines). */
+    /** Epoch-milliseconds span (roughly 2020-2033 for ms values). */
     private static final Pattern EPOCH_MS_PATTERN =
             Pattern.compile("\\b1[6-9]\\d{11}\\b");
 

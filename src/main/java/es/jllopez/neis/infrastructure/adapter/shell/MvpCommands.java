@@ -82,7 +82,8 @@ public class MvpCommands {
         out.append("\n");
         out.append("           classification: ").append(r.analysis().classification())
                 .append(" [").append(switch (r.selectorSource()) {
-                    case "stored", "ai" -> "AI";
+                    case "ai" -> "AI";
+                    case "stored" -> "stored";
                     default -> "fallback";
                 }).append("]\n");
         out.append("           selectors: news=").append(nvl(r.analysis().newsSelector()))
