@@ -1,6 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.shell;
 
 import es.jllopez.neis.application.AiAssistantService;
+import org.springframework.shell.core.command.annotation.Argument;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.CommandGroup;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,11 @@ public class AiCommands {
             return "AI integration point: active (Spring AI connector)";
         }
         return "AI integration point: not configured"
-                + " (set neis.ai.enabled=true and neis.ai.api-key to activate)";
+                + " (set neis.ai.enabled=true and provide MELIOUS_API_KEY to activate)";
+    }
+
+    @Command(name = "ai-ask", description = "Send a prompt to the configured AI provider")
+    public String aiAsk(@Argument(index = 0, description = "Prompt to send", defaultValue = "") String prompt) {
+        return aiAssistantService.complete(prompt);
     }
 }

@@ -12,12 +12,13 @@ neis:
   name: NEIS
   description: News and Events Information System
   ai:
-    # AI integration point (US-01.3). Active only when enabled=true and
-    # an API key is provided; the app boots and tests run without one.
+    # AI integration point (US-01.3) using the same MeliousAI provider as
+    # the Hermes agent (owner decision 2026-11-11; provider management is
+    # US-15.3). The API key never lives in this repository: it is read
+    # from the MELIOUS_API_KEY environment variable (same variable the
+    # Hermes setup uses, in ~/.hermes/.env).
     enabled: false
-    # Default provider is MeliousAI (OpenAI-compatible), owner stack
-    # decision in issue #63; provider management is US-15.3.
-    base-url: https://api.melious.ai
-    api-key: ''
-    # Optional model override; provider default when empty.
-    model: ''
+    base-url: https://api.melious.ai/v1
+    api-key: ${MELIOUS_API_KEY:}
+    # Default model, same as the Hermes agent's.
+    model: glm-5.3-flash

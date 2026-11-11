@@ -1,7 +1,5 @@
 package es.jllopez.neis.infrastructure.adapter.ai;
 
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -16,9 +14,15 @@ import org.springframework.stereotype.Component;
  *
  * <p>Active only when {@code neis.ai.enabled=true} and an API key is
  * configured, so the application boots (and tests run) with no
- * provider. Default provider is MeliousAI (https://api.melious.ai,
- * OpenAI-compatible) per the owner's stack decision (issue #63;
- * provider management is US-15.3).</p>
+ * provider. Provider is MeliousAI (https://api.melious.ai/v1,
+ * OpenAI-compatible — the same endpoint the Hermes agent uses) and the
+ * key is read from the MELIOUS_API_KEY environment variable; the key
+ * never lives in this repository (owner decision 2026-11-11; provider
+ * management is US-15.3).</p>
+ *
+ * <p>Spring AI 2.x wiring note: the model builds its HTTP clients
+ * internally from the {@link OpenAiChatOptions} (baseUrl + apiKey +
+ * model); no manual OpenAIClient/OkHttp client is needed.</p>
  */
 @Component
 @ConditionalOnProperty(name = "neis.ai.enabled", havingValue = "true")
@@ -30,16 +34,15 @@ public class SpringAiConnector implements AiAssistantPort {
             @Value("${neis.ai.api-key}") String apiKey,
             @Value("${neis.ai.base-url}") String baseUrl,
             @Value("${neis.ai.model:}") String model) {
-        OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey(apiKey)
+        OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
-                .build();
-        OpenAiChatModel.Builder builder = OpenAiChatModel.builder()
-                .openAiClient(client);
+                .apiKey(apiKey);
         if (model != null && !model.isBlank()) {
-            builder.options(OpenAiChatOptions.builder().model(model).build());
+            options.model(model);
         }
-        this.chatModel = builder.build();
+        this.chatModel = OpenAiChatModel.builder()
+                .options(options.build())
+                .build();
     }
 
     @Override
