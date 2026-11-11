@@ -7,6 +7,12 @@ spring:
     # neis.db.path (relaxed binding env override NEIS_DB_PATH).
     url: jdbc:sqlite:${neis.db.path:./neis.db}
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # sqlite-jdbc defaults PRAGMA foreign_keys to OFF: without this the
+      # schema's REFERENCES constraints are decorative (review finding,
+      # 2026-11-11). The pragma is per connection; Hikari runs the init
+      # SQL on every pooled connection.
+      connection-init-sql: PRAGMA foreign_keys=ON
   jpa:
     # The schema is owned by the migrations (US-02.3), never by Hibernate:
     # no implicit DDL from the ORM.

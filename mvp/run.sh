@@ -28,6 +28,9 @@ mkdir -p "$WORK_DIR" "$RESULTS_DIR"
 # Keep the chain's artifacts and selector store inside the kit
 # (Spring Boot relaxed binding: NEIS_MVP_WORK_DIR -> neis.mvp.work-dir).
 export NEIS_MVP_WORK_DIR="$WORK_DIR"
+# Keep the run kit's SQLite database inside the kit's work dir too, not
+# CWD-relative in the repo root (US-02).
+export NEIS_DB_PATH="$WORK_DIR/neis.db"
 
 # Seed the selector store so AI is optional from the very first run.
 if [[ -d "$ROOT_DIR/neis-mvp/selectors" ]] && ! ls "$WORK_DIR"/selectors/*.json >/dev/null 2>&1; then

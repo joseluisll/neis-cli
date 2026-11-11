@@ -106,6 +106,23 @@ class SchemaRoundTripTest {
         assertEquals("ul.items > li", reloaded.getSelector());
         assertEquals("ai", reloaded.getDiscoveredBy());
         assertTrue(addresses.existsById("ADDR-TEST-SEL"),
-                "the selector's address must exist (foreign key holds)");
+                "the selector's address must exist (written via the FK-linked path)");
+    }
+
+    @Test
+    void foreignKeysAreEnforced() {
+        // sqlite-jdbc defaults PRAGMA foreign_keys to OFF; the Hikari
+        // connection-init-sql turns it on for every pooled connection.
+        // An orphan row must be rejected by the FK constraint itself,
+        // not silently accepted and not rejected for another reason.
+        var rejected = org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.jdbc.UncategorizedSQLException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO selectors (address_id, kind, selector, discovered_by, discovered_at) "
+                                + "VALUES ('ADDR-DOES-NOT-EXIST', 'news', 'x', 'test', '2026-11-11')"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                String.valueOf(rejected.getMessage()).contains("FOREIGN KEY"),
+                "the orphan insert must be rejected by the FK constraint, was: "
+                        + rejected.getMessage());
     }
 }
