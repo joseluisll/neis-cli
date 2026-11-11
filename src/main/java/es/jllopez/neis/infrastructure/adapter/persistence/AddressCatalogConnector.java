@@ -5,7 +5,6 @@ import es.jllopez.neis.domain.port.AddressCatalogPort;
 import es.jllopez.neis.infrastructure.persistence.AddressEntity;
 import es.jllopez.neis.infrastructure.persistence.AddressJpaRepository;
 import es.jllopez.neis.infrastructure.persistence.SelectorJpaRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -82,16 +81,24 @@ public class AddressCatalogConnector implements AddressCatalogPort {
         }
         // The stored working selector belongs to the address: it goes
         // with it. Execution and content records are history and are
-        // kept — the FK constraint refuses the delete instead.
+        // kept — the FK constraint refuses the delete instead. Hibernate
+        // surfaces the constraint as a GenericJDBCException/JpaSystemException
+        // (not DataIntegrityViolation), so the FK case is recognized by
+        // its message.
         selectorJpa.deleteById(id);
         selectorJpa.flush();
         try {
             jpa.deleteById(id);
             jpa.flush();
-        } catch (DataIntegrityViolationException e) {
-            throw new IllegalStateException(
-                    "Address " + id + " cannot be removed: execution or content "
-                            + "records still reference it", e);
+        } catch (RuntimeException e) {
+            if (String.valueOf(e.getMessage()).contains("FOREIGN KEY")
+                    || e.getCause() != null
+                    && String.valueOf(e.getCause().getMessage()).contains("FOREIGN KEY")) {
+                throw new IllegalStateException(
+                        "Address " + id + " cannot be removed: execution or content "
+                                + "records still reference it", e);
+            }
+            throw e;
         }
         return true;
     }
