@@ -135,6 +135,10 @@ cap.
   ineligible addresses (the US-04.3 gate), runs the work on a small
   background executor pool so the caller never blocks, and drives the
   execution record's lifecycle (PENDING -> RUNNING -> SUCCESS/FAILED).
+  Lifecycle saves are failure-tolerant: a store failure never strands
+  a record or loses an outcome. Runs over the SAME address serialize
+  on a per-address lock — the work tree and selector store are not
+  safe for concurrent runs.
 - Task types are the chain's stages as runnable prefixes (WEBSCRAPE,
   SIMPLIFY, ANALYZE, FILTER, PRINT) plus the whole CHAIN
   (`TaskWorkService`); the fixed vocabulary is seeded idempotently into
