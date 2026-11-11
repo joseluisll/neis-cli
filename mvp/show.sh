@@ -14,7 +14,14 @@ WORK_DIR="$KIT_DIR/work"
 
 case "${1:-}" in
   --list-runs)
-    ls -1t "$RESULTS_DIR"/last-run.txt "$RESULTS_DIR"/raw-*.log 2>/dev/null || echo "No runs yet."
+    # All saved runs: per-run results file paired with its raw log.
+    for r in $(ls -1t "$RESULTS_DIR"/results-*.txt 2>/dev/null); do
+      ts="${r##*results-}"; ts="${ts%.txt}"
+      echo "$(basename "$r")  +  raw-$ts.log"
+    done
+    if [[ ! -e "${r:-}" ]]; then
+      ls -1t "$RESULTS_DIR"/raw-*.log 2>/dev/null || echo "No runs yet."
+    fi
     exit 0 ;;
   --artifacts)
     find "$WORK_DIR" -type f \( -name '*.html' -o -name '*.json' \) \

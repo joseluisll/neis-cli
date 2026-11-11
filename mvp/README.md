@@ -31,8 +31,10 @@ mvp/show.sh --raw          # full log of the last run (Spring logs incl.)
 mvp/show.sh --list-runs    # every saved run
 ```
 
-Every run also saves its output under `mvp/results/`
-(`last-run.txt` + a timestamped raw log).
+Every run keeps its results and its log together under `mvp/results/`:
+a per-run pair `results-<timestamp>.txt` (extracted chain output) +
+`raw-<timestamp>.log` (full log incl. Spring/[AI] lines), plus the
+stable `last-run.txt` copy of the latest run's results.
 
 ## What is in the kit
 
@@ -47,7 +49,8 @@ mvp/
 │                   neis-mvp/selectors on first run, so the chain works
 │                   without the AI (AI-identified selectors are stored
 │                   with their source for reuse)
-└── results/      last-run.txt + timestamped raw logs
+└── results/      per-run pair results-<TS>.txt + raw-<TS>.log,
+│                  plus the stable last-run.txt
 ```
 
 The static data itself (the real Playwright-rendered page fixtures of

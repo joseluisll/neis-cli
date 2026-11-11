@@ -57,13 +57,18 @@ set -o pipefail
 # Extract the chain results (PRINT output) from the raw log into a
 # stable last-run file for mvp/show.sh. Spring Boot log lines carry an
 # ISO timestamp prefix; the chain output starts at a known marker.
+# The same extraction is kept per run (results-<TS>.txt) alongside the
+# per-run raw log (raw-<TS>.log), so every run keeps its results and
+# its log together.
 awk '/^(MVP chain for|Static MVP address catalog:)/{found=1} found' "$RAW" \
   | grep -vE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+' \
   > "$RESULTS_DIR/last-run.txt" || true
 
 if [[ -s "$RESULTS_DIR/last-run.txt" ]]; then
+  cp "$RESULTS_DIR/last-run.txt" "$RESULTS_DIR/results-$TS.txt"
   echo
   echo "Results saved: mvp/results/last-run.txt  (view: mvp/show.sh)"
+  echo "Run record:    mvp/results/results-$TS.txt + ${RAW#$KIT_DIR/}"
 else
   echo
   echo "WARNING: no chain output detected in the log - check $RAW" >&2
