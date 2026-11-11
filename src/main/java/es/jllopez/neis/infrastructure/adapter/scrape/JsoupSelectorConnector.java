@@ -26,7 +26,9 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
             "\\d{4}-\\d{2}-\\d{2}"
                     + "|\\d{1,2}/\\d{1,2}/\\d{2,4}"
                     + "|\\d{1,2}\\s+(?:January|February|March|April|May|June|July|"
-                    + "August|September|October|November|December)\\s+\\d{4}");
+                    + "August|September|October|November|December)[a-z]*\\s+\\d{4}"
+                    + "|\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{4}"
+                    + "|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},?\\s+\\d{4}");
 
     @Override
     public List<NewsEventItem> extract(String html, String cssSelector, String kind,
@@ -51,7 +53,8 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
             if (title.isBlank() && url == null) {
                 continue; // not a meaningful item
             }
-            items.add(new NewsEventItem(addressId, kind, title, url, extractDate(el)));
+            items.add(new NewsEventItem(addressId, kind, title, extractDescription(el),
+                    url, extractDate(el)));
         }
         return items;
     }
@@ -61,6 +64,16 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         String title = heading != null ? heading.text() : el.text();
         title = title == null ? "" : title.trim();
         return title.length() > 200 ? title.substring(0, 200) + "..." : title;
+    }
+
+    /** Summary text of the item, when the listing provides one (US-06.4). */
+    private String extractDescription(Element el) {
+        Element paragraph = el.selectFirst("p");
+        String text = paragraph == null ? null : paragraph.text();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        return text.length() > 300 ? text.substring(0, 300) + "..." : text;
     }
 
     private String extractUrl(Element el) {

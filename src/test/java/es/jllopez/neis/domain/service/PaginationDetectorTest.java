@@ -47,6 +47,12 @@ class PaginationDetectorTest {
     }
 
     @Test
+    void detectsPaginatorMarkup() {
+        // regression: the portal's eui-paginator must count as pagination
+        assertTrue(detector.detect("<eui-paginator class=\"eui-paginator\"></eui-paginator>").paginated());
+    }
+
+    @Test
     void blankInputIsNotPaginated() {
         assertFalse(detector.detect(null).paginated());
         assertFalse(detector.detect("  ").paginated());

@@ -81,12 +81,18 @@ public class MvpCommands {
         }
         out.append("\n");
         out.append("           classification: ").append(r.analysis().classification())
-                .append(" [").append(r.analysis().aiAssisted() ? "AI" : "fallback").append("]\n");
+                .append(" [").append(switch (r.selectorSource()) {
+                    case "stored", "ai" -> "AI";
+                    default -> "fallback";
+                }).append("]\n");
         out.append("           selectors: news=").append(nvl(r.analysis().newsSelector()))
                 .append(", events=").append(nvl(r.analysis().eventsSelector())).append("\n");
         out.append("           used selector: ").append(r.selectedSelector())
-                .append(r.selectorFromAi() ? " (AI-identified, validated)" : " (heuristic fallback)")
-                .append("\n");
+                .append(" (").append(switch (r.selectorSource()) {
+                    case "stored" -> "stored with the source; AI skipped";
+                    case "ai" -> "AI-identified, validated, stored with the source";
+                    default -> "heuristic fallback";
+                }).append(")\n");
         if (!r.analysis().notes().isBlank()) {
             out.append("           notes: ").append(r.analysis().notes()).append("\n");
         }
@@ -104,6 +110,9 @@ public class MvpCommands {
             }
             if (item.url() != null) {
                 out.append("     link: ").append(item.url()).append("\n");
+            }
+            if (item.description() != null && !item.description().isBlank()) {
+                out.append("     desc: ").append(item.description()).append("\n");
             }
         }
         return out.toString();

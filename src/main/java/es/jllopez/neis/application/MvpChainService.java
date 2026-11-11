@@ -7,9 +7,11 @@ import es.jllopez.neis.domain.model.PageAnalysis;
 import es.jllopez.neis.domain.model.PaginationInfo;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.model.SimplifiedContent;
+import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import es.jllopez.neis.domain.port.ContentScrapePort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
+import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import org.springframework.beans.factory.ObjectProvider;
@@ -20,8 +22,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,29 +35,32 @@ import java.util.regex.Pattern;
  * for one address of the static catalog (chain slice of US-08.1/US-08.2,
  * issues #33/#34).
  *
- * <p>Depends only on domain ports and services; the jsoup and Spring AI
- * implementations sit behind the ports in infrastructure (US-01.4 rule).
- * The AI call goes through {@link AiAssistantPort} and is optional: when
- * unconfigured or failing, the chain degrades to the address-type
- * classification and heuristic selectors instead of failing.</p>
+ * <p>ANALYZE selector strategy (owner decision 2026-11-11): a stored,
+ * previously validated selector for the address is used directly and the
+ * AI is skipped entirely (fast path). Only when no working selector is
+ * stored does the chain invoke the AI — one task-specific prompt per
+ * concern from {@link AiPromptCatalog} (classification, then news or
+ * events selector identification) — validate the identified selector by
+ * probe extraction, and persist it with the address so future runs need
+ * no AI. Static heuristic selectors remain as last-resort fallback and
+ * are never persisted.</p>
  */
 @Service
 public class MvpChainService {
 
-    /** Maximum items printed per address (US-12.5 spirit). */
+    /** Maximum items extracted per address (US-12.5 spirit). */
     private static final int MAX_ITEMS = 50;
 
-    /** Characters of simplified HTML fed to the AI prompt. */
-    private static final int AI_HTML_BUDGET = 18_000;
-
     private static final List<String> FALLBACK_NEWS_SELECTORS =
-            List.of("article", ".news-item", ".news-entry", "ul li", "a[href]");
+            List.of("ul.news-list li", ".news-item", ".news-entry", "article",
+                    "ul li", "a[href]");
     private static final List<String> FALLBACK_EVENT_SELECTORS =
             List.of(".event-item", ".event-entry", "article", "ul li", "a[href]");
 
     private final ContentScrapePort scrapePort;
     private final SimplifyPort simplifyPort;
     private final SelectorExtractionPort extractionPort;
+    private final SelectorStorePort selectorStore;
     private final PaginationDetector paginationDetector;
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
@@ -62,6 +69,7 @@ public class MvpChainService {
     public MvpChainService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
                            SelectorExtractionPort extractionPort,
+                           SelectorStorePort selectorStore,
                            PaginationDetector paginationDetector,
                            ObjectProvider<AiAssistantPort> aiPort,
                            AddressCatalogService addressCatalog,
@@ -69,6 +77,7 @@ public class MvpChainService {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
         this.extractionPort = extractionPort;
+        this.selectorStore = selectorStore;
         this.paginationDetector = paginationDetector;
         this.aiPort = aiPort;
         this.addressCatalog = addressCatalog;
@@ -86,43 +95,20 @@ public class MvpChainService {
         SimplifiedContent simplified = simplifyPort.simplify(scrape.html());
         Path simplifyArtifact = writeArtifact(addressDir, "simplified.html", simplified.html());
 
-        // ANALYZE (US-12.4 + US-13.2..4 slices): pagination, classification, selectors.
+        // ANALYZE (US-12.4 slice): pagination detection.
         PaginationInfo pagination = paginationDetector.detect(simplified.html());
-        PageAnalysis analysis = analyze(simplified.html(), address);
 
-        // Selector selection: AI-identified first, validated by a probe
-        // extraction; heuristic fallbacks otherwise (US-12.3 spirit).
-        boolean selectorFromAi = false;
-        String selected = switch (address.type()) {
-            case URL_NEWS -> analysis.newsSelector();
-            case URL_EVENTS -> analysis.eventsSelector();
-        };
-        if (selected != null && !selected.isBlank()
-                && !extractionPort.extract(simplified.html(), selected,
-                        address.itemKind(), address.id(), 1).isEmpty()) {
-            selectorFromAi = analysis.aiAssisted();
-        } else {
-            selected = null;
-            for (String candidate : fallbackSelectors(address)) {
-                if (!extractionPort.extract(simplified.html(), candidate,
-                        address.itemKind(), address.id(), 1).isEmpty()) {
-                    selected = candidate;
-                    break;
-                }
-            }
-            if (selected == null) {
-                selected = fallbackSelectors(address)
-                        .get(fallbackSelectors(address).size() - 1);
-            }
-        }
+        // ANALYZE (US-13.2..4 slices): classification + working selector.
+        SelectorSelection selection = selectSelector(address, simplified.html());
 
         // PRINT input: selector-based extraction of the discovered items.
-        List<NewsEventItem> items = extractionPort.extract(simplified.html(), selected,
-                address.itemKind(), address.id(), MAX_ITEMS);
+        List<NewsEventItem> items = extractionPort.extract(simplified.html(),
+                selection.selector(), address.itemKind(), address.id(), MAX_ITEMS);
 
         return new MvpChainResult(address, scrapeArtifact.toString(),
                 simplifyArtifact.toString(), scrape.sizeBytes(), simplified.sizeBytes(),
-                pagination, analysis, selected, selectorFromAi, items);
+                pagination, selection.analysis(), selection.selector(),
+                selection.source(), items);
     }
 
     /** Runs the chain for every address of the static catalog. */
@@ -134,9 +120,126 @@ public class MvpChainService {
         return results;
     }
 
+    /**
+     * Selector strategy: stored selector first (no AI), then AI
+     * identification via the prompt catalog (persisted once validated),
+     * then static heuristic fallbacks (never persisted).
+     */
+    private SelectorSelection selectSelector(Address address, String simplifiedHtml) {
+        String kind = address.itemKind();
+
+        // 1. Stored working selector: fast path, AI entirely skipped.
+        Optional<StoredSelectors> stored = selectorStore.load(address.id());
+        if (stored.isPresent()) {
+            StoredSelectors s = stored.get();
+            if (valid(simplifiedHtml, s.selector(), kind, address)) {
+                return new SelectorSelection(s.selector(), "stored",
+                        new PageAnalysis(s.kind(), s.kind().equals("news") ? s.selector() : null,
+                                s.kind().equals("event") ? s.selector() : null, false,
+                                "Stored selector (discovered " + s.discoveredAt()
+                                        + " by " + s.discoveredBy() + "); AI skipped. "
+                                        + s.notes()));
+            }
+            // Stored selector went stale -> fall through to re-identification.
+        }
+
+        // 2. AI identification: classification prompt, then the selector
+        //    prompt for the page's kind. Persisted when the probe validates it.
+        AiAssistantPort ai = aiPort.getIfAvailable();
+        String classification = kind;
+        String aiNotes = null;
+        if (ai != null) {
+            try {
+                String classAnswer = ai.complete(
+                        AiPromptCatalog.classificationPrompt(simplifiedHtml, kind));
+                String parsed = parseClassification(classAnswer);
+                if (parsed != null) {
+                    classification = parsed;
+                }
+                String selectorAnswer = ai.complete(
+                        kind.equals("news")
+                                ? AiPromptCatalog.newsSelectorPrompt(simplifiedHtml)
+                                : AiPromptCatalog.eventsSelectorPrompt(simplifiedHtml));
+                String selector = jsonField(selectorAnswer, "selector");
+                String reasoning = jsonField(selectorAnswer, "reasoning");
+                if (selector != null && !selector.isBlank()
+                        && valid(simplifiedHtml, selector, kind, address)) {
+                    selectorStore.save(new StoredSelectors(address.id(), kind,
+                            selector, "ai", LocalDate.now().toString(),
+                            reasoning == null ? "" : reasoning));
+                    return new SelectorSelection(selector, "ai",
+                            new PageAnalysis(classification,
+                                    kind.equals("news") ? selector : null,
+                                    kind.equals("event") ? selector : null,
+                                    true, reasoning == null ? "" : reasoning));
+                }
+                aiNotes = "AI did not yield a valid selector"
+                        + (reasoning == null || reasoning.isBlank() ? "" : ": " + reasoning);
+            } catch (RuntimeException e) {
+                aiNotes = "AI call failed: " + e.getMessage();
+            }
+        } else {
+            aiNotes = "AI integration point not configured (neis.ai.enabled / MELIOUS_API_KEY)";
+        }
+
+        // 3. Static heuristic fallback (not persisted — the point is to
+        //    store AI-identified working selectors only).
+        String selected = null;
+        for (String candidate : fallbackSelectors(address)) {
+            if (valid(simplifiedHtml, candidate, kind, address)) {
+                selected = candidate;
+                break;
+            }
+        }
+        if (selected == null) {
+            selected = fallbackSelectors(address).getLast();
+        }
+        return new SelectorSelection(selected, "fallback",
+                PageAnalysis.fallback(kind,
+                        (aiNotes == null ? "AI did not yield a valid selector" : aiNotes)
+                                + " — heuristic selector used"));
+    }
+
+    private boolean valid(String simplifiedHtml, String selector, String kind,
+                          Address address) {
+        return selector != null && !selector.isBlank()
+                && !extractionPort.extract(simplifiedHtml, selector, kind,
+                        address.id(), 1).isEmpty();
+    }
+
     private List<String> fallbackSelectors(Address address) {
         return address.type() == AddressType.URL_NEWS
                 ? FALLBACK_NEWS_SELECTORS : FALLBACK_EVENT_SELECTORS;
+    }
+
+    /** Parses the single-word classification answer; null when unusable. */
+    private String parseClassification(String answer) {
+        if (answer == null) {
+            return null;
+        }
+        String word = answer.trim().toLowerCase();
+        if (word.startsWith("news")) {
+            return "news";
+        }
+        if (word.startsWith("event")) {
+            return "event";
+        }
+        if (word.startsWith("other")) {
+            return "other";
+        }
+        return null;
+    }
+
+    private String jsonField(String json, String field) {
+        if (json == null) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*(null|\"([^\"]*)\")")
+                .matcher(json);
+        if (!m.find() || m.group(1).equals("null")) {
+            return null;
+        }
+        return m.group(2);
     }
 
     private Path addressDir(Address address) {
@@ -159,72 +262,7 @@ public class MvpChainService {
         }
     }
 
-    /**
-     * ANALYZE via the AI port (classification + selector identification).
-     * Falls back to the address type when the AI point is not configured
-     * or the call/parsing fails — the chain never crashes on AI absence.
-     */
-    private PageAnalysis analyze(String simplifiedHtml, Address address) {
-        AiAssistantPort ai = aiPort.getIfAvailable();
-        if (ai == null) {
-            return PageAnalysis.fallback(address.itemKind(),
-                    "AI integration point not configured (neis.ai.enabled / MELIOUS_API_KEY)");
-        }
-        try {
-            String answer = ai.complete(buildPrompt(simplifiedHtml, address));
-            PageAnalysis parsed = parseAnalysis(answer);
-            if (parsed != null) {
-                return parsed;
-            }
-            return PageAnalysis.fallback(address.itemKind(),
-                    "AI reply could not be parsed into the expected JSON");
-        } catch (RuntimeException e) {
-            return PageAnalysis.fallback(address.itemKind(),
-                    "AI call failed: " + e.getMessage());
-        }
-    }
-
-    private String buildPrompt(String simplifiedHtml, Address address) {
-        String html = simplifiedHtml.length() > AI_HTML_BUDGET
-                ? simplifiedHtml.substring(0, AI_HTML_BUDGET)
-                : simplifiedHtml;
-        return """
-                You are analyzing the simplified HTML5 of a web page that should list \
-                news items or events. Perform two tasks and answer ONLY with a JSON object:
-                1. Classify the page content as one of: "news", "event" or "other".
-                2. Identify a CSS selector, valid against the given HTML, that matches the \
-                repeating list items of news (news_selector), and one that matches the \
-                repeating list items of events (events_selector). Only fill the selector \
-                relevant to the page; use null for the other.
-                Expected page type hint: %s
-                Answer format: {"classification":"news|event|other","news_selector":"..." \
-                or null,"events_selector":"..." or null,"reasoning":"short explanation"}
-                --- SIMPLIFIED HTML (truncated) ---
-                %s""".formatted(address.itemKind(), html);
-    }
-
-    /** Lenient parse of the AI JSON reply; null when not parseable. */
-    private PageAnalysis parseAnalysis(String reply) {
-        if (reply == null) {
-            return null;
-        }
-        String classification = jsonField(reply, "classification");
-        String newsSelector = jsonField(reply, "news_selector");
-        String eventsSelector = jsonField(reply, "events_selector");
-        String reasoning = jsonField(reply, "reasoning");
-        if (classification == null) {
-            return null;
-        }
-        return new PageAnalysis(classification, newsSelector, eventsSelector,
-                true, reasoning == null ? "" : reasoning);
-    }
-
-    private String jsonField(String json, String field) {
-        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*(null|\"([^\"]*)\")")
-                .matcher(json);
-        if (!m.find() || m.group(1).equals("null")) {
-            return null;
-        }
-        return m.group(2);
+    /** Chosen selector plus its provenance and the page analysis. */
+    record SelectorSelection(String selector, String source, PageAnalysis analysis) {
     }
 }

@@ -13,15 +13,17 @@ import java.util.Map;
 /**
  * Connector (driven adapter) implementing the SCRAPE port with bundled
  * static HTML5 fixtures — the MVP half implementation of US-06.1: no
- * network access, the fixture stands in for what the real fetch would
- * return (issue #90).
+ * network access at chain runtime, the fixture stands in for what the
+ * real fetch would return (issue #90).
  *
- * <p>Fixture provenance: static pages mirror the verified Confluence
- * addresses ADDR-001/ADDR-002 of issue #62; the ADDR-003/ADDR-004
- * fixtures are simulated *rendered* output of the Angular SPA (a static
- * fetch of those returns an empty app shell). The real connectors
- * (java.net.http/Apache HttpClient 5, Playwright for JS rendering)
- * replace this class behind the same port.</p>
+ * <p>Fixture provenance: all four fixtures are REAL pages of the issue
+ * #62 seed addresses, captured 2026-11-11 with a real browser —
+ * Node + Playwright (Chromium) via {@code scripts/fetch-rendered-html.js}
+ * (wait for network idle, then serialize the DOM). ADDR-001/002 are
+ * Confluence pages; ADDR-003/004 are Angular SPAs whose lists only exist
+ * client-side, so the fixture is the Playwright-RENDERED DOM (a plain
+ * HTTP fetch returns an empty app shell — US-06.1 rendering connector).
+ * Regenerate with {@code node scripts/fetch-rendered-html.js <dir>}.</p>
  */
 @Component
 public class StaticScrapeConnector implements ContentScrapePort {

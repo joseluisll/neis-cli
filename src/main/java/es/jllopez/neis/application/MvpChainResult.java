@@ -10,6 +10,11 @@ import java.util.List;
 /**
  * Outcome of one MVP chain run (SCRAPE - SIMPLIFY - ANALYZE - PRINT) for
  * a single address. The PRINT step renders this for the shell.
+ *
+ * @param selectorSource provenance of the used selector: "stored"
+ *                        (persisted from a previous AI run — AI skipped),
+ *                        "ai" (identified and validated this run, now
+ *                        persisted) or "fallback" (static heuristic)
  */
 public record MvpChainResult(
         Address address,
@@ -20,6 +25,6 @@ public record MvpChainResult(
         PaginationInfo pagination,
         PageAnalysis analysis,
         String selectedSelector,
-        boolean selectorFromAi,
+        String selectorSource,
         List<NewsEventItem> items) {
 }

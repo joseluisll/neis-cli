@@ -26,7 +26,7 @@ public class PaginationDetector {
 
     /** Pager markup and next-page labels ("page" alone must NOT match). */
     private static final Pattern PAGER_MARKUP = Pattern.compile(
-            "class=\"[^\"]*(pagination|pager|paged)[^\"]*\""
+            "class=\"[^\"]*(pagination|paginator|pager|paged)[^\"]*\""
                     + "|>(?:next|next page|siguiente|&rsaquo;|&gt;|»)\s*</a>",
             Pattern.CASE_INSENSITIVE);
 
