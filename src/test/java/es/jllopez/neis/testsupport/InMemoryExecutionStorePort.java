@@ -3,24 +3,27 @@ package es.jllopez.neis.testsupport;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.port.ExecutionStorePort;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Test double of {@link ExecutionStorePort}: an in-memory map, newest
- * first for findAll. Stands in for the SQLite-backed connector in
- * executor unit tests.
+ * Test double of {@link ExecutionStorePort}: a concurrent map — worker
+ * threads save while the caller thread polls in await(), so the plain
+ * LinkedHashMap of the first draft was a JMM data race (slice-3 review
+ * finding). Ordering follows the port contract: newest first, by
+ * started date, nulls last (the SQLite connector orders its query the
+ * same way).
  */
 public class InMemoryExecutionStorePort implements ExecutionStorePort {
 
-    private final Map<String, TaskExecution> executions = new LinkedHashMap<>();
+    private final Map<String, TaskExecution> executions = new ConcurrentHashMap<>();
     private final List<String> taskTypes;
 
     public InMemoryExecutionStorePort(List<String> taskTypes) {
-        this.taskTypes = new ArrayList<>(taskTypes);
+        this.taskTypes = List.copyOf(taskTypes);
     }
 
     @Override
@@ -36,11 +39,14 @@ public class InMemoryExecutionStorePort implements ExecutionStorePort {
 
     @Override
     public List<TaskExecution> findAll() {
-        return executions.values().stream().toList().reversed();
+        return executions.values().stream()
+                .sorted(Comparator.comparing(TaskExecution::startedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
     }
 
     @Override
     public List<String> taskTypes() {
-        return List.copyOf(taskTypes);
+        return taskTypes;
     }
 }

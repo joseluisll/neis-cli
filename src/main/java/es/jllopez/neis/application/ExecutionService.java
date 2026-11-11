@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +40,8 @@ public class ExecutionService {
     private final TaskWorkService taskWork;
     private final Executor executor;
     private final Duration awaitTimeout;
+    /** Per-address serialization: one lock object per registered address id. */
+    private final Map<String, Object> addressLocks = new ConcurrentHashMap<>();
 
     public ExecutionService(ExecutionStorePort store,
                             AddressCatalogService catalog,
@@ -65,7 +69,7 @@ public class ExecutionService {
         Address address = catalog.byId(addressId); // unknown ids refuse here
         requireEligible(address);
         TaskExecution record = new TaskExecution(
-                "EXEC-" + UUID.randomUUID().toString().substring(0, 8),
+                "EXEC-" + UUID.randomUUID(),
                 taskCode, address.id(),
                 trigger, ExecutionStatus.PENDING, Instant.now(), null, null);
         store.save(record);
@@ -118,17 +122,50 @@ public class ExecutionService {
     }
 
     private void run(TaskExecution record, Address address) {
-        store.save(record.with(ExecutionStatus.RUNNING, null, null));
+        // Every store failure below is caught and logged: the lifecycle
+        // must never strand the record — a failure at the RUNNING
+        // transition used to escape run() and lose the outcome forever
+        // (slice-3 review finding, reproduced empirically).
+        trySave(record.with(ExecutionStatus.RUNNING, null, null), "RUNNING transition");
+        String outcome;
+        ExecutionStatus finalStatus;
         try {
-            String outcome = taskWork.execute(record.taskCode(), address);
-            store.save(record.with(ExecutionStatus.SUCCESS, Instant.now(), outcome));
-            log.info("Execution {} SUCCESS: {}", record.id(), outcome);
-        } catch (Exception e) {
-            String outcome = e.getClass().getSimpleName()
-                    + (e.getMessage() != null ? ": " + e.getMessage() : "");
-            store.save(record.with(ExecutionStatus.FAILED, Instant.now(), outcome));
+            // Same-address runs serialize: the per-address work tree
+            // and the shared selector store are not safe for
+            // concurrent runs (slice-3 review finding).
+            synchronized (addressLocks.computeIfAbsent(address.id(), key -> new Object())) {
+                outcome = taskWork.execute(record.taskCode(), address);
+            }
+            finalStatus = ExecutionStatus.SUCCESS;
+        } catch (Throwable t) {
+            outcome = describe(t);
+            finalStatus = ExecutionStatus.FAILED;
+            trySave(record.with(finalStatus, Instant.now(), outcome),
+                    "FAILED transition");
             log.info("Execution {} FAILED: {}", record.id(), outcome);
+            if (t instanceof Error error) {
+                // Re-throw Errors after recording: the JVM state is not
+                // trustworthy and must not be swallowed.
+                throw error;
+            }
+            return;
         }
+        trySave(record.with(finalStatus, Instant.now(), outcome), finalStatus + " transition");
+        log.info("Execution {}: {}", record.id(), outcome);
+    }
+
+    private void trySave(TaskExecution record, String what) {
+        try {
+            store.save(record);
+        } catch (RuntimeException e) {
+            log.error("Execution {}: could not record the {} (outcome may be lost): {}",
+                    record.id(), what, record.outcome(), e);
+        }
+    }
+
+    private String describe(Throwable t) {
+        return t.getClass().getSimpleName()
+                + (t.getMessage() != null ? ": " + t.getMessage() : "");
     }
 
     private void requireKnownTaskCode(String taskCode) {

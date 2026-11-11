@@ -64,11 +64,12 @@ public class ExecutionCommands {
     public String list(
             @Option(longName = "limit", defaultValue = "20",
                     description = "Maximum number of records to show") int limit) {
+        int effective = Math.max(0, limit); // a negative limit would throw on stream().limit
         List<TaskExecution> all = executions.list();
         StringBuilder out = new StringBuilder("Executions (")
-                .append(Math.min(limit, all.size())).append(" of ")
+                .append(Math.min(effective, all.size())).append(" of ")
                 .append(all.size()).append("):\n");
-        all.stream().limit(limit).forEach(e -> out.append("  ").append(renderLine(e)));
+        all.stream().limit(effective).forEach(e -> out.append("  ").append(renderLine(e)));
         if (all.isEmpty()) {
             out.append("  <no executions yet — run one with 'execution run'>\n");
         }
