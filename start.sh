@@ -18,8 +18,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# JDK 21 (the host default java is 17; the project targets class-file 65)
-export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+# JDK 21 (the host default java is 17; the project targets class-file 65).
+# A pre-existing JAVA_HOME is honored only if it really is a JDK 21+.
+JAVA_HOME_CANDIDATE="${JAVA_HOME:-}"
+JAVA_HOME_DEFAULT=/usr/lib/jvm/java-21-openjdk-amd64
+java_major() { "$1" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p'; }
+if [[ -z "$JAVA_HOME_CANDIDATE" ]] || [[ "$(java_major "$JAVA_HOME_CANDIDATE/bin/java" 2>/dev/null || echo 0)" -lt 21 ]]; then
+  JAVA_HOME_CANDIDATE="$JAVA_HOME_DEFAULT"
+fi
+export JAVA_HOME="$JAVA_HOME_CANDIDATE"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 # AI credentials: environment first, then the Hermes env file

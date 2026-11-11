@@ -26,3 +26,7 @@ Thumbs.db
 
 ### NEIS MVP chain artifacts (runtime output) ###
 neis-mvp/
+
+### NEIS MVP run kit runtime output (mvp/run.sh) ###
+mvp/work/
+mvp/results/
