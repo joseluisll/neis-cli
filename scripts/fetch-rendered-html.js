@@ -69,6 +69,21 @@ const SOURCES = [
     url: `https://www.ema.europa.eu/en/events/upcoming-events?page=${p}`,
     file: `addr-008-events-page${p + 1}-rendered.html`,
   })),
+  {
+    // EUDI Wallet Aptitude newsfeed, page 1 of 6 (12 news per page,
+    // pager links ?pages=N — plural; no filter controls).
+    id: 'ADDR-009',
+    url: 'https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed',
+    file: 'addr-009-news-rendered.html',
+  },
+  ...[1, 2, 3, 4].map((p) => ({
+    id: `ADDR-009-P${p + 1}`,
+    url: `https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed/?pages=${p}`,
+    file: `addr-009-news-page${p + 1}-rendered.html`,
+    // SPA: the client router applies pagination after the initial paint,
+    // so wait until the pager's active page matches before capturing.
+    waitActivePage: p + 1,
+  })),
 ];
 
 (async () => {
@@ -79,14 +94,51 @@ const SOURCES = [
 
   for (const src of SOURCES) {
     if (filter.length && !filter.includes(src.id)) continue;
-    const page = await browser.newPage({
+    // Sources that wait for a client-side paginator need a fresh browser:
+    // the SPA keeps pagination state across pages in the same process.
+    const browserForSource = src.waitActivePage
+      ? await chromium.launch({ headless: true })
+      : browser;
+    const page = await browserForSource.newPage({
       userAgent: 'Mozilla/5.0 (X11; Linux x86_64) NEIS-MVP-fetch',
       viewport: { width: 1280, height: 900 },
     });
     try {
-      await page.goto(src.url, { waitUntil: 'networkidle', timeout: 90000 });
-      // Let late XHR-driven rendering settle (portal lists, Confluence macros).
-      await page.waitForTimeout(3000);
+      if (src.waitActivePage) {
+        // SPA paginators: a fresh deep link can land one step behind, so
+        // drive the pager like a user — load the listing, click the page
+        // link (a real navigation), wait for it to go active.
+        const base = src.url.split('?')[0];
+        await page.goto(base, { waitUntil: 'networkidle', timeout: 90000 });
+        await page.waitForTimeout(3000);
+        await page.click('.pagination a[href*="pages=' + src.waitActivePage + '"], '
+            + '.pager a[href*="pages=' + src.waitActivePage + '"]',
+            { timeout: 15000 });
+        await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+        await page.waitForTimeout(2000);
+      } else {
+        await page.goto(src.url, { waitUntil: 'networkidle', timeout: 90000 });
+        // Let late XHR-driven rendering settle (portal lists, Confluence macros).
+        await page.waitForTimeout(3000);
+      }
+      if (src.waitActivePage) {
+        // Poll until the pager marks the requested page as active.
+        const deadline = Date.now() + 30000;
+        for (;;) {
+          const active = await page.evaluate(
+            () => {
+              const a = document.querySelector('.pagination a.active, .pager .active');
+              return a ? a.textContent.trim() : null;
+            });
+          if (active === String(src.waitActivePage)) break;
+          if (Date.now() > deadline) {
+            throw new Error('pager never marked page ' + src.waitActivePage
+              + ' active (saw: ' + active + ')');
+          }
+          await page.waitForTimeout(1000);
+        }
+        await page.waitForTimeout(1000);
+      }
       const html = await page.content();
       const out = path.join(outdir, src.file);
       fs.writeFileSync(out, html, 'utf8');
@@ -96,6 +148,7 @@ const SOURCES = [
       process.exitCode = 1;
     } finally {
       await page.close();
+      if (browserForSource !== browser) await browserForSource.close();
     }
   }
   await browser.close();

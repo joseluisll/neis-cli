@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
+import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
@@ -84,6 +85,11 @@ class MvpChainServiceTest {
                 case "ADDR-008#p2" -> "addr-008-events-page3-rendered.html";
                 case "ADDR-008#p3" -> "addr-008-events-page4-rendered.html";
                 case "ADDR-008#p4" -> "addr-008-events-page5-rendered.html";
+                case "ADDR-009" -> "addr-009-news-rendered.html";
+                case "ADDR-009#p1" -> "addr-009-news-page2-rendered.html";
+                case "ADDR-009#p2" -> "addr-009-news-page3-rendered.html";
+                case "ADDR-009#p3" -> "addr-009-news-page4-rendered.html";
+                case "ADDR-009#p4" -> "addr-009-news-page5-rendered.html";
                 default -> throw new IllegalStateException("unexpected " + key);
             };
         }
@@ -122,7 +128,8 @@ class MvpChainServiceTest {
         return aiAnswering(classification, selectorJson,
                 "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,"
                         + "\"reasoning\":\"\"},"
-                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"}}",
+                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}",
                 "{\"filters\":[],\"reasoning\":\"none\"}");
     }
 
@@ -140,6 +147,28 @@ class MvpChainServiceTest {
                 return filtersJson;
             }
             return selectorJson;
+        };
+    }
+
+    /**
+     * AI stub whose capability answer depends on the prompt: the first
+     * capability call answers {@code first}, the repair round answers
+     * {@code second} (US-13.7 validation feedback loop).
+     */
+    private AiAssistantPort aiCapabilityRepair(String first, String second) {
+        java.util.concurrent.atomic.AtomicInteger capabilityCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        return prompt -> {
+            if (prompt.contains("Classify the page")) {
+                return "event";
+            }
+            if (prompt.contains("CAPABILITIES") || prompt.contains("pageUrlPattern")) {
+                return capabilityCalls.getAndIncrement() == 0 ? first : second;
+            }
+            if (prompt.contains("FILTER controls")) {
+                return "{\"filters\":[],\"reasoning\":\"none\"}";
+            }
+            return "{\"selector\":\"article.ema-event--teaser\",\"reasoning\":\"\"}";
         };
     }
 
@@ -376,5 +405,82 @@ class MvpChainServiceTest {
         assertEquals(50, result.items().size(),
                 "10 news/page over 5 fixture pages must reach the MAX_ITEMS cap");
         assertEquals(5, result.pagesScraped());
+    }
+
+    @Test
+    void analysisProposesAndAppliesAnAddressCorrection() {
+        // Registered under the parent path; the AI recognizes the actual
+        // listing lives under /en/events/upcoming-events and corrects it.
+        Address looselyRegistered = new Address("ADDR-008", "EMA events",
+                "https://www.ema.europa.eu/en/events", AddressType.URL_EVENTS);
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ema-event--teaser\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://www.ema.europa.eu/en/events/upcoming-events?page={n}\","
+                        + "\"reasoning\":\"pager links\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"filter form\"},"
+                        + "\"correctedAddress\":\"https://www.ema.europa.eu/en/events/upcoming-events\"}",
+                "{\"filters\":[],\"reasoning\":\"\"}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(looselyRegistered);
+
+        assertTrue(result.correctedAddress() != null,
+                "the AI-proposed correction must surface in the result");
+        assertEquals("https://www.ema.europa.eu/en/events/upcoming-events",
+                result.address().url(),
+                "the chain works with (and records) the corrected address");
+        assertTrue(result.capabilityEvidence().contains("correction proposed by AI"));
+        assertTrue(result.capabilityEvidence().contains("/en/events -> "));
+        assertEquals("https://www.ema.europa.eu/en/events/upcoming-events?page={n}",
+                result.pageUrlPattern(),
+                "the page pattern must match the corrected address");
+    }
+
+    @Test
+    void inconsistentPagePatternIsRepairedByTheAiNotByStaticRules() {
+        AiAssistantPort ai = aiCapabilityRepair(
+                // first capability answer: pattern on an unrelated origin
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://pager.example.org/list?page={n}\","
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}",
+                // repair round: AI rebuilds the pattern on the registered address
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://www.ema.europa.eu/en/events/upcoming-events?page={n}\","
+                        + "\"reasoning\":\"rebuilt on the registered address\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+
+        assertEquals("https://www.ema.europa.eu/en/events/upcoming-events?page={n}",
+                result.pageUrlPattern(),
+                "the AI repair round must fix the pattern; code never rewrites it");
+        assertTrue(result.capabilityEvidence().contains("repaired by AI"));
+    }
+
+    @Test
+    void unrepairablePagePatternIsDroppedAndReported() {
+        AiAssistantPort ai = aiCapabilityRepair(
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://pager.example.org/list?page={n}\","
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}",
+                // repair still inconsistent -> dropped, iteration cannot run
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://pager.example.org/other?page={n}\","
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+
+        assertTrue(result.pageUrlPattern() == null,
+                "an unrepairable pattern must not be used");
+        assertTrue(result.capabilityEvidence().contains("rejected"));
+        assertEquals(1, result.pagesScraped(),
+                "without a valid pattern no additional page may be scraped");
     }
 }

@@ -49,7 +49,12 @@ public class StaticScrapeConnector implements ContentScrapePort {
             Map.entry("ADDR-008#p1", "/mvp/samples/addr-008-events-page2-rendered.html"),
             Map.entry("ADDR-008#p2", "/mvp/samples/addr-008-events-page3-rendered.html"),
             Map.entry("ADDR-008#p3", "/mvp/samples/addr-008-events-page4-rendered.html"),
-            Map.entry("ADDR-008#p4", "/mvp/samples/addr-008-events-page5-rendered.html"));
+            Map.entry("ADDR-008#p4", "/mvp/samples/addr-008-events-page5-rendered.html"),
+            Map.entry("ADDR-009", "/mvp/samples/addr-009-news-rendered.html"),
+            Map.entry("ADDR-009#p1", "/mvp/samples/addr-009-news-page2-rendered.html"),
+            Map.entry("ADDR-009#p2", "/mvp/samples/addr-009-news-page3-rendered.html"),
+            Map.entry("ADDR-009#p3", "/mvp/samples/addr-009-news-page4-rendered.html"),
+            Map.entry("ADDR-009#p4", "/mvp/samples/addr-009-news-page5-rendered.html"));
 
     @Override
     public ScrapeResult scrape(Address address) {

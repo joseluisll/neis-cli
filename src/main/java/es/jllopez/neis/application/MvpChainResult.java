@@ -23,6 +23,9 @@ import java.util.Set;
  * @param pageUrlPattern  AI-derived page URL template ({n} = page number),
  *                        only when the address is flagged PAGINATION
  * @param pagesScraped    pages the pagination-iteration block scraped
+ * @param correctedAddress AI-proposed correction of the registered
+ *                        address (US-13.7), applied for this run; null
+ *                        when the registered address needed no correction
  * @param filters         filter definitions extracted by the FILTER block
  * @param filterSource    provenance of the filter definitions: "ai",
  *                        "fallback" or "skipped" (address not flagged
@@ -43,6 +46,7 @@ public record MvpChainResult(
         String capabilityEvidence,
         String pageUrlPattern,
         int pagesScraped,
+        String correctedAddress,
         List<FilterDefinition> filters,
         String filterSource,
         String filterNote) {

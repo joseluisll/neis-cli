@@ -132,7 +132,16 @@ public class MvpChainService {
         // the address. The AI carries the detection; generic HTML5
         // heuristics are the fallback when no AI is configured.
         CapabilityDetection capabilities = detectCapabilities(address, simplified.html());
-        Address flagged = address.withCapabilities(capabilities.flags());
+        // ANALYZE may CORRECT the registered address (US-13.7): the
+        // corrected address is what the rest of the chain works with and
+        // what gets recorded with the stored selectors.
+        Address flagged = address;
+        if (capabilities.correctedAddress() != null) {
+            flagged = address.withUrl(capabilities.correctedAddress())
+                    .withCapabilities(capabilities.flags());
+        } else {
+            flagged = address.withCapabilities(capabilities.flags());
+        }
 
         // PRINT input: selector-based extraction of the discovered items.
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
@@ -188,6 +197,7 @@ public class MvpChainService {
                 pagination, selection.analysis(), selection.selector(),
                 selection.source(), items, capabilities.flags(),
                 capabilities.evidence(), capabilities.pageUrlPattern(), pagesScraped,
+                capabilities.correctedAddress(),
                 filterOutcome.filters(), filterOutcome.source(), filterOutcome.note());
     }
 
@@ -201,20 +211,25 @@ public class MvpChainService {
     }
 
     /**
-     * Capability detection (US-17): the AI carries the detection via the
-     * capability prompt (pagination + page URL pattern, filtering);
-     * unresolved capabilities fall back to the generic HTML5 heuristics.
+     * Capability detection (US-17 + US-13.7): the AI carries the
+     * detection via the capability prompt (pagination + page URL pattern,
+     * filtering, and proposed corrections to the registered address);
+     * generic HTML5 heuristics run as a second, independent signal. The
+     * AI-proposed page URL pattern is validated against the (possibly
+     * corrected) address: an inconsistent pattern is sent back to the AI
+     * once for repair — the code never rewrites it with static rules.
      */
     private CapabilityDetection detectCapabilities(Address address, String simplifiedHtml) {
         Set<AddressCapability> flags = new LinkedHashSet<>();
         List<String> evidence = new ArrayList<>();
         String pageUrlPattern = null;
+        String correctedAddress = null;
 
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
             try {
                 String answer = ai.complete(
-                        AiPromptCatalog.capabilityPrompt(simplifiedHtml, address.itemKind()));
+                        AiPromptCatalog.capabilityPrompt(simplifiedHtml, address));
                 String paginationSection = section(answer, "pagination");
                 String filteringSection = section(answer, "filtering");
                 if (paginationSection != null) {
@@ -233,6 +248,32 @@ public class MvpChainService {
                         evidence.add("filtering flagged by AI");
                     } else {
                         evidence.add("filtering not detected by AI");
+                    }
+                }
+                correctedAddress = jsonField(answer, "correctedAddress");
+                if (correctedAddress != null && !correctedAddress.isBlank()
+                        && !correctedAddress.equalsIgnoreCase(address.url())) {
+                    evidence.add("address correction proposed by AI: "
+                            + address.url() + " -> " + correctedAddress);
+                } else {
+                    correctedAddress = null;
+                }
+                // Validation feedback loop: the pattern must match the
+                // (possibly corrected) registered address. One AI repair
+                // round; a still-inconsistent pattern is dropped.
+                String base = correctedAddress != null ? correctedAddress : address.url();
+                if (pageUrlPattern != null && !patternMatches(base, pageUrlPattern)) {
+                    String repaired = ai.complete(
+                            AiPromptCatalog.capabilityRepairPrompt(base, pageUrlPattern));
+                    String repairedPattern = jsonField(section(repaired, "pagination"),
+                            "pageUrlPattern");
+                    if (repairedPattern != null && patternMatches(base, repairedPattern)) {
+                        evidence.add("page URL pattern repaired by AI: " + repairedPattern);
+                        pageUrlPattern = repairedPattern;
+                    } else {
+                        evidence.add("page URL pattern rejected (did not match the address "
+                                + base + "); iteration needs a valid pattern");
+                        pageUrlPattern = null;
                     }
                 }
             } catch (RuntimeException e) {
@@ -256,8 +297,39 @@ public class MvpChainService {
                 evidence.add("filtering flagged by form/select heuristic");
             }
         }
-        return new CapabilityDetection(flags, pageUrlPattern,
+        return new CapabilityDetection(flags, pageUrlPattern, correctedAddress,
                 String.join("; ", evidence));
+    }
+
+    /**
+     * Consistency of an AI-derived page URL pattern with the address it
+     * must page through: same origin and the SAME path (after resolving
+     * the {n} placeholder purely so the template parses) — the registered
+     * address and the stored selectors must form a perfect match. A
+     * different path is not silently accepted: it goes back to the AI for
+     * repair (or surfaces as a proposed address correction). Pure URL
+     * algebra — no site-specific knowledge.
+     */
+    private boolean patternMatches(String addressUrl, String pattern) {
+        try {
+            // {n} is a template placeholder, not a legal URI character:
+            // substitute a concrete page number just for parsing.
+            java.net.URI a = java.net.URI.create(addressUrl);
+            java.net.URI p = java.net.URI.create(pattern.replace("{n}", "1"));
+            if (a.getScheme() == null || p.getScheme() == null
+                    || !a.getScheme().equalsIgnoreCase(p.getScheme())
+                    || !String.valueOf(a.getHost()).equalsIgnoreCase(String.valueOf(p.getHost()))) {
+                return false;
+            }
+            return normalizePath(a.getPath()).equals(normalizePath(p.getPath()));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private String normalizePath(String path) {
+        String p = path == null || path.isBlank() ? "/" : path;
+        return p.length() > 1 && p.endsWith("/") ? p.substring(0, p.length() - 1) : p;
     }
 
     /**
@@ -540,9 +612,10 @@ public class MvpChainService {
     record SelectorSelection(String selector, String source, PageAnalysis analysis) {
     }
 
-    /** Detected capabilities flagged onto the address (US-17). */
+    /** Detected capabilities flagged onto the address (US-17), plus the
+     * AI-proposed correction of the registered address (US-13.7). */
     record CapabilityDetection(Set<AddressCapability> flags, String pageUrlPattern,
-                               String evidence) {
+                               String correctedAddress, String evidence) {
     }
 
     /** FILTER block outcome: definitions plus provenance (US-17). */

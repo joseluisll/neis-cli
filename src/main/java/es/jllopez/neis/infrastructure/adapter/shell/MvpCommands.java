@@ -61,6 +61,9 @@ public class MvpCommands {
                     .append("  [").append(address.itemKind()).append("]  ")
                     .append(address.name()).append("\n")
                     .append("        ").append(address.url()).append("\n");
+            if (address.description() != null && !address.description().isBlank()) {
+                out.append("        description: ").append(address.description()).append("\n");
+            }
         }
         return out.toString();
     }
@@ -124,6 +127,10 @@ public class MvpCommands {
 
         if (r.pageUrlPattern() != null) {
             out.append("           page URL pattern: ").append(r.pageUrlPattern()).append("\n");
+        }
+        if (r.correctedAddress() != null) {
+            out.append("           address corrected by ANALYZE: ")
+                    .append(r.address().url()).append("\n");
         }
         if (r.capabilities().contains(AddressCapability.PAGINATION)) {
             out.append("           pagination iteration: ").append(r.pagesScraped())

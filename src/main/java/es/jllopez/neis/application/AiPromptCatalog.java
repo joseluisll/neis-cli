@@ -1,5 +1,7 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.domain.model.Address;
+
 /**
  * The catalog of AI prompts for the analysis-side blocks, one per task
  * at hand (owner decision 2026-11-11, MVP issue #90; capabilities and
@@ -43,25 +45,52 @@ final class AiPromptCatalog {
      * The AI carries the detection — the code never encodes site-specific
      * knowledge. When paginated, the AI also derives the page URL pattern
      * (page number marked as {n}) so the pagination-iteration block can
-     * address the following pages.
+     * address the following pages — built ON TOP OF the registered
+     * address. And the AI may CORRECT the registered address when the
+     * page reveals a canonical or more specific listing URL (US-13.7):
+     * the analysis phase may propose address corrections; only the final
+     * validated selectors are frozen for reuse.
      */
-    static String capabilityPrompt(String simplifiedHtml, String expectedKindHint) {
+    static String capabilityPrompt(String simplifiedHtml, Address address) {
         return """
                 You are analyzing the simplified HTML5 of a web page that may list %s items.
+                The page was scraped from the REGISTERED ADDRESS: %s
                 Detect which CAPABILITIES the page itself offers for that listing:
                 1. pagination: the listing is paginated — pager links, page-number links \
                 or next/previous controls are present. If paginated, also give \
                 "pageUrlPattern": the URL template that retrieves page number N, with the \
-                page number marked as {n}, derived from the pager links (e.g. \
-                "https://example.org/list?page={n}"). If not paginated, pageUrlPattern is null.
+                page number marked as {n}. Derive it from the pager links and build it on \
+                top of the registered address (same origin and path, pager query as the page \
+                shows). If the page reveals a canonical or more specific listing URL than \
+                the registered address (canonical link, redirect, pager links under a \
+                different path), ALSO answer "correctedAddress" with that corrected listing \
+                URL so the system can register the address as corrected; otherwise \
+                "correctedAddress" is null. If not paginated, pageUrlPattern is null.
                 2. filtering: the page offers FILTER controls to narrow the listing — \
                 filter forms, facet selectors, dropdowns of filter values, checkbox groups, \
                 date-range pickers or free-text filter inputs.
                 Answer ONLY with a JSON object:
                 {"pagination":{"detected":true,"pageUrlPattern":"https://example.org/list?page={n}","reasoning":"..."},
-                 "filtering":{"detected":true,"reasoning":"..."}}
+                 "filtering":{"detected":true,"reasoning":"..."},
+                 "correctedAddress":null}
                 --- SIMPLIFIED HTML EXCERPT (filter-form and pager focused) ---
-                %s""".formatted(expectedKindHint, formFocusedExcerpt(simplifiedHtml));
+                %s""".formatted(address.itemKind(), address.url(),
+                formFocusedExcerpt(simplifiedHtml));
+    }
+
+    /**
+     * Validation-feedback repair: the AI's page URL pattern did not match
+     * the registered address. The AI corrects its own answer — the code
+     * never rewrites the pattern with static rules.
+     */
+    static String capabilityRepairPrompt(String registeredUrl, String rejectedPattern) {
+        return """
+                Your capability analysis of the page registered at %s returned the \
+                pageUrlPattern "%s", which does not match that registered address.
+                Answer ONLY again with the same JSON object, with "pageUrlPattern" rebuilt \
+                on top of the registered address (same origin and path, pager query as the \
+                page shows). Do not change the other fields unless the page evidence \
+                requires it.""".formatted(registeredUrl, rejectedPattern);
     }
 
     /**
