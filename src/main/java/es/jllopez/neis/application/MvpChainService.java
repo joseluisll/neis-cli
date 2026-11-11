@@ -87,16 +87,16 @@ public class MvpChainService {
     /** Explicit, decision-level traces of the AI component (US-01.3). */
     private static final Logger log = LoggerFactory.getLogger(MvpChainService.class);
 
-    private final ContentScrapePort scrapePort;
-    private final SimplifyPort simplifyPort;
+    final ContentScrapePort scrapePort;
+    final SimplifyPort simplifyPort;
     private final SelectorExtractionPort extractionPort;
     private final SelectorStorePort selectorStore;
-    private final PaginationDetector paginationDetector;
+    final PaginationDetector paginationDetector;
     private final ExposedFilterDetector exposedFilterDetector;
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
-    private final String workDir;
+    final String workDir;
 
     public MvpChainService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
@@ -280,7 +280,7 @@ public class MvpChainService {
      * corrected) address: an inconsistent pattern is sent back to the AI
      * once for repair — the code never rewrites it with static rules.
      */
-    private CapabilityDetection detectCapabilities(Address address, String simplifiedHtml) {
+    CapabilityDetection detectCapabilities(Address address, String simplifiedHtml) {
         Set<AddressCapability> flags = new LinkedHashSet<>();
         List<String> evidence = new ArrayList<>();
         String pageUrlPattern = null;
@@ -419,7 +419,7 @@ public class MvpChainService {
      * select/option parsing is the fallback when no AI is configured.
      * Called only on FILTERING-flagged addresses.
      */
-    private FilterOutcome extractFilters(Address address, String simplifiedHtml) {
+    FilterOutcome extractFilters(Address address, String simplifiedHtml) {
         String zoneSelector = null;
         String zoneSource = null;
         String note = null;
@@ -521,7 +521,7 @@ public class MvpChainService {
      * to an explanatory note, never to a chain failure. Called only on
      * FILTERING-flagged addresses.
      */
-    private FilterApplication applyFilter(Address address, SelectorSelection selection,
+    FilterApplication applyFilter(Address address, SelectorSelection selection,
                                           FilterOutcome outcome) {
         if (outcome.filters().isEmpty()) {
             return FilterApplication.skipped(
@@ -609,7 +609,7 @@ public class MvpChainService {
      * identification via the prompt catalog (persisted once validated),
      * then static heuristic fallbacks (never persisted).
      */
-    private SelectorSelection selectSelector(Address address, String simplifiedHtml) {
+    SelectorSelection selectSelector(Address address, String simplifiedHtml) {
         String kind = address.itemKind();
 
         // 1. Stored working selector: fast path, AI entirely skipped.
@@ -850,7 +850,7 @@ public class MvpChainService {
         return values;
     }
 
-    private Path addressDir(Address address) {
+    Path addressDir(Address address) {
         Path dir = Path.of(workDir, address.id());
         try {
             Files.createDirectories(dir);
@@ -860,7 +860,7 @@ public class MvpChainService {
         return dir;
     }
 
-    private Path writeArtifact(Path dir, String fileName, String content) {
+    Path writeArtifact(Path dir, String fileName, String content) {
         try {
             Path file = dir.resolve(fileName);
             Files.writeString(file, content, StandardCharsets.UTF_8);
