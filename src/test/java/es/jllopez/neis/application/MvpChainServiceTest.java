@@ -14,6 +14,8 @@ import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
+import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
+import es.jllopez.neis.testsupport.SeedAddresses;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
@@ -44,7 +46,11 @@ class MvpChainServiceTest {
     @TempDir
     Path workDir;
 
-    private final AddressCatalogService catalog = new AddressCatalogService();
+    /** Catalog service over the in-memory test port, seeded with the
+     *  issue #62 example addresses (the production catalog is the
+     *  database-backed connector, exercised by the persistence tests). */
+    private final AddressCatalogService catalog = new AddressCatalogService(
+            new InMemoryAddressCatalogPort(SeedAddresses.all()));
     private final SimplifyPort simplifyPort = new JsoupSimplifyConnector();
     private final SelectorExtractionPort extractionPort = new JsoupSelectorConnector();
     private final PaginationDetector paginationDetector = new PaginationDetector();
