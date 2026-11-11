@@ -122,6 +122,16 @@ public class MvpChainService {
 
     /** Runs the whole static chain for one address. */
     public MvpChainResult run(Address address) {
+        return run(address, MAX_ITEMS, MAX_PAGES);
+    }
+
+    /**
+     * Runs the whole static chain for one address with the chain's
+     * per-task limits (US-08.3, issue #35): {@code maxItems} caps the
+     * extracted items (US-12.5 spirit), {@code maxPages} guards the
+     * pagination-iteration block.
+     */
+    public MvpChainResult run(Address address, int maxItems, int maxPages) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -175,7 +185,7 @@ public class MvpChainService {
 
         // PRINT input: selector-based extraction of the discovered items.
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
-                selection.selector(), flagged.itemKind(), flagged.id(), MAX_ITEMS));
+                selection.selector(), flagged.itemKind(), flagged.id(), maxItems));
 
         // Pagination-iteration block (US-12.4 slice): ONLY on addresses
         // flagged PAGINATION, and only when the AI derived a page URL
@@ -183,8 +193,8 @@ public class MvpChainService {
         int pagesScraped = 1;
         if (flagged.hasCapability(AddressCapability.PAGINATION)
                 && capabilities.pageUrlPattern() != null) {
-            for (int page = 1; page < MAX_PAGES; page++) {
-                if (items.size() >= MAX_ITEMS) {
+            for (int page = 1; page < maxPages; page++) {
+                if (items.size() >= maxItems) {
                     break;
                 }
                 ScrapeResult pageScrape;
@@ -200,11 +210,11 @@ public class MvpChainService {
                         pageSimplified.html());
                 int before = items.size();
                 for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
-                        selection.selector(), flagged.itemKind(), flagged.id(), MAX_ITEMS)) {
+                        selection.selector(), flagged.itemKind(), flagged.id(), maxItems)) {
                     if (isNew(items, item)) {
                         items.add(item);
                     }
-                    if (items.size() >= MAX_ITEMS) {
+                    if (items.size() >= maxItems) {
                         break;
                     }
                 }

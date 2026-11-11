@@ -95,6 +95,9 @@ public class ExecutionCommands {
         out.append(e.id()).append("  ").append(e.taskCode())
                 .append(" over ").append(e.addressId() == null ? "<none>" : e.addressId())
                 .append("  [").append(e.triggerType()).append("]\n");
+        if (e.chainId() != null) {
+            out.append("  chain  : ").append(e.chainId()).append("\n");
+        }
         out.append("  status  : ").append(e.status()).append("\n");
         out.append("  started : ").append(e.startedAt() == null ? "-" : TS.format(e.startedAt()))
                 .append("\n");

@@ -36,7 +36,7 @@ public class ExecutionStoreConnector implements ExecutionStorePort {
         ExecutionEntity entity = executions.findById(execution.id())
                 .orElseGet(ExecutionEntity::new);
         entity.setId(execution.id());
-        entity.setChainId(null);
+        entity.setChainId(execution.chainId());
         entity.setTaskCode(execution.taskCode());
         entity.setAddressId(execution.addressId());
         entity.setTriggerType(execution.triggerType());
@@ -70,6 +70,7 @@ public class ExecutionStoreConnector implements ExecutionStorePort {
 
     private TaskExecution toDomain(ExecutionEntity e) {
         return new TaskExecution(e.getId(), e.getTaskCode(), e.getAddressId(),
+                e.getChainId(),
                 e.getTriggerType(), e.getStatus(),
                 e.getStartedAt() == null ? null : Instant.parse(e.getStartedAt()),
                 e.getFinishedAt() == null ? null : Instant.parse(e.getFinishedAt()),

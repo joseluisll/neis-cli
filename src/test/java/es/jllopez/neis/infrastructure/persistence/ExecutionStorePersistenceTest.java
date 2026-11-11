@@ -3,6 +3,9 @@ package es.jllopez.neis.infrastructure.persistence;
 import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
+import es.jllopez.neis.domain.model.Chain;
+import es.jllopez.neis.domain.model.ChainTask;
+import es.jllopez.neis.domain.port.ChainStorePort;
 import es.jllopez.neis.domain.port.ExecutionStorePort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,13 +44,17 @@ class ExecutionStorePersistenceTest {
     private ExecutionStorePort store;
 
     @Autowired
+    private ChainStorePort chainStore;
+
+    @Autowired
     private TaskTypeJpaRepository taskTypes;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private TaskExecution record(String id, ExecutionStatus status, String outcome) {
-        return new TaskExecution(id, "CHAIN", "ADDR-001", TriggerType.MANUAL,
+        return new TaskExecution(id, "CHAIN", "ADDR-001", "CHAIN-RT",
+                TriggerType.MANUAL,
                 status, Instant.parse("2026-11-11T12:00:00Z"),
                 status == ExecutionStatus.SUCCESS || status == ExecutionStatus.FAILED
                         ? Instant.parse("2026-11-11T12:00:05Z") : null,
@@ -68,12 +75,15 @@ class ExecutionStorePersistenceTest {
 
     @Test
     void executionRecordRoundTripsAndProgresses() {
-        // The execution's address must exist: the FK is enforced.
+        // The execution's address and chain must exist: the FKs are enforced.
         jdbcTemplate.update(
                 "INSERT INTO addresses (id, name, url, type, verification_status, "
                         + "created_at, updated_at) VALUES ('ADDR-001', 'Fixture', "
                         + "'https://example.org/x', 'URL_NEWS', 'UNVERIFIED', "
                         + "'2026-11-11T00:00:00Z', '2026-11-11T00:00:00Z')");
+        chainStore.save(new Chain("CHAIN-RT", "fixture chain", null,
+                Instant.parse("2026-11-11T00:00:00Z"),
+                List.of(ChainTask.at(1, "WEBSCRAPE"))));
         store.save(record("EXEC-RT-1", ExecutionStatus.PENDING, null));
 
         TaskExecution running = store.findById("EXEC-RT-1").orElseThrow()
@@ -90,6 +100,8 @@ class ExecutionStorePersistenceTest {
         assertEquals("chain finished: 20 items", reloaded.outcome());
         assertEquals(TriggerType.MANUAL, reloaded.triggerType());
         assertEquals("CHAIN", reloaded.taskCode());
+        assertEquals("CHAIN-RT", reloaded.chainId(),
+                "the record's chain link must round-trip (US-08)");
     }
 
     @Test
@@ -97,7 +109,7 @@ class ExecutionStorePersistenceTest {
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.orm.jpa.JpaSystemException.class,
                 () -> store.save(new TaskExecution("EXEC-BAD", "NOT_A_TASK", "ADDR-001",
-                        TriggerType.MANUAL, ExecutionStatus.PENDING,
+                        null, TriggerType.MANUAL, ExecutionStatus.PENDING,
                         Instant.now(), null, null)));
     }
 }
