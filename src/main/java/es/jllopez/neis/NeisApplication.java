@@ -10,6 +10,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * organized as a hexagonal architecture: {@code domain} defines the ports,
  * {@code application} holds the use cases, and {@code infrastructure}
  * provides the connectors (adapters) that implement the ports.</p>
+ *
+ * <p>Spring Shell 4 note: command classes are plain {@code @Component}
+ * beans with {@code @Command}-annotated methods — Spring Boot
+ * auto-configuration registers them (do NOT add {@code @EnableCommand}
+ * here: it makes {@code SpringShellAutoConfiguration} back off).</p>
  */
 @SpringBootApplication
 public class NeisApplication {

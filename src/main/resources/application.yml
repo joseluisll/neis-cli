@@ -2,6 +2,12 @@ spring:
   application:
     name: neis
 
+logging:
+  level:
+    # Debug visibility for what the shell is doing (command registration,
+    # runner selection, command execution).
+    org.springframework.shell: debug
+
 neis:
   name: NEIS
   description: News and Events Information System
