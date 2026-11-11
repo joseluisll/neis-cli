@@ -55,7 +55,7 @@ public class FileSelectorStoreConnector implements SelectorStorePort {
         }
     }
 
-    // Minimal, dependency-free JSON for the six scalar fields of the record.
+    // Minimal, dependency-free JSON for the scalar fields of the record.
 
     private String toJson(StoredSelectors s) {
         return """
@@ -63,17 +63,20 @@ public class FileSelectorStoreConnector implements SelectorStorePort {
                   "addressId": "%s",
                   "kind": "%s",
                   "selector": "%s",
+                  "filterSelector": "%s",
                   "discoveredBy": "%s",
                   "discoveredAt": "%s",
                   "notes": "%s"
                 }
                 """.formatted(esc(s.addressId()), esc(s.kind()), esc(s.selector()),
-                esc(s.discoveredBy()), esc(s.discoveredAt()), esc(s.notes()));
+                esc(s.filterSelector()), esc(s.discoveredBy()), esc(s.discoveredAt()),
+                esc(s.notes()));
     }
 
     private StoredSelectors parse(String json) {
         return new StoredSelectors(
                 field(json, "addressId"), field(json, "kind"), field(json, "selector"),
+                field(json, "filterSelector"),
                 field(json, "discoveredBy"), field(json, "discoveredAt"),
                 field(json, "notes"));
     }

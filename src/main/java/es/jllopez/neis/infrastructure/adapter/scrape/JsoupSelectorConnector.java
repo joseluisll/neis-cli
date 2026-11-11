@@ -63,6 +63,31 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         return items;
     }
 
+    @Override
+    public int countMatches(String html, String cssSelector) {
+        if (cssSelector == null || cssSelector.isBlank()) {
+            return 0;
+        }
+        try {
+            return Jsoup.parse(html).select(cssSelector).size();
+        } catch (IllegalArgumentException e) {
+            return 0; // invalid selector -> no matches
+        }
+    }
+
+    @Override
+    public String zoneHtml(String html, String cssSelector) {
+        if (cssSelector == null || cssSelector.isBlank()) {
+            return null;
+        }
+        try {
+            Element zone = Jsoup.parse(html).selectFirst(cssSelector);
+            return zone != null ? zone.outerHtml() : null;
+        } catch (IllegalArgumentException e) {
+            return null; // invalid selector
+        }
+    }
+
     private String extractTitle(Element el) {
         Element heading = el.selectFirst("h1, h2, h3, h4, h5");
         String title = heading != null ? heading.text() : null;

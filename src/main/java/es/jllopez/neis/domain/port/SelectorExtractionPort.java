@@ -22,4 +22,20 @@ public interface SelectorExtractionPort {
      */
     List<NewsEventItem> extract(String html, String cssSelector, String kind,
                                 String addressId, int maxItems);
+
+    /**
+     * Number of elements the CSS selector matches in the given HTML.
+     * Used to validate identified selectors by probe (e.g. the filter
+     * zone must match exactly one element) — validation by extraction,
+     * no additional stack dependency.
+     */
+    int countMatches(String html, String cssSelector);
+
+    /**
+     * Outer HTML of the single element the CSS selector matches, or null
+     * when it does not match exactly one element. Lets a block scope its
+     * work (e.g. the FILTER block extracts definitions from within the
+     * identified filter zone) without its own HTML-stack dependency.
+     */
+    String zoneHtml(String html, String cssSelector);
 }

@@ -115,6 +115,11 @@ public class MvpCommands {
         } else {
             out.append(r.filters().size()).append(" filter field(s) available [")
                     .append(r.filterSource()).append("]\n");
+            if (r.filterZoneSelector() != null) {
+                out.append("           filter zone: ").append(r.filterZoneSelector())
+                        .append(" (identified by ").append(r.filterSource())
+                        .append(", persisted with the address)\n");
+            }
             if (r.filterNote() != null) {
                 out.append("           note: ").append(r.filterNote()).append("\n");
             }

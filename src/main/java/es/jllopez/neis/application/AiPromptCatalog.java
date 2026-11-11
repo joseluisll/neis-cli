@@ -118,6 +118,30 @@ final class AiPromptCatalog {
     }
 
     /**
+     * Task: identify the FILTER ZONE selector of a listing page flagged
+     * with the filtering capability (US-17.1): the CSS selector of the
+     * form or container element holding the filter controls — the same
+     * identification the ANALYZE step performs for the news/events item
+     * selectors. The identified selector is validated by probe and
+     * persisted with the address, so later runs skip the AI.
+     */
+    static String filterZoneSelectorPrompt(String simplifiedHtml) {
+        return """
+                You are analyzing the simplified HTML5 of a web page listing that offers \
+                FILTER controls. Identify the CSS selector of the FILTER ZONE: the single \
+                form or container element that holds the filter controls (the search-api \
+                or facet form with its dropdowns, checkboxes, date pickers and free-text \
+                inputs) — not the news/event list, not individual filter fields.
+                The selector must be valid CSS and match exactly ONE element in the given HTML.
+                Answer ONLY with a JSON object:
+                {"filterZoneSelector":"the css selector","reasoning":"short explanation"}
+                If no filter zone is present, answer:
+                {"filterZoneSelector":null,"reasoning":"why none was found"}
+                --- SIMPLIFIED HTML EXCERPT (filter-form focused) ---
+                %s""".formatted(formFocusedExcerpt(simplifiedHtml));
+    }
+
+    /**
      * Head+tail window, but always including the regions the analysis
      * blocks need: the filter-form region (first {@code <form>} to last
      * {@code </form>}) and the navigation region (first {@code <nav>} to

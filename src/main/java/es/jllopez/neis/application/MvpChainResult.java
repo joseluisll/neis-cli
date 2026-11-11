@@ -26,6 +26,9 @@ import java.util.Set;
  * @param correctedAddress AI-proposed correction of the registered
  *                        address (US-13.7), applied for this run; null
  *                        when the registered address needed no correction
+ * @param filterZoneSelector CSS selector of the filter zone identified
+ *                        by the FILTER block (US-17.1), validated and
+ *                        persisted with the address; null when not flagged
  * @param filters         filter definitions extracted by the FILTER block
  * @param filterSource    provenance of the filter definitions: "ai",
  *                        "fallback" or "skipped" (address not flagged
@@ -47,6 +50,7 @@ public record MvpChainResult(
         String pageUrlPattern,
         int pagesScraped,
         String correctedAddress,
+        String filterZoneSelector,
         List<FilterDefinition> filters,
         String filterSource,
         String filterNote) {

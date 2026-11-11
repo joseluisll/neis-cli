@@ -143,6 +143,9 @@ class MvpChainServiceTest {
             if (prompt.contains("CAPABILITIES")) {
                 return capabilityJson;
             }
+            if (prompt.contains("FILTER ZONE")) {
+                return "{\"filterZoneSelector\":null,\"reasoning\":\"stub default\"}";
+            }
             if (prompt.contains("FILTER controls")) {
                 return filtersJson;
             }
@@ -200,9 +203,10 @@ class MvpChainServiceTest {
                 "sedia-result-card-news-translation", "ai", "2026-11-11",
                 "repeated news result cards"));
         // The selector-identification AI must not be reached; the
-        // capability-detection block still uses its own AI prompt (US-17).
+        // capability-detection and filter-zone blocks still use their own
+        // AI prompts (US-17).
         AiAssistantPort selectorAiMustNotCall = prompt -> {
-            if (prompt.contains("CSS selector")) {
+            if (prompt.contains("REPEATING list items")) {
                 throw new AssertionError(
                         "selector AI must be skipped when a stored selector works");
             }
@@ -482,5 +486,38 @@ class MvpChainServiceTest {
         assertTrue(result.capabilityEvidence().contains("rejected"));
         assertEquals(1, result.pagesScraped(),
                 "without a valid pattern no additional page may be scraped");
+    }
+
+    @Test
+    void filterZoneSelectorIsIdentifiedValidatedAndPersisted() {
+        AiAssistantPort ai = prompt -> {
+            if (prompt.contains("Classify the page")) {
+                return "event";
+            }
+            if (prompt.contains("CAPABILITIES")) {
+                return "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://hadea.ec.europa.eu/events_en?page={n}\","
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                        + "\"correctedAddress\":null}";
+            }
+            if (prompt.contains("FILTER ZONE")) {
+                return "{\"filterZoneSelector\":\"form.oe-list-pages-facets-form\","
+                        + "\"reasoning\":\"the facet form\"}";
+            }
+            if (prompt.contains("FILTER controls")) {
+                return "{\"filters\":[{\"name\":\"Status\",\"values\":"
+                        + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}";
+            }
+            return "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}";
+        };
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
+
+        assertEquals("form.oe-list-pages-facets-form", result.filterZoneSelector(),
+                "the AI-identified zone selector must be validated (exactly one match) and used");
+        assertEquals("form.oe-list-pages-facets-form", store.get("ADDR-005").filterSelector(),
+                "the zone selector must be persisted merged into the stored selectors");
+        assertEquals(1, result.filters().size());
     }
 }

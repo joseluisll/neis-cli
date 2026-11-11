@@ -186,10 +186,12 @@ public class MvpChainService {
         }
 
         // FILTER block (US-17): ONLY on addresses flagged FILTERING.
-        // The AI extracts the filter definitions the listing offers.
+        // The AI first identifies the filter-zone selector (like the
+        // news/events item selectors, persisted with the address), then
+        // extracts the filter definitions from within that zone.
         FilterOutcome filterOutcome = flagged.hasCapability(AddressCapability.FILTERING)
-                ? extractFilters(simplified.html())
-                : new FilterOutcome(List.of(), "skipped",
+                ? extractFilters(flagged, simplified.html())
+                : new FilterOutcome(List.of(), "skipped", null, null,
                 "address not flagged with the filtering capability");
 
         return new MvpChainResult(flagged, scrapeArtifact.toString(),
@@ -198,6 +200,7 @@ public class MvpChainService {
                 selection.source(), items, capabilities.flags(),
                 capabilities.evidence(), capabilities.pageUrlPattern(), pagesScraped,
                 capabilities.correctedAddress(),
+                filterOutcome.zoneSelector(),
                 filterOutcome.filters(), filterOutcome.source(), filterOutcome.note());
     }
 
@@ -333,28 +336,91 @@ public class MvpChainService {
     }
 
     /**
-     * FILTER block (US-17): the AI extracts the filter definitions; the
-     * generic select/option parsing is the fallback when no AI is
-     * configured. Called only on FILTERING-flagged addresses.
+     * FILTER block (US-17.1): identifies the filter-zone selector — the
+     * same identification the analysis performs for the news/events item
+     * selectors: stored selector fast path (no AI), then AI
+     * identification validated by probe (exactly one element) and
+     * persisted merged into the stored selectors — and then extracts the
+     * filter definitions from WITHIN the identified zone. Without an
+     * identified zone the whole page is the scope; the generic
+     * select/option parsing is the fallback when no AI is configured.
+     * Called only on FILTERING-flagged addresses.
      */
-    private FilterOutcome extractFilters(String simplifiedHtml) {
+    private FilterOutcome extractFilters(Address address, String simplifiedHtml) {
+        String zoneSelector = null;
+        String zoneSource = null;
+        String note = null;
+
+        // 1. Stored filter-zone selector: fast path, AI entirely skipped.
+        Optional<StoredSelectors> stored = selectorStore.load(address.id());
+        if (stored.isPresent() && stored.get().filterSelector() != null
+                && extractionPort.countMatches(simplifiedHtml,
+                stored.get().filterSelector()) == 1) {
+            zoneSelector = stored.get().filterSelector();
+            zoneSource = "stored";
+        } else {
+            // 2. AI identification, validated by probe, persisted merged.
+            AiAssistantPort ai = aiPort.getIfAvailable();
+            if (ai != null) {
+                try {
+                    String answer = ai.complete(
+                            AiPromptCatalog.filterZoneSelectorPrompt(simplifiedHtml));
+                    String candidate = jsonField(answer, "filterZoneSelector");
+                    if (candidate != null && !candidate.isBlank()
+                            && extractionPort.countMatches(simplifiedHtml, candidate) == 1) {
+                        final String zone = candidate;
+                        zoneSelector = candidate;
+                        zoneSource = "ai";
+                        stored.ifPresent(s -> selectorStore.save(new StoredSelectors(
+                                s.addressId(), s.kind(), s.selector(), zone,
+                                s.discoveredBy(), s.discoveredAt(), s.notes())));
+                    } else {
+                        note = "AI did not yield a valid filter-zone selector";
+                    }
+                } catch (RuntimeException e) {
+                    note = "AI filter-zone call failed: " + e.getMessage();
+                }
+            } else {
+                note = "AI not configured — whole-page scope";
+            }
+        }
+
+        String scopeHtml = zoneSelector != null
+                ? scopeHtml(simplifiedHtml, zoneSelector)
+                : simplifiedHtml;
+        final String zoneSelectorF = zoneSelector;
+        final String zoneSourceF = zoneSource;
+
+        // 3. Filter definitions from within the zone.
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
             try {
-                String answer = ai.complete(AiPromptCatalog.filtersPrompt(simplifiedHtml));
+                String answer = ai.complete(AiPromptCatalog.filtersPrompt(scopeHtml));
                 List<FilterDefinition> filters = parseFilters(answer);
                 if (!filters.isEmpty()) {
-                    return new FilterOutcome(filters, "ai", null);
+                    return new FilterOutcome(filters, "ai", zoneSelectorF, zoneSourceF, note);
                 }
-                return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
-                        "fallback", "AI found no filter fields — generic select parsing used");
+                return new FilterOutcome(
+                        exposedFilterDetector.parseSelects(scopeHtml), "fallback",
+                        zoneSelectorF, zoneSourceF,
+                        note == null ? "AI found no filter fields — generic select parsing used"
+                                : note + "; generic select parsing used");
             } catch (RuntimeException e) {
-                return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
-                        "fallback", "AI filter call failed: " + e.getMessage());
+                return new FilterOutcome(exposedFilterDetector.parseSelects(scopeHtml),
+                        "fallback", zoneSelectorF, zoneSourceF,
+                        (note == null ? "" : note + "; ") + "AI filter call failed: "
+                                + e.getMessage());
             }
         }
-        return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
-                "fallback", "AI not configured — generic select parsing used");
+        return new FilterOutcome(exposedFilterDetector.parseSelects(scopeHtml),
+                "fallback", zoneSelectorF, zoneSourceF,
+                note == null ? "AI not configured — generic select parsing used" : note);
+    }
+
+    /** Outer HTML of the single element a validated selector matches. */
+    private String scopeHtml(String simplifiedHtml, String zoneSelector) {
+        String zone = extractionPort.zoneHtml(simplifiedHtml, zoneSelector);
+        return zone != null ? zone : simplifiedHtml;
     }
 
     /** Dedupe key across pages: title + link. */
@@ -618,7 +684,9 @@ public class MvpChainService {
                                String correctedAddress, String evidence) {
     }
 
-    /** FILTER block outcome: definitions plus provenance (US-17). */
-    record FilterOutcome(List<FilterDefinition> filters, String source, String note) {
+    /** FILTER block outcome: the identified zone selector, definitions
+     * extracted from within it, and provenance (US-17.1). */
+    record FilterOutcome(List<FilterDefinition> filters, String source,
+                         String zoneSelector, String zoneSource, String note) {
     }
 }
