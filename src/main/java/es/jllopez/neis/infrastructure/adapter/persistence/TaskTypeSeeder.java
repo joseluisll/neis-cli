@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import es.jllopez.neis.infrastructure.persistence.TaskTypeEntity;
@@ -27,8 +28,9 @@ public class TaskTypeSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(TaskTypeSeeder.class);
 
-    /** code, name, description — the current task-type vocabulary. */
-    private static final String[][] VOCABULARY = {
+    /** code, name, description — the current task-type vocabulary.
+     *  Package-private for the seeder's test. */
+    static final String[][] VOCABULARY = {
             {"WEBSCRAPE", "Web scrape",
                     "Obtain the listing HTML5 of an address (US-06)"},
             {"SIMPLIFY", "Simplify",
@@ -60,8 +62,19 @@ public class TaskTypeSeeder implements ApplicationRunner {
             entity.setCode(type[0]);
             entity.setName(type[1]);
             entity.setDescription(type[2]);
-            taskTypes.save(entity);
-            created++;
+            try {
+                taskTypes.save(entity);
+                created++;
+            } catch (DataIntegrityViolationException lostTheRace) {
+                // Concurrent boots over one database: the other boot's
+                // seeding committed between this boot's existsById check
+                // and the insert, so the PRIMARY KEY refuses ours. The
+                // vocabulary is present either way — that is all this
+                // seeder needs; startup must not fail on it (deferred
+                // slice-3 review finding).
+                log.debug("Task-type {} was already seeded by a concurrent boot",
+                        type[0]);
+            }
         }
         if (created > 0) {
             log.info("Task-type vocabulary: {} entries added ({} total)",
