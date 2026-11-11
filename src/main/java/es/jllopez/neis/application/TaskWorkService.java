@@ -33,12 +33,10 @@ public class TaskWorkService {
 
     private final MvpChainService chain;
     private final AddressCatalogService addressCatalog;
-    private final String workDir;
 
     public TaskWorkService(MvpChainService chain, AddressCatalogService addressCatalog) {
         this.chain = chain;
         this.addressCatalog = addressCatalog;
-        this.workDir = chain.workDir;
     }
 
     /**
@@ -95,18 +93,19 @@ public class TaskWorkService {
     /** WEBSCRAPE (US-06 slice): obtain and store the listing HTML5. */
     private String scrape(Address address) {
         var scrape = chain.scrapePort.scrape(address);
-        Path artifact = chain.writeArtifact(chain.addressDir(address), "scrape.html",
-                scrape.html());
+        Path artifact = chain.writeArtifact(address, "WEBSCRAPE", "listing-html",
+                "scrape.html", scrape.html());
         return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact;
     }
 
     /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */
     private String simplify(Address address) {
         var scrape = chain.scrapePort.scrape(address);
-        chain.writeArtifact(chain.addressDir(address), "scrape.html", scrape.html());
+        chain.writeArtifact(address, "WEBSCRAPE", "listing-html",
+                "scrape.html", scrape.html());
         var simplified = chain.simplifyPort.simplify(scrape.html());
-        Path artifact = chain.writeArtifact(chain.addressDir(address), "simplified.html",
-                simplified.html());
+        Path artifact = chain.writeArtifact(address, "SIMPLIFY", "simplified-html",
+                "simplified.html", simplified.html());
         return "SIMPLIFY: " + scrape.sizeBytes() + " -> " + simplified.sizeBytes()
                 + " bytes (cap 102400) -> " + artifact;
     }
@@ -114,9 +113,11 @@ public class TaskWorkService {
     /** ANALYZE (US-12/13/17 slice): + pagination, selector, capabilities. */
     private String analyze(Address address) {
         var scrape = chain.scrapePort.scrape(address);
-        chain.writeArtifact(chain.addressDir(address), "scrape.html", scrape.html());
+        chain.writeArtifact(address, "WEBSCRAPE", "listing-html",
+                "scrape.html", scrape.html());
         var simplified = chain.simplifyPort.simplify(scrape.html());
-        chain.writeArtifact(chain.addressDir(address), "simplified.html", simplified.html());
+        chain.writeArtifact(address, "SIMPLIFY", "simplified-html",
+                "simplified.html", simplified.html());
         PaginationInfo pagination = chain.paginationDetector.detect(simplified.html());
         MvpChainService.SelectorSelection selection =
                 chain.selectSelector(address, simplified.html());
@@ -134,9 +135,11 @@ public class TaskWorkService {
     /** FILTER (US-17/US-06.6 slice): + filter extraction and application. */
     private String filter(Address address) {
         var scrape = chain.scrapePort.scrape(address);
-        chain.writeArtifact(chain.addressDir(address), "scrape.html", scrape.html());
+        chain.writeArtifact(address, "WEBSCRAPE", "listing-html",
+                "scrape.html", scrape.html());
         var simplified = chain.simplifyPort.simplify(scrape.html());
-        chain.writeArtifact(chain.addressDir(address), "simplified.html", simplified.html());
+        chain.writeArtifact(address, "SIMPLIFY", "simplified-html",
+                "simplified.html", simplified.html());
         MvpChainService.SelectorSelection selection =
                 chain.selectSelector(address, simplified.html());
         MvpChainService.CapabilityDetection capabilities =

@@ -15,6 +15,7 @@ import es.jllopez.neis.domain.service.PaginationDetector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
+import es.jllopez.neis.testsupport.InMemoryContentStorePort;
 import es.jllopez.neis.testsupport.SeedAddresses;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.junit.jupiter.api.Test;
@@ -126,10 +127,22 @@ class MvpChainServiceTest {
         return provider;
     }
 
+    private ContentStoreService contentStore() {
+        return new ContentStoreService(new InMemoryContentStorePort(), workDir.toString());
+    }
+
+    /** The deterministic capture folder of an address's listing page
+     * (US-11.4): capture ids derive from the URL, so a fresh service
+     * computes the same folder the run wrote to. */
+    private Path captureDirOf(Address address) {
+        return workDir.resolve(address.id())
+                .resolve(contentStore().captureId(address.url()));
+    }
+
     private MvpChainService service(ObjectProvider<AiAssistantPort> ai) {
         return new MvpChainService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
-                ai, catalog, new UrlSyntaxValidator(), workDir.toString());
+                ai, catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
     }
 
     @Test
@@ -142,7 +155,7 @@ class MvpChainServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                badCatalog, new UrlSyntaxValidator(), workDir.toString());
+                badCatalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> chain.run(bad));
@@ -161,7 +174,7 @@ class MvpChainServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), workDir.toString());
+                catalog2, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> chain.run(unverified));
@@ -182,7 +195,7 @@ class MvpChainServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), workDir.toString());
+                catalog2, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         List<MvpChainResult> results = chain.runAll();
 
@@ -205,7 +218,7 @@ class MvpChainServiceTest {
                                 + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                                 + "\"correctedAddress\":null}",
                         "{\"filters\":[],\"reasoning\":\"none\"}")),
-                catalog, new UrlSyntaxValidator(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         chain.run(good);
 
@@ -294,8 +307,12 @@ class MvpChainServiceTest {
         assertTrue(result.pagination().paginated(), "rendered fixture has ?pageNumber= pagination");
         assertFalse(result.items().isEmpty(), "extraction must yield items");
         assertEquals("news", result.items().get(0).kind());
-        assertTrue(workDir.resolve("ADDR-003").resolve("scrape.html").toFile().exists());
-        assertTrue(workDir.resolve("ADDR-003").resolve("simplified.html").toFile().exists());
+        assertTrue(captureDirOf(catalog.byId("ADDR-003"))
+                .resolve("content").resolve("SCRAPE").resolve("scrape.html")
+                .toFile().exists());
+        assertTrue(captureDirOf(catalog.byId("ADDR-003"))
+                .resolve("content").resolve("SIMPLIFY").resolve("simplified.html")
+                .toFile().exists());
 
         StoredSelectors saved = store.get("ADDR-003");
         assertTrue(saved != null && saved.selector().equals("sedia-result-card-news-translation"),
@@ -392,8 +409,9 @@ class MvpChainServiceTest {
         assertEquals(catalog.list().size(), results.size());
         results.forEach(r -> {
             assertEquals("fallback", r.selectorSource());
-            assertTrue(workDir.resolve(r.address().id())
-                    .resolve("simplified.html").toFile().exists());
+            assertTrue(captureDirOf(r.address())
+                    .resolve("content").resolve("SIMPLIFY").resolve("simplified.html")
+                    .toFile().exists());
         });
     }
 
@@ -661,7 +679,7 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
         MvpChainService service = new MvpChainService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -671,8 +689,11 @@ class MvpChainServiceTest {
         assertTrue(result.filterApplicationNote() == null);
         assertFalse(result.filteredItems().isEmpty(),
                 "extraction must run on the filtered response");
-        assertTrue(workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists());
-        assertTrue(workDir.resolve("ADDR-005").resolve("simplified-filtered.html")
+        assertTrue(captureDirOf(catalog.byId("ADDR-005"))
+                .resolve("content").resolve("FILTER").resolve("scrape-filtered.html")
+                .toFile().exists());
+        assertTrue(captureDirOf(catalog.byId("ADDR-005"))
+                .resolve("content").resolve("FILTER").resolve("simplified-filtered.html")
                 .toFile().exists());
     }
 
@@ -710,7 +731,7 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         MvpChainService service = new MvpChainService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -752,7 +773,7 @@ class MvpChainServiceTest {
                         + "\"reasoning\":\"ignored the constraint\"}");
         MvpChainService service = new MvpChainService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -762,7 +783,9 @@ class MvpChainServiceTest {
         assertTrue(result.filterApplicationNote().contains("supported"),
                 "the note must show what the connector supports");
         assertTrue(result.filteredItems().isEmpty());
-        assertTrue(!workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists(),
+        assertTrue(!captureDirOf(catalog.byId("ADDR-005"))
+                .resolve("content").resolve("FILTER").resolve("scrape-filtered.html")
+                .toFile().exists(),
                 "no filtered artifacts may be written for an off-list criterion");
     }
 
@@ -797,14 +820,16 @@ class MvpChainServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         MvpChainService service = new MvpChainService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
         MvpChainResult result = service.run(catalog.byId("ADDR-005"));
 
         assertEquals("Event status", result.appliedFilterField(),
                 "a supported criterion with different request wording must be applied");
         assertFalse(result.filteredItems().isEmpty());
-        assertTrue(workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists());
+        assertTrue(captureDirOf(catalog.byId("ADDR-005"))
+                .resolve("content").resolve("FILTER").resolve("scrape-filtered.html")
+                .toFile().exists());
     }
 
     private ScrapeResult load(String resource) {

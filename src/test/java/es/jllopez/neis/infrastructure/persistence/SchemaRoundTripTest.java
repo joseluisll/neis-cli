@@ -50,14 +50,24 @@ class SchemaRoundTripTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void schemaV1IsAppliedByMigrations() {
+    void migrationsAreAppliedInOrder() {
         var applied = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank");
-        assertEquals(1, applied.size(), "the V1 schema migration should be the only one applied");
+        // V1 = the base schema; V2 = the captures table (US-11.4).
+        assertEquals(2, applied.size(), "the V1 and V2 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.
         assertEquals(1, ((Number) row.get("success")).intValue());
+        var last = (Map<String, Object>) applied.get(1);
+        assertEquals("2", String.valueOf(last.get("version")));
+        assertEquals(1, ((Number) last.get("success")).intValue());
+        // The V2 table is present and shaped as the content tree expects.
+        var capturesColumns = jdbcTemplate.queryForList(
+                "PRAGMA table_info(captures)");
+        assertTrue(capturesColumns.stream().anyMatch(c ->
+                        "capture_id".equals(String.valueOf(((Map<?, ?>) c).get("name")))),
+                "the V2 captures table must carry capture_id");
     }
 
     @Test

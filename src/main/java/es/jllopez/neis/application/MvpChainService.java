@@ -96,6 +96,7 @@ public class MvpChainService {
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
+    final ContentStoreService contentStore;
     final String workDir;
 
     public MvpChainService(ContentScrapePort scrapePort,
@@ -107,6 +108,7 @@ public class MvpChainService {
                            ObjectProvider<AiAssistantPort> aiPort,
                            AddressCatalogService addressCatalog,
                            UrlSyntaxValidator urlValidator,
+                           ContentStoreService contentStore,
                            @Value("${neis.mvp.work-dir:./neis-mvp}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
@@ -117,6 +119,7 @@ public class MvpChainService {
         this.aiPort = aiPort;
         this.addressCatalog = addressCatalog;
         this.urlValidator = urlValidator;
+        this.contentStore = contentStore;
         this.workDir = workDir;
     }
 
@@ -147,12 +150,13 @@ public class MvpChainService {
         }
         // SCRAPE (US-06.1 slice): obtain HTML5 for the address.
         ScrapeResult scrape = scrapePort.scrape(address);
-        Path addressDir = addressDir(address);
-        Path scrapeArtifact = writeArtifact(addressDir, "scrape.html", scrape.html());
+        Path scrapeArtifact = writeArtifact(address, "SCRAPE", "listing-html",
+                "scrape.html", scrape.html());
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
         SimplifiedContent simplified = simplifyPort.simplify(scrape.html());
-        Path simplifyArtifact = writeArtifact(addressDir, "simplified.html", simplified.html());
+        Path simplifyArtifact = writeArtifact(address, "SIMPLIFY", "simplified-html",
+                "simplified.html", simplified.html());
 
         // ANALYZE (US-12.4 slice): pagination detection (evidence for the flag).
         PaginationInfo pagination = paginationDetector.detect(simplified.html());
@@ -203,11 +207,11 @@ public class MvpChainService {
                 } catch (RuntimeException e) {
                     break; // connector cannot address this page -> end of pagination
                 }
-                writeArtifact(addressDir, "scrape-page" + (page + 1) + ".html",
-                        pageScrape.html());
+                writeArtifact(flagged, "SCRAPE", "page-html",
+                        "scrape-page" + (page + 1) + ".html", pageScrape.html());
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageScrape.html());
-                writeArtifact(addressDir, "simplified-page" + (page + 1) + ".html",
-                        pageSimplified.html());
+                writeArtifact(flagged, "SIMPLIFY", "simplified-html",
+                        "simplified-page" + (page + 1) + ".html", pageSimplified.html());
                 int before = items.size();
                 for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
                         selection.selector(), flagged.itemKind(), flagged.id(), maxItems)) {
@@ -595,11 +599,11 @@ public class MvpChainService {
             return FilterApplication.skipped("criterion '" + field + " = " + value
                     + "' not applied: " + e.getMessage());
         }
-        Path filteredArtifact = writeArtifact(addressDir(address), "scrape-filtered.html",
-                filteredScrape.html());
+        Path filteredArtifact = writeArtifact(address, "FILTER", "filtered-html",
+                "scrape-filtered.html", filteredScrape.html());
         SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredScrape.html());
-        writeArtifact(addressDir(address), "simplified-filtered.html",
-                filteredSimplified.html());
+        writeArtifact(address, "FILTER", "filtered-html",
+                "simplified-filtered.html", filteredSimplified.html());
         List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
                 address.id(), MAX_ITEMS));
@@ -868,24 +872,15 @@ public class MvpChainService {
         return values;
     }
 
-    Path addressDir(Address address) {
-        Path dir = Path.of(workDir, address.id());
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot create chain work dir " + dir, e);
-        }
-        return dir;
-    }
-
-    Path writeArtifact(Path dir, String fileName, String content) {
-        try {
-            Path file = dir.resolve(fileName);
-            Files.writeString(file, content, StandardCharsets.UTF_8);
-            return file;
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot write chain artifact " + fileName, e);
-        }
+    /**
+     * Writes one chain artifact through the content store (US-11):
+     * the deterministic capture folder of the address's listing page,
+     * under the task's own content folder (US-11.3).
+     */
+    Path writeArtifact(Address address, String taskCode, String kind,
+                       String fileName, String content) {
+        return contentStore.writeTaskOutput(address, address.url(), taskCode,
+                kind, fileName, content);
     }
 
     /** Chosen selector plus its provenance and the page analysis. */
