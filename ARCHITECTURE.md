@@ -91,6 +91,20 @@ the cleanse; duplicated multi-select widget clones (checkbox copies of
 select options) are dropped so the real data stays inside the 100 KB
 cap.
 
+## Persistence (US-02)
+
+- SQLite3 is the database of the first iteration (owner decision
+  recorded in issue #15): `sqlite-jdbc` (Boot-managed) + Hibernate
+  community `SQLiteDialect` on Spring Data JPA. The database file is
+  externalized via `neis.db.path`.
+- Schema is owned by Flyway migrations (`db/migration`, `Vn__*.sql`),
+  never by Hibernate (`ddl-auto: none`). An applied migration is never
+  edited; schema changes ship as new `Vn` files (US-02.3).
+- All DB access stays behind repository ports; JPA entities and Spring
+  Data repositories live in `infrastructure.persistence` and never leak
+  into domain or application (enforced by the stack-freeze ArchUnit
+  rule, which blocks JPA/Hibernate/Spring Data/sqlite there).
+
 ## Enforced rules (ArchUnit)
 
 - `domain` may not depend on `application` or `infrastructure`.

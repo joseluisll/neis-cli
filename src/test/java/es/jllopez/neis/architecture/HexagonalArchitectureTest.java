@@ -61,6 +61,7 @@ class HexagonalArchitectureTest {
                         "org.apache.tika..",         // content detection
                         "jakarta.persistence..",     // JPA
                         "org.hibernate..",           // Hibernate ORM
+                        "org.springframework.data..", // Spring Data repositories
                         "org.springframework.ai..",  // Spring AI
                         "com.rometools..",           // Rome feeds
                         "net.dankito.readability4j..", // Readability4J

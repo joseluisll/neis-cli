@@ -16,6 +16,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
+  flyway:
+    # Schema evolution is migration-driven (US-02.3): the ORM never
+    # generates DDL (ddl-auto none) and an applied migration is never
+    # edited — schema changes ship as new Vn files in db/migration.
+    locations: classpath:db/migration
 
 logging:
   level:
