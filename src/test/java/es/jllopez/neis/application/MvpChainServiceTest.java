@@ -622,6 +622,94 @@ class MvpChainServiceTest {
                 "note must say the connector cannot apply: " + result.filterApplicationNote());
     }
 
+    @Test
+    void filterApplicationRejectsCriterionOutsideConnectorSupport() {
+        // The connector constrains what it can apply; the AI chooses a
+        // criterion outside that list -> the coherence guard rejects the
+        // application BEFORE any filtered scrape happens.
+        ContentScrapePort constrained = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+
+            @Override
+            public List<String> supportedFilterRequests(Address address) {
+                return List.of("Event status = Past (request: facets[status]=past)");
+            }
+
+            @Override
+            public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
+                throw new AssertionError(
+                        "no filtered scrape may happen for an off-list criterion");
+            }
+        };
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":"
+                        + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}",
+                "{\"field\":\"Event status\",\"value\":\"Upcoming and ongoing\","
+                        + "\"request\":\"oe_event_status=upcoming\","
+                        + "\"reasoning\":\"ignored the constraint\"}");
+        MvpChainService service = new MvpChainService(constrained, simplifyPort,
+                extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
+                aiProvider(ai), catalog, workDir.toString());
+
+        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+
+        assertTrue(result.appliedFilterField() == null);
+        assertTrue(result.filterApplicationNote().contains("cannot apply"),
+                "the off-list criterion must be rejected: " + result.filterApplicationNote());
+        assertTrue(result.filterApplicationNote().contains("supported"),
+                "the note must show what the connector supports");
+        assertTrue(result.filteredItems().isEmpty());
+        assertTrue(!workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists(),
+                "no filtered artifacts may be written for an off-list criterion");
+    }
+
+    @Test
+    void filterApplicationAcceptsSupportedCriterionWithDifferentRequestWording() {
+        // The guard matches leniently on the request text OR the chosen
+        // value: a supported criterion (value "Past") whose AI-derived
+        // request wording differs from the connector's token is applied.
+        ContentScrapePort constrained = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+
+            @Override
+            public List<String> supportedFilterRequests(Address address) {
+                return List.of("Event status = Past (request: facets[status]=past)");
+            }
+
+            @Override
+            public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
+                return load("/mvp/samples/addr-005-events-page2-rendered.html");
+            }
+        };
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":"
+                        + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}",
+                "{\"field\":\"Event status\",\"value\":\"Past\","
+                        + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
+        MvpChainService service = new MvpChainService(constrained, simplifyPort,
+                extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
+                aiProvider(ai), catalog, workDir.toString());
+
+        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+
+        assertEquals("Event status", result.appliedFilterField(),
+                "a supported criterion with different request wording must be applied");
+        assertFalse(result.filteredItems().isEmpty());
+        assertTrue(workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists());
+    }
+
     private ScrapeResult load(String resource) {
         try (InputStream in = getClass().getResourceAsStream(resource)) {
             String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);

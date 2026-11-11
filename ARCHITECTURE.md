@@ -77,9 +77,13 @@ page-dependent functionality only on flagged addresses:
   filtered response (`ContentScrapePort.scrapeFiltered` — captured
   real filtered pages in the static MVP), and the same validated
   selector extracts the narrowed listing, reported next to the
-  unfiltered one. Addresses without filter controls are reported
-  skipped; there is no client-side/semantic filtering of extracted
-  items (owner decision 2026-11-11).
+  unfiltered one. The static connector's supported-request list
+  (`StaticScrapeConnector.FILTER_CRITERIA`) is fixture metadata — which
+  criterion each captured response embodies, the same class of static
+  stand-in as its fixture registry; a production connector derives the
+  list from its real scraping/rendering capability. Addresses without
+  filter controls are reported skipped; there is no client-side/semantic
+  filtering of extracted items (owner decision 2026-11-11).
 
 SIMPLIFY keeps action/data elements that capability detection needs:
 pagination navs (pager chrome) and filter forms with selects survive
