@@ -152,9 +152,41 @@ cap.
   registers cron triggers (`ScheduleRegistrar`) that submit SCHEDULED
   runs to the executor. A refused submission is logged and does not
   cancel the schedule.
+- The executor's workers are DAEMON threads (ExecutorConfig): plain
+  non-daemon pool workers block JVM exit after any async CLI run, and
+  the Spring-managed `shutdown()` only runs during shutdown — a
+  deadlock the US-08 chain-run verification reproduced.
+
 - Timestamps in new entities are ISO-8601 TEXT at the entity boundary
   and typed `Instant` in the domain — SQLite stores TEXT (the US-02
   lesson; `Instant` columns fail Hibernate's timestamp parsing).
+
+## Chains of tasks (US-08)
+
+- A chain (US-08.1, `Chain`/`ChainTask`) is an ordered list of 1..10
+  task elements; the order is DATA (explicit 1..n positions, no gaps),
+  so the shape generalizes to a DAG later. A chain is not bound to an
+  address — the execution is; steps cannot be CHAIN (no nesting) and
+  must come from the `task_types` vocabulary (validated at creation,
+  enforced again by the `chain_tasks` FK).
+- Definitions persist in the schema V1 `chains`/`chain_tasks` tables
+  behind `ChainStorePort` (`ChainStoreConnector`); saving replaces the
+  task rows wholesale; per-task parameters (US-08.3) round-trip as the
+  schema's `parameters_json`.
+- `chain create/list/show/run` manage and execute definitions;
+  `chain run` submits through `ExecutionService.submitChain`, so a
+  chain run uses the SAME lifecycle, eligibility gate, per-address
+  serialization and execution-record machinery as any task run — the
+  record carries `task_code=CHAIN` plus the `chain_id` link.
+- Sequential execution (US-08.2): steps run in position order inside
+  the same per-address lock; each step gets its own parameters.
+  PRINT/CHAIN steps accept `max-items` (1..10000, default 50) and
+  `max-pages` (1..100, default 10); tasks that take no parameters yet
+  REFUSE them (dead configuration is an error, not silence).
+- Chain-level exception handling (US-08.4): a failing step aborts the
+  chain — the record goes FAILED with the failed step, its cause and
+  the completed steps; later steps never run. The outcome column is
+  capped at 4000 chars.
 
 ## Enforced rules (ArchUnit)
 

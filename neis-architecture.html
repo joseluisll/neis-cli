@@ -129,8 +129,8 @@
         <!-- ================= DRIVING ADAPTER ================= -->
         <rect x="210" y="60" width="420" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
         <text x="420" y="80" fill="white" font-size="11" font-weight="600" text-anchor="middle">Driving adapter &mdash; Spring Shell CLI</text>
-        <text x="420" y="97" fill="#94a3b8" font-size="9" text-anchor="middle">mvp-chain &middot; address add|verify &middot; execution run|list|show &middot; ai-ask &middot; about</text>
-        <text x="420" y="112" fill="#94a3b8" font-size="8" text-anchor="middle">MvpCommands &middot; NeisCommands &middot; AddressCommands &middot; ExecutionCommands &middot; AiCommands</text>
+        <text x="420" y="97" fill="#94a3b8" font-size="9" text-anchor="middle">mvp-chain &middot; address add|verify &middot; chain create|list|show|run &middot; execution run|list|show &middot; ai-ask &middot; about</text>
+        <text x="420" y="112" fill="#94a3b8" font-size="8" text-anchor="middle">MvpCommands &middot; NeisCommands &middot; AddressCommands &middot; ChainCommands &middot; ExecutionCommands &middot; AiCommands</text>
 
         <!-- ================= APPLICATION BAND ================= -->
         <rect x="210" y="150" width="940" height="210" rx="10" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1"/>
@@ -175,8 +175,8 @@
         <text x="520" y="341" fill="#94a3b8" font-size="8" text-anchor="middle">one task-specific prompt per block</text>
 
         <rect x="620" y="312" width="230" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1.5"/>
-        <text x="735" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">ExecutionService &middot; ScheduleRegistrar</text>
-        <text x="735" y="341" fill="#34d399" font-size="8" text-anchor="middle">async executor &middot; cron schedules (US-05)</text>
+        <text x="735" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">ExecutionService &middot; ChainService</text>
+        <text x="735" y="341" fill="#34d399" font-size="8" text-anchor="middle">async executor &middot; chain runs (US-05/US-08)</text>
 
         <rect x="865" y="312" width="110" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1"/>
         <text x="920" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">MvpChainResult</text>
@@ -230,6 +230,8 @@
         <text x="1081" y="441" fill="white" font-size="7.5" font-weight="600" text-anchor="middle">ExecutionStorePort</text>
         <text x="1081" y="455" fill="#94a3b8" font-size="6.5" text-anchor="middle">execution records</text>
         <text x="1081" y="467" fill="#94a3b8" font-size="6.5" text-anchor="middle">US-05.3</text>
+
+        <text x="230" y="487" fill="#a78bfa" font-size="7.5" font-weight="600">+ ChainStorePort (US-08.1): chain definitions, ordered 1..10 &middot; model row: Chain / ChainTask</text>
 
         <!-- model row -->
         <rect x="230" y="492" width="210" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#fb7185" stroke-width="1.5"/>
@@ -298,9 +300,9 @@
         <text x="310" y="755" fill="#94a3b8" font-size="7.5" text-anchor="middle">manual wiring &middot; optional</text>
 
         <rect x="405" y="710" width="340" height="50" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
-        <text x="575" y="725" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">AddressCatalogConnector &middot; ExecutionStoreConnector</text>
+        <text x="575" y="725" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">AddressCatalogConnector &middot; ExecutionStoreConnector &middot; ChainStoreConnector</text>
         <text x="575" y="739" fill="#94a3b8" font-size="7.5" text-anchor="middle">Spring Data JPA (sqlite-jdbc) + Flyway over neis.db &middot; + TaskTypeSeeder</text>
-        <text x="575" y="751" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-03 catalog &middot; US-05.3 execution records &middot; timestamps ISO TEXT</text>
+        <text x="575" y="751" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-03 catalog &middot; US-05.3 records &middot; US-08 chains &middot; timestamps ISO TEXT</text>
 
         <rect x="760" y="704" width="350" height="74" rx="6" fill="rgba(136, 19, 55, 0.25)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
         <text x="935" y="716" fill="white" font-size="9" font-weight="600" text-anchor="middle">Capability gating rule (US-17.2) &middot; address correction (#94)</text>
@@ -327,7 +329,7 @@
         <rect x="950" y="840" width="170" height="64" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
         <text x="1035" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">neis.db &mdash; SQLite3</text>
         <text x="1035" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">addresses &middot; executions &middot; task_types</text>
-        <text x="1035" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">Flyway V1 migrations (US-02)</text>
+        <text x="1035" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">chains &middot; chain_tasks &middot; Flyway V1 (US-02)</text>
 
         <!-- ================= LEGEND ================= -->
         <text x="230" y="934" fill="white" font-size="10" font-weight="600">Legend</text>
