@@ -168,6 +168,16 @@ public class TaskWorkService {
     /** PRINT / CHAIN: the whole predefined chain (issue #90), with
      * the per-task parameters of US-08.3 (issue #35). */
     private String fullChain(Address address, Map<String, String> parameters) {
+        // Whitelist, not lookup-and-ignore: an unknown key would
+        // otherwise be silently dead configuration — the exact
+        // fail-open the US-08 review disqualified (a typo like
+        // 'max-ites' would just do nothing).
+        for (String key : parameters.keySet()) {
+            if (!"max-items".equals(key) && !"max-pages".equals(key)) {
+                throw new IllegalArgumentException("Task type PRINT/CHAIN accepts only "
+                        + "max-items and max-pages (got: " + key + ")");
+            }
+        }
         int maxItems = intParameter(parameters, "max-items", 50, 1, 10_000);
         int maxPages = intParameter(parameters, "max-pages", 10, 1, 100);
         MvpChainResult result = chain.run(address, maxItems, maxPages);
