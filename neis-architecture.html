@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEIS (neis-cli) Architecture Diagram</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1240px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>NEIS (neis-cli) Architecture</h1>
+      </div>
+      <p class="subtitle">Hexagonal MVP chain SCRAPE &rarr; SIMPLIFY &rarr; ANALYZE &rarr; FILTER &rarr; PRINT &middot; AI-driven capability flagging (US-17) &middot; commit 72450d4</p>
+    </div>
+
+    <!-- Main Diagram -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 1010">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ================= ARROWS (drawn early, behind boxes) ================= -->
+
+        <!-- Operator -> shell -->
+        <line x1="150" y1="90" x2="206" y2="90" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="176" y="82" fill="#94a3b8" font-size="8" text-anchor="middle">CLI</text>
+
+        <!-- Shell -> application -->
+        <line x1="370" y1="130" x2="370" y2="146" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="380" y="142" fill="#94a3b8" font-size="8">mvp-chain &middot; mvp-addresses</text>
+
+        <!-- application -> domain -->
+        <line x1="680" y1="360" x2="680" y2="386" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="690" y="377" fill="#94a3b8" font-size="8">depends only on ports</text>
+
+        <!-- domain -> adapters -->
+        <line x1="680" y1="560" x2="680" y2="576" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="690" y="573" fill="#94a3b8" font-size="8">connectors implement ports</text>
+
+        <!-- chain block arrows -->
+        <line x1="390" y1="255" x2="406" y2="255" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="550" y1="255" x2="566" y2="255" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="710" y1="255" x2="726" y2="255" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="860" y1="255" x2="886" y2="255" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- capability flag semantics: annotated on the blocks (see chips)
+             and on the Address model box; dashed rose = flag/gate -->
+
+        <!-- adapters -> externals -->
+        <path d="M 355 695 L 355 800 Q 355 812 367 812 L 700 812 Q 712 812 712 834" fill="none" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="520" y="806" fill="#94a3b8" font-size="8" text-anchor="middle">Playwright-rendered fixtures (page-aware)</text>
+
+        <line x1="380" y1="759" x2="380" y2="834" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="390" y="800" fill="#94a3b8" font-size="8">OpenAI-compatible API</text>
+
+        <line x1="1025" y1="695" x2="1015" y2="834" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="1040" y="800" fill="#94a3b8" font-size="8">JSON store</text>
+
+        <!-- ================= REGION BOUNDARY ================= -->
+        <rect x="180" y="30" width="1000" height="780" rx="12" fill="rgba(251, 191, 36, 0.04)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="194" y="48" fill="#fbbf24" font-size="10" font-weight="600">neis-cli &middot; Java 21 &middot; Spring Boot 4 / Spring Shell 4 &middot; hexagonal (ports &amp; adapters)</text>
+
+        <!-- ================= EXTERNALS (left) ================= -->
+        <rect x="30" y="65" width="120" height="50" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="90" y="86" fill="white" font-size="10" font-weight="600" text-anchor="middle">Operator</text>
+        <text x="90" y="101" fill="#94a3b8" font-size="8" text-anchor="middle">terminal</text>
+
+        <!-- ================= DRIVING ADAPTER ================= -->
+        <rect x="210" y="60" width="420" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="420" y="80" fill="white" font-size="11" font-weight="600" text-anchor="middle">Driving adapter &mdash; Spring Shell CLI</text>
+        <text x="420" y="97" fill="#94a3b8" font-size="9" text-anchor="middle">mvp-chain ADDR-00X|all &middot; mvp-addresses &middot; ai-ask &middot; about</text>
+        <text x="420" y="112" fill="#94a3b8" font-size="8" text-anchor="middle">MvpCommands &middot; NeisCommands &middot; AiCommands</text>
+
+        <!-- ================= APPLICATION BAND ================= -->
+        <rect x="210" y="150" width="940" height="210" rx="10" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1"/>
+        <text x="224" y="168" fill="#34d399" font-size="10" font-weight="600">application &mdash; use cases &amp; orchestration</text>
+
+        <rect x="230" y="182" width="900" height="118" rx="8" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="244" y="200" fill="white" font-size="10" font-weight="600">MvpChainService &mdash; the static MVP chain (issue #90 + US-17)</text>
+
+        <!-- chain blocks -->
+        <rect x="250" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="320" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">SCRAPE</text>
+        <text x="320" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">HTML5, page 0..N</text>
+
+        <rect x="410" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="480" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">SIMPLIFY</text>
+        <text x="480" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">cleanse &le; 100 KB</text>
+
+        <rect x="570" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="640" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">ANALYZE</text>
+        <text x="640" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">classify &middot; selector</text>
+
+        <rect x="730" y="230" width="130" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="795" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">FILTER</text>
+        <text x="795" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">fields + values</text>
+
+        <rect x="890" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="960" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">PRINT</text>
+        <text x="960" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">items + metadata</text>
+
+        <!-- gating chips -->
+        <text x="320" y="294" fill="#94a3b8" font-size="7.5" text-anchor="middle">iterates pages only if PAGINATION flagged</text>
+        <text x="640" y="294" fill="#fb7185" font-size="7.5" text-anchor="middle">detects &amp; FLAGS capabilities (AI)</text>
+        <text x="795" y="294" fill="#fb7185" font-size="7.5" text-anchor="middle">runs only if FILTERING flagged</text>
+
+        <!-- application services row -->
+        <rect x="250" y="312" width="180" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1"/>
+        <text x="340" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">AddressCatalogService</text>
+        <text x="340" y="341" fill="#94a3b8" font-size="8" text-anchor="middle">ADDR-001..006 seed catalog</text>
+
+        <rect x="460" y="312" width="230" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1"/>
+        <text x="575" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">AiPromptCatalog</text>
+        <text x="575" y="341" fill="#94a3b8" font-size="8" text-anchor="middle">one task-specific prompt per block</text>
+
+        <rect x="720" y="312" width="180" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1"/>
+        <text x="810" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">MvpChainResult</text>
+        <text x="810" y="341" fill="#94a3b8" font-size="8" text-anchor="middle">capabilities &middot; filters &middot; pages</text>
+
+        <rect x="930" y="312" width="180" height="36" rx="6" fill="rgba(15, 23, 42, 0.7)" stroke="#34d399" stroke-width="1"/>
+        <text x="1020" y="328" fill="white" font-size="9" font-weight="600" text-anchor="middle">DomainServiceConfig</text>
+        <text x="1020" y="341" fill="#94a3b8" font-size="8" text-anchor="middle">wires pure-Java services</text>
+
+        <!-- ================= DOMAIN BAND ================= -->
+        <rect x="210" y="390" width="940" height="170" rx="10" fill="rgba(76, 29, 149, 0.10)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="224" y="408" fill="#a78bfa" font-size="10" font-weight="600">domain &mdash; pure Java, no Spring, no third-party libs (US-01.4 freeze rule)</text>
+
+        <!-- ports row -->
+        <rect x="230" y="421" width="168" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="314" y="441" fill="white" font-size="9" font-weight="600" text-anchor="middle">ContentScrapePort</text>
+        <text x="314" y="456" fill="#94a3b8" font-size="7.5" text-anchor="middle">scrape(addr) &middot; scrape(addr,page)</text>
+        <text x="314" y="468" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-06.1</text>
+
+        <rect x="408" y="421" width="168" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="492" y="441" fill="white" font-size="9" font-weight="600" text-anchor="middle">SimplifyPort</text>
+        <text x="492" y="456" fill="#94a3b8" font-size="7.5" text-anchor="middle">cleanse to action/data</text>
+        <text x="492" y="468" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-07.1..3</text>
+
+        <rect x="586" y="421" width="168" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="670" y="441" fill="white" font-size="9" font-weight="600" text-anchor="middle">SelectorExtractionPort</text>
+        <text x="670" y="456" fill="#94a3b8" font-size="7.5" text-anchor="middle">selector-based item extraction</text>
+        <text x="670" y="468" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-06.4 / US-12.2</text>
+
+        <rect x="764" y="421" width="168" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="848" y="441" fill="white" font-size="9" font-weight="600" text-anchor="middle">AiAssistantPort</text>
+        <text x="848" y="456" fill="#94a3b8" font-size="7.5" text-anchor="middle">shared by every AI block</text>
+        <text x="848" y="468" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-13</text>
+
+        <rect x="942" y="421" width="168" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1026" y="441" fill="white" font-size="9" font-weight="600" text-anchor="middle">SelectorStorePort</text>
+        <text x="1026" y="456" fill="#94a3b8" font-size="7.5" text-anchor="middle">persisted working selectors</text>
+        <text x="1026" y="468" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-12.1</text>
+
+        <!-- model row -->
+        <rect x="230" y="492" width="210" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="335" y="509" fill="white" font-size="9" font-weight="600" text-anchor="middle">Address (+ flags)</text>
+        <text x="335" y="524" fill="#fb7185" font-size="7.5" text-anchor="middle">capabilities: PAGINATION &middot; FILTERING</text>
+        <text x="335" y="536" fill="#94a3b8" font-size="7.5" text-anchor="middle">flagged by ANALYZE &middot; gates the blocks</text>
+
+        <rect x="455" y="492" width="140" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="525" y="509" fill="white" font-size="9" font-weight="600" text-anchor="middle">NewsEventItem</text>
+        <text x="525" y="524" fill="#94a3b8" font-size="7.5" text-anchor="middle">title &middot; date &middot; link</text>
+        <text x="525" y="536" fill="#94a3b8" font-size="7.5" text-anchor="middle">description</text>
+
+        <rect x="610" y="492" width="150" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="685" y="509" fill="white" font-size="9" font-weight="600" text-anchor="middle">FilterDefinition</text>
+        <text x="685" y="524" fill="#94a3b8" font-size="7.5" text-anchor="middle">name + offered values</text>
+        <text x="685" y="536" fill="#94a3b8" font-size="7.5" text-anchor="middle">US-17.1</text>
+
+        <rect x="775" y="492" width="140" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="845" y="509" fill="white" font-size="9" font-weight="600" text-anchor="middle">StoredSelectors</text>
+        <text x="845" y="524" fill="#94a3b8" font-size="7.5" text-anchor="middle">AI-identified, persisted</text>
+        <text x="845" y="536" fill="#94a3b8" font-size="7.5" text-anchor="middle">fast path: AI skipped</text>
+
+        <rect x="930" y="492" width="180" height="52" rx="6" fill="rgba(136, 19, 55, 0.35)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="1020" y="509" fill="white" font-size="8.5" font-weight="600" text-anchor="middle">PaginationDetector &middot;</text>
+        <text x="1020" y="522" fill="white" font-size="8.5" font-weight="600" text-anchor="middle">ExposedFilterDetector</text>
+        <text x="1020" y="536" fill="#94a3b8" font-size="7.5" text-anchor="middle">generic no-AI fallbacks</text>
+
+        <!-- ================= DRIVEN ADAPTERS BAND ================= -->
+        <rect x="210" y="580" width="940" height="200" rx="10" fill="rgba(120, 53, 15, 0.08)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="224" y="598" fill="#fbbf24" font-size="10" font-weight="600">infrastructure &mdash; driven connectors (the only layer touching third-party libs)</text>
+
+        <rect x="230" y="615" width="250" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="355" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">StaticScrapeConnector</text>
+        <text x="355" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">MVP fixtures /mvp/samples/*.html</text>
+        <text x="355" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">real Playwright-rendered pages</text>
+        <text x="355" y="677" fill="#fbbf24" font-size="7.5" text-anchor="middle">page-aware: &lt;id&gt;#p&lt;N&gt; (US-12.4)</text>
+
+        <rect x="500" y="615" width="220" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="610" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">JsoupSimplifyConnector</text>
+        <text x="610" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">jsoup cleanse, 100 KB cap</text>
+        <text x="610" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">keeps pager navs &amp; filter forms</text>
+        <text x="610" y="677" fill="#94a3b8" font-size="7.5" text-anchor="middle">(capability-detection inputs)</text>
+
+        <rect x="740" y="615" width="180" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="830" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">JsoupSelectorConnector</text>
+        <text x="830" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">CSS selector item extraction</text>
+        <text x="830" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">ECL date blocks &middot; epoch ms</text>
+        <text x="830" y="677" fill="#94a3b8" font-size="7.5" text-anchor="middle">validation by probe</text>
+
+        <rect x="940" y="615" width="170" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="1025" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">FileSelectorStoreConnector</text>
+        <text x="1025" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">selectors/&lt;addr&gt;.json</text>
+        <text x="1025" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">dependency-free JSON</text>
+        <text x="1025" y="677" fill="#94a3b8" font-size="7.5" text-anchor="middle">replaced by US-02 later</text>
+
+        <rect x="230" y="710" width="300" height="50" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="380" y="728" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">SpringAiConnector</text>
+        <text x="380" y="744" fill="#94a3b8" font-size="7.5" text-anchor="middle">Spring AI ChatClient &middot; manual wiring, no starter</text>
+        <text x="380" y="756" fill="#94a3b8" font-size="7.5" text-anchor="middle">provider-neutral (US-01.3) &middot; optional when unconfigured</text>
+
+        <rect x="560" y="710" width="550" height="50" rx="6" fill="rgba(136, 19, 55, 0.25)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="835" y="728" fill="white" font-size="9" font-weight="600" text-anchor="middle">Capability gating rule (US-17.2)</text>
+        <text x="835" y="744" fill="#fb7185" font-size="7.5" text-anchor="middle">a block executes its functionality on an address ONLY if the address is flagged with the corresponding capability</text>
+        <text x="835" y="756" fill="#94a3b8" font-size="7.5" text-anchor="middle">pagination-iteration &larr; PAGINATION flag &middot; FILTER block &larr; FILTERING flag &middot; otherwise skipped with a note</text>
+
+        <!-- ================= EXTERNALS (bottom) ================= -->
+        <rect x="230" y="840" width="300" height="64" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="380" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">Melious AI (api.melious.ai)</text>
+        <text x="380" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">OpenAI-compatible &middot; glm-5.3-flash</text>
+        <text x="380" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">MELIOUS_API_KEY &middot; serves every AI block</text>
+
+        <rect x="560" y="840" width="310" height="64" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="715" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">Web sources (seed data, issue #62)</text>
+        <text x="715" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">HaDEA events/news &middot; EUDI Wallet (Confluence)</text>
+        <text x="715" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">Funding &amp; Tenders Portal (SPA)</text>
+
+        <rect x="900" y="840" width="220" height="64" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1010" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">neis-mvp/ work dir</text>
+        <text x="1010" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">scrape/simplified per page</text>
+        <text x="1010" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">selectors/*.json</text>
+
+        <!-- ================= LEGEND ================= -->
+        <text x="230" y="934" fill="white" font-size="10" font-weight="600">Legend</text>
+
+        <rect x="230" y="946" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="252" y="954" fill="#94a3b8" font-size="8">Driving adapter (CLI)</text>
+
+        <rect x="400" y="946" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="422" y="954" fill="#94a3b8" font-size="8">Application (use cases)</text>
+
+        <rect x="590" y="946" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="612" y="954" fill="#94a3b8" font-size="8">Domain / ports / data</text>
+
+        <rect x="770" y="946" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="792" y="954" fill="#94a3b8" font-size="8">Driven connectors</text>
+
+        <rect x="930" y="946" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="952" y="954" fill="#94a3b8" font-size="8">External</text>
+
+        <line x1="230" y1="972" x2="246" y2="972" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4"/>
+        <text x="252" y="975" fill="#94a3b8" font-size="8">Capability flag / gate (US-17)</text>
+
+        <rect x="400" y="966" width="16" height="10" rx="2" fill="transparent" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="422" y="975" fill="#94a3b8" font-size="8">Process boundary (neis-cli)</text>
+
+        <text x="620" y="975" fill="#475569" font-size="8">backlog: joseluisll/neis-cli &middot; US-17 = #91/#92/#93 &middot; MVP chain = #90</text>
+      </svg>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">
+      NEIS &mdash; News and Events Information System &middot; neis-cli &middot; detailed architecture view &middot; generated 2026-11-11 &middot; commit 72450d4
+    </p>
+  </div>
+</body>
+</html>

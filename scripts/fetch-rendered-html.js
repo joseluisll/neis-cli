@@ -45,6 +45,30 @@ const SOURCES = [
     url: 'https://hadea.ec.europa.eu/news_en',
     file: 'addr-006-news-rendered.html',
   },
+  {
+    // EMA (European Medicines Agency) news list, page 1 of ~390 (Drupal,
+    // 12 news per page, keyword filter form, pager links ?page=N).
+    id: 'ADDR-007',
+    url: 'https://www.ema.europa.eu/en/news',
+    file: 'addr-007-news-rendered.html',
+  },
+  ...[1, 2, 3, 4].map((p) => ({
+    id: `ADDR-007-P${p + 1}`,
+    url: `https://www.ema.europa.eu/en/news?page=${p}`,
+    file: `addr-007-news-page${p + 1}-rendered.html`,
+  })),
+  {
+    // EMA upcoming events list, page 1 of 9 (12 events per page,
+    // topic/category/responsible-body filter selects).
+    id: 'ADDR-008',
+    url: 'https://www.ema.europa.eu/en/events/upcoming-events',
+    file: 'addr-008-events-rendered.html',
+  },
+  ...[1, 2, 3, 4].map((p) => ({
+    id: `ADDR-008-P${p + 1}`,
+    url: `https://www.ema.europa.eu/en/events/upcoming-events?page=${p}`,
+    file: `addr-008-events-page${p + 1}-rendered.html`,
+  })),
 ];
 
 (async () => {

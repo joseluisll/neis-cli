@@ -35,7 +35,7 @@ public class MvpCommands {
             description = "Run the predefined static chain "
                     + "SCRAPE -> SIMPLIFY -> ANALYZE -> FILTER -> PRINT for catalog address(es)")
     public String mvpChain(
-            @Argument(index = 0, description = "Address id (ADDR-001..ADDR-006) or 'all'",
+            @Argument(index = 0, description = "Address id (ADDR-001..ADDR-008) or 'all'",
                     defaultValue = "ADDR-001") String target) {
         boolean all = "all".equalsIgnoreCase(target);
         List<MvpChainResult> results = all

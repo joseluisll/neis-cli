@@ -74,6 +74,16 @@ class MvpChainServiceTest {
                 case "ADDR-005" -> "addr-005-events-rendered.html";
                 case "ADDR-005#p1" -> "addr-005-events-page2-rendered.html";
                 case "ADDR-006" -> "addr-006-news-rendered.html";
+                case "ADDR-007" -> "addr-007-news-rendered.html";
+                case "ADDR-007#p1" -> "addr-007-news-page2-rendered.html";
+                case "ADDR-007#p2" -> "addr-007-news-page3-rendered.html";
+                case "ADDR-007#p3" -> "addr-007-news-page4-rendered.html";
+                case "ADDR-007#p4" -> "addr-007-news-page5-rendered.html";
+                case "ADDR-008" -> "addr-008-events-rendered.html";
+                case "ADDR-008#p1" -> "addr-008-events-page2-rendered.html";
+                case "ADDR-008#p2" -> "addr-008-events-page3-rendered.html";
+                case "ADDR-008#p3" -> "addr-008-events-page4-rendered.html";
+                case "ADDR-008#p4" -> "addr-008-events-page5-rendered.html";
                 default -> throw new IllegalStateException("unexpected " + key);
             };
         }
@@ -327,5 +337,44 @@ class MvpChainServiceTest {
         assertTrue(result.items().size() <= 50, "MAX_ITEMS cap must hold");
         assertFalse(result.items().isEmpty());
         assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
+    }
+
+    @Test
+    void emaUpcomingEventsIteratePagesUpToTheCap() {
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ema-event--teaser\",\"reasoning\":\"repeating event teasers\"}",
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://www.ema.europa.eu/en/events/upcoming-events?page={n}\","
+                        + "\"reasoning\":\"pager links\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"filter form\"}}",
+                "{\"filters\":[],\"reasoning\":\"\"}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+
+        assertTrue(result.address().hasCapability(AddressCapability.PAGINATION));
+        assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
+        assertEquals("ai", result.selectorSource());
+        assertEquals(50, result.items().size(),
+                "10 events/page over 5 fixture pages must reach the MAX_ITEMS cap");
+        assertEquals(5, result.pagesScraped());
+    }
+
+    @Test
+    void emaNewsIteratesPagesUpToTheCap() {
+        AiAssistantPort ai = aiAnswering("news",
+                "{\"selector\":\"article.ema-news--teaser\",\"reasoning\":\"repeating news teasers\"}",
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://www.ema.europa.eu/en/news?page={n}\","
+                        + "\"reasoning\":\"pager links\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"keyword filter\"}}",
+                "{\"filters\":[],\"reasoning\":\"\"}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-007"));
+
+        assertTrue(result.address().hasCapability(AddressCapability.PAGINATION));
+        assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
+        assertEquals(50, result.items().size(),
+                "10 news/page over 5 fixture pages must reach the MAX_ITEMS cap");
+        assertEquals(5, result.pagesScraped());
     }
 }

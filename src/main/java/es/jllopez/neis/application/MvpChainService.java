@@ -209,8 +209,6 @@ public class MvpChainService {
         Set<AddressCapability> flags = new LinkedHashSet<>();
         List<String> evidence = new ArrayList<>();
         String pageUrlPattern = null;
-        boolean paginationResolved = false;
-        boolean filteringResolved = false;
 
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
@@ -220,7 +218,6 @@ public class MvpChainService {
                 String paginationSection = section(answer, "pagination");
                 String filteringSection = section(answer, "filtering");
                 if (paginationSection != null) {
-                    paginationResolved = true;
                     if (isTrue(paginationSection, "detected")) {
                         flags.add(AddressCapability.PAGINATION);
                         pageUrlPattern = jsonField(paginationSection, "pageUrlPattern");
@@ -231,7 +228,6 @@ public class MvpChainService {
                     }
                 }
                 if (filteringSection != null) {
-                    filteringResolved = true;
                     if (isTrue(filteringSection, "detected")) {
                         flags.add(AddressCapability.FILTERING);
                         evidence.add("filtering flagged by AI");
@@ -246,13 +242,19 @@ public class MvpChainService {
             evidence.add("AI not configured — generic HTML5 heuristics used");
         }
 
-        if (!paginationResolved && paginationDetector.detect(simplifiedHtml).paginated()) {
-            flags.add(AddressCapability.PAGINATION);
-            evidence.add("pagination flagged by URL/pager heuristic");
+        // The generic HTML5 heuristics run regardless of the AI answer:
+        // the AI's excerpt window can miss the pager or the filter form
+        // (e.g. EMA), and a false negative would silently disable the
+        // gated blocks. Union of both detections, evidence says which.
+        if (paginationDetector.detect(simplifiedHtml).paginated()) {
+            if (flags.add(AddressCapability.PAGINATION)) {
+                evidence.add("pagination flagged by URL/pager heuristic");
+            }
         }
-        if (!filteringResolved && exposedFilterDetector.detect(simplifiedHtml)) {
-            flags.add(AddressCapability.FILTERING);
-            evidence.add("filtering flagged by form/select heuristic");
+        if (exposedFilterDetector.detect(simplifiedHtml)) {
+            if (flags.add(AddressCapability.FILTERING)) {
+                evidence.add("filtering flagged by form/select heuristic");
+            }
         }
         return new CapabilityDetection(flags, pageUrlPattern,
                 String.join("; ", evidence));

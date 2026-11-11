@@ -66,13 +66,14 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                 + ":not(.ecl-date-block__month):not(.ecl-date-block__year)").remove();
         for (String fragment : STRIPPED_CLASS_FRAGMENTS) {
             for (Element el : doc.select("[class*=" + fragment + "]")) {
-                // Filter UI (form with select dropdowns) is action/data
-                // content (US-07.2) — often wrapped in layout containers
-                // whose class carries a stripped fragment ("sidebar",
-                // "search"). Keep those wrappers so the ANALYZE capability
-                // detection and the FILTER block can see the filter
-                // controls; strip plain chrome as before.
-                if (el.selectFirst("form select") != null) {
+                // Filter UI (form with select dropdowns) and listing items
+                // (article elements) are action/data content (US-07.2) —
+                // often carrying misleading class fragments ("search" in
+                // EMA's "card--variant-search" teasers). Keep them so the
+                // ANALYZE capability detection, the FILTER block and the
+                // extraction still see them; strip plain chrome as before.
+                if (el.selectFirst("form select") != null
+                        || el.selectFirst("article") != null) {
                     continue;
                 }
                 el.remove();

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEIS — High-Level Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1240px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>NEIS — High-Level Architecture</h1>
+      </div>
+      <p class="subtitle">News and Events Information System &middot; from web pages of news &amp; events to a structured, AI-assisted pipeline</p>
+    </div>
+
+    <!-- Main Diagram -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 720">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ================= FLOW ARROWS (behind boxes) ================= -->
+
+        <!-- sources -> chain -->
+        <line x1="240" y1="250" x2="300" y2="250" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="270" y="240" fill="#94a3b8" font-size="9" text-anchor="middle">fetch pages</text>
+
+        <!-- chain internal flow -->
+        <line x1="452" y1="250" x2="478" y2="250" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="612" y1="250" x2="638" y2="250" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="772" y1="250" x2="798" y2="250" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- chain -> repository -->
+        <line x1="940" y1="250" x2="1000" y2="250" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="970" y="240" fill="#94a3b8" font-size="9" text-anchor="middle">news &amp; events</text>
+
+        <!-- AI provider up to chain -->
+        <path d="M 600 600 L 600 480 L 545 480 L 545 310" fill="none" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="612" y="560" fill="#94a3b8" font-size="8">classification &middot; selectors</text>
+        <text x="612" y="572" fill="#94a3b8" font-size="8">capabilities &middot; filters</text>
+
+        <!-- capability flag: ANALYZE -> capability model (rose dashed) -->
+        <path d="M 705 280 L 705 360" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-rose)"/>
+        <text x="717" y="326" fill="#fb7185" font-size="8">flags what the page offers</text>
+
+        <!-- capability model gates blocks (rose dashed, up) -->
+        <path d="M 880 360 L 880 310" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-rose)"/>
+        <text x="890" y="336" fill="#fb7185" font-size="8">gates the blocks</text>
+
+        <!-- user -> system -->
+        <line x1="130" y1="120" x2="130" y2="222" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="140" y="180" fill="#94a3b8" font-size="8">runs the pipeline</text>
+
+        <!-- ================= USER ================= -->
+        <rect x="60" y="60" width="140" height="60" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="130" y="85" fill="white" font-size="11" font-weight="600" text-anchor="middle">User</text>
+        <text x="130" y="101" fill="#94a3b8" font-size="8" text-anchor="middle">CLI / (UI, later)</text>
+
+        <!-- ================= SYSTEM BOUNDARY ================= -->
+        <rect x="295" y="100" width="700" height="420" rx="12" fill="rgba(251, 191, 36, 0.04)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="312" y="122" fill="#fbbf24" font-size="10" font-weight="600">NEIS</text>
+
+        <!-- address catalog -->
+        <rect x="330" y="150" width="200" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="430" y="175" fill="white" font-size="11" font-weight="600" text-anchor="middle">Addresses catalog</text>
+        <text x="430" y="192" fill="#94a3b8" font-size="8" text-anchor="middle">news &amp; event sources to watch</text>
+        <text x="430" y="206" fill="#94a3b8" font-size="8" text-anchor="middle">+ their capabilities</text>
+        <line x1="430" y1="220" x2="430" y2="288" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrow-violet)"/>
+        <text x="440" y="262" fill="#94a3b8" font-size="8">feeds the chain</text>
+
+        <!-- chain steps -->
+        <rect x="305" y="220" width="147" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="378" y="245" fill="white" font-size="11" font-weight="600" text-anchor="middle">WEBSCRAPE</text>
+        <text x="378" y="262" fill="#94a3b8" font-size="8" text-anchor="middle">get the pages</text>
+
+        <rect x="478" y="220" width="134" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="545" y="245" fill="white" font-size="11" font-weight="600" text-anchor="middle">SIMPLIFY</text>
+        <text x="545" y="262" fill="#94a3b8" font-size="8" text-anchor="middle">keep what matters</text>
+
+        <rect x="638" y="220" width="134" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="705" y="245" fill="white" font-size="11" font-weight="600" text-anchor="middle">ANALYZE</text>
+        <text x="705" y="262" fill="#94a3b8" font-size="8" text-anchor="middle">understand the page</text>
+
+        <rect x="798" y="220" width="142" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="869" y="245" fill="white" font-size="11" font-weight="600" text-anchor="middle">EXTRACT / PRINT</text>
+        <text x="869" y="262" fill="#94a3b8" font-size="8" text-anchor="middle">lists + FILTER when offered</text>
+
+        <!-- chains concept -->
+        <text x="312" y="320" fill="#94a3b8" font-size="8">tasks run in configurable chains of up to 10 steps, sequentially, per address</text>
+
+        <!-- where the AI helps (linked) -->
+        <text x="312" y="342" fill="#a78bfa" font-size="8" font-weight="600">WHERE THE AI HELPS (click the issue numbers):</text>
+        <text x="312" y="360" fill="#94a3b8" font-size="8">&bull; ANALYZE: classify <a href="https://github.com/joseluisll/neis-cli/issues/51" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#51</tspan></a>, selectors <a href="https://github.com/joseluisll/neis-cli/issues/52" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#52</tspan></a> <a href="https://github.com/joseluisll/neis-cli/issues/53" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#53</tspan></a>, capabilities <a href="https://github.com/joseluisll/neis-cli/issues/93" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#93</tspan></a></text>
+        <text x="312" y="376" fill="#94a3b8" font-size="8">&bull; FILTER: filter fields + values <a href="https://github.com/joseluisll/neis-cli/issues/92" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#92</tspan></a></text>
+        <text x="312" y="392" fill="#94a3b8" font-size="8">&bull; Address registration <a href="https://github.com/joseluisll/neis-cli/issues/64" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#64</tspan></a>, provider mgmt <a href="https://github.com/joseluisll/neis-cli/issues/66" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#66</tspan></a> (US-13 <a href="https://github.com/joseluisll/neis-cli/issues/49" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#49</tspan></a>)</text>
+
+        <!-- capability model: one box per capability -->
+        <text x="620" y="352" fill="#fb7185" font-size="8" font-weight="600">ADDRESS CAPABILITIES (US-17)</text>
+
+        <rect x="620" y="360" width="180" height="80" rx="6" fill="rgba(136, 19, 55, 0.25)" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="710" y="382" fill="white" font-size="10" font-weight="600" text-anchor="middle">PAGINATION</text>
+        <text x="710" y="400" fill="#fb7185" font-size="8" text-anchor="middle">the listing has more pages</text>
+        <text x="710" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">gates: page iteration</text>
+        <text x="710" y="428" fill="#94a3b8" font-size="8" text-anchor="middle">US-12.4 &middot; #93</text>
+
+        <rect x="815" y="360" width="180" height="80" rx="6" fill="rgba(136, 19, 55, 0.25)" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="905" y="382" fill="white" font-size="10" font-weight="600" text-anchor="middle">FILTERING</text>
+        <text x="905" y="400" fill="#fb7185" font-size="8" text-anchor="middle">the listing offers filter controls</text>
+        <text x="905" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">gates: the FILTER block</text>
+        <text x="905" y="428" fill="#94a3b8" font-size="8" text-anchor="middle">US-17.1 &middot; #92</text>
+
+        <!-- ================= SOURCES ================= -->
+        <rect x="60" y="215" width="180" height="70" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="150" y="238" fill="white" font-size="11" font-weight="600" text-anchor="middle">Web sources</text>
+        <text x="150" y="255" fill="#94a3b8" font-size="8" text-anchor="middle">EU agency news &amp; events pages</text>
+        <text x="150" y="268" fill="#94a3b8" font-size="8" text-anchor="middle">static, SPA, portals</text>
+
+        <!-- ================= REPOSITORY ================= -->
+        <rect x="1000" y="215" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1085" y="238" fill="white" font-size="11" font-weight="600" text-anchor="middle">News &amp; events</text>
+        <text x="1085" y="255" fill="#94a3b8" font-size="8" text-anchor="middle">title &middot; date &middot; link</text>
+        <text x="1085" y="268" fill="#94a3b8" font-size="8" text-anchor="middle">description &middot; source</text>
+
+        <!-- ================= AI PROVIDER ================= -->
+        <rect x="450" y="600" width="300" height="88" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="600" y="621" fill="white" font-size="11" font-weight="600" text-anchor="middle">AI assistant</text>
+        <text x="600" y="638" fill="#94a3b8" font-size="8" text-anchor="middle">one task-specific prompt per job &middot; results reused &amp; stored</text>
+        <text x="600" y="652" fill="#94a3b8" font-size="8" text-anchor="middle">no site-specific logic in the code</text>
+        <text x="600" y="668" fill="#94a3b8" font-size="8" text-anchor="middle">scope:
+          <a href="https://github.com/joseluisll/neis-cli/issues/49" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#49</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/51" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#51</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/52" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#52</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/53" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#53</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/64" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#64</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/66" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#66</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/92" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#92</tspan></a>
+          <a href="https://github.com/joseluisll/neis-cli/issues/93" target="_blank"><tspan fill="#a78bfa" text-decoration="underline">#93</tspan></a></text>
+
+        <!-- ================= LEGEND ================= -->
+        <text x="60" y="420" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="60" y="432" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="82" y="440" fill="#94a3b8" font-size="8">Pipeline steps</text>
+        <rect x="60" y="448" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="82" y="456" fill="#94a3b8" font-size="8">Data (addresses, results)</text>
+        <rect x="60" y="464" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="82" y="472" fill="#94a3b8" font-size="8">AI service (external)</text>
+        <rect x="60" y="480" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="82" y="488" fill="#94a3b8" font-size="8">External world</text>
+        <line x1="60" y1="502" x2="76" y2="502" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4"/>
+        <text x="82" y="505" fill="#94a3b8" font-size="8">Capability flag / gate</text>
+
+        <text x="60" y="540" fill="#475569" font-size="8">roadmap &amp; delivery phases: see the NEIS ROADMAP diagram</text>
+        <text x="60" y="556" fill="#475569" font-size="8">backlog: github.com/joseluisll/neis-cli (project #3)</text>
+      </svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>What NEIS does</h3>
+        </div>
+        <ul>
+          <li>&bull; Watches a catalog of web pages that list news and events</li>
+          <li>&bull; Runs a chain of steps over each address: fetch, cleanse, understand, extract</li>
+          <li>&bull; Produces structured news/events (title, date, link, description, source)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>The capability idea</h3>
+        </div>
+        <ul>
+          <li>&bull; Before acting on a page, NEIS learns what the page itself offers</li>
+          <li>&bull; Pagination and filtering are detected and flagged onto the address</li>
+          <li>&bull; Steps that need a capability only run when it is flagged — everything else is skipped, never guessed</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>Role of the AI</h3>
+        </div>
+        <ul>
+          <li>&bull; Understands pages instead of hardcoded rules: what kind of page, where the list is, what filters exist</li>
+          <li>&bull; Learnings are kept with the address — the AI is only needed the first time</li>
+          <li>&bull; One shared assistant, one focused prompt per job</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">
+      NEIS &mdash; News and Events Information System &middot; joseluisll/neis-cli &middot; high-level view &middot; 2026-11-11
+    </p>
+  </div>
+</body>
+</html>

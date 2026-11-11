@@ -48,7 +48,15 @@ public class AddressCatalogService {
             new Address("ADDR-006",
                     "HaDEA - News",
                     "https://hadea.ec.europa.eu/news_en",
-                    AddressType.URL_NEWS));
+                    AddressType.URL_NEWS),
+            new Address("ADDR-007",
+                    "EMA - News",
+                    "https://www.ema.europa.eu/en/news",
+                    AddressType.URL_NEWS),
+            new Address("ADDR-008",
+                    "EMA - Upcoming Events",
+                    "https://www.ema.europa.eu/en/events/upcoming-events",
+                    AddressType.URL_EVENTS));
 
     public List<Address> list() {
         return addresses;
@@ -60,6 +68,6 @@ public class AddressCatalogService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown address id: " + id
-                                + " (known: ADDR-001..ADDR-006, seed data of issue #62)"));
+                                + " (known: ADDR-001..ADDR-008, seed data of issue #62)"));
     }
 }

@@ -32,14 +32,24 @@ import java.util.Map;
 @Component
 public class StaticScrapeConnector implements ContentScrapePort {
 
-    private static final Map<String, String> FIXTURES = Map.of(
-            "ADDR-001", "/mvp/samples/addr-001-news.html",
-            "ADDR-002", "/mvp/samples/addr-002-events.html",
-            "ADDR-003", "/mvp/samples/addr-003-news-spa-rendered.html",
-            "ADDR-004", "/mvp/samples/addr-004-events-spa-rendered.html",
-            "ADDR-005", "/mvp/samples/addr-005-events-rendered.html",
-            "ADDR-005#p1", "/mvp/samples/addr-005-events-page2-rendered.html",
-            "ADDR-006", "/mvp/samples/addr-006-news-rendered.html");
+    private static final Map<String, String> FIXTURES = Map.ofEntries(
+            Map.entry("ADDR-001", "/mvp/samples/addr-001-news.html"),
+            Map.entry("ADDR-002", "/mvp/samples/addr-002-events.html"),
+            Map.entry("ADDR-003", "/mvp/samples/addr-003-news-spa-rendered.html"),
+            Map.entry("ADDR-004", "/mvp/samples/addr-004-events-spa-rendered.html"),
+            Map.entry("ADDR-005", "/mvp/samples/addr-005-events-rendered.html"),
+            Map.entry("ADDR-005#p1", "/mvp/samples/addr-005-events-page2-rendered.html"),
+            Map.entry("ADDR-006", "/mvp/samples/addr-006-news-rendered.html"),
+            Map.entry("ADDR-007", "/mvp/samples/addr-007-news-rendered.html"),
+            Map.entry("ADDR-007#p1", "/mvp/samples/addr-007-news-page2-rendered.html"),
+            Map.entry("ADDR-007#p2", "/mvp/samples/addr-007-news-page3-rendered.html"),
+            Map.entry("ADDR-007#p3", "/mvp/samples/addr-007-news-page4-rendered.html"),
+            Map.entry("ADDR-007#p4", "/mvp/samples/addr-007-news-page5-rendered.html"),
+            Map.entry("ADDR-008", "/mvp/samples/addr-008-events-rendered.html"),
+            Map.entry("ADDR-008#p1", "/mvp/samples/addr-008-events-page2-rendered.html"),
+            Map.entry("ADDR-008#p2", "/mvp/samples/addr-008-events-page3-rendered.html"),
+            Map.entry("ADDR-008#p3", "/mvp/samples/addr-008-events-page4-rendered.html"),
+            Map.entry("ADDR-008#p4", "/mvp/samples/addr-008-events-page5-rendered.html"));
 
     @Override
     public ScrapeResult scrape(Address address) {

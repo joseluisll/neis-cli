@@ -89,24 +89,38 @@ final class AiPromptCatalog {
     }
 
     /**
-     * Head+tail window, but always including the filter-form region
-     * (first {@code <form>} to last {@code </form>}) when present — that
-     * region carries the data the FILTER block extracts.
+     * Head+tail window, but always including the regions the analysis
+     * blocks need: the filter-form region (first {@code <form>} to last
+     * {@code </form>}) and the navigation region (first {@code <nav>} to
+     * last {@code </nav>}, where pagination controls live). Both carry
+     * the data the capability detection reads; a plain head+tail window
+     * misses them in the middle of the page.
      */
     private static String formFocusedExcerpt(String html) {
         int firstForm = html.indexOf("<form");
         int lastFormEnd = html.lastIndexOf("</form>");
-        if (firstForm < 0 || lastFormEnd <= firstForm) {
+        int firstNav = html.indexOf("<nav");
+        int lastNavEnd = html.lastIndexOf("</nav>");
+        int start = -1;
+        int end = -1;
+        if (firstForm >= 0 && lastFormEnd > firstForm) {
+            start = firstForm;
+            end = lastFormEnd + "</form>".length();
+        }
+        if (firstNav >= 0 && lastNavEnd > firstNav) {
+            start = start < 0 ? firstNav : Math.min(start, firstNav);
+            end = Math.max(end, lastNavEnd + "</nav>".length());
+        }
+        if (start < 0) {
             return excerpt(html);
         }
-        String formRegion = html.substring(firstForm,
-                Math.min(html.length(), lastFormEnd + "</form>".length()));
-        if (formRegion.length() > FORM_BUDGET) {
-            formRegion = formRegion.substring(0, FORM_BUDGET)
-                    + "\n[... rest of the form region omitted ...]";
+        String region = html.substring(start, Math.min(html.length(), end));
+        if (region.length() > FORM_BUDGET) {
+            region = region.substring(0, FORM_BUDGET)
+                    + "\n[... rest of the region omitted ...]";
         }
         return "[page head]\n" + html.substring(0, Math.min(html.length(), 2_000))
-                + "\n\n[filter form region]\n" + formRegion
+                + "\n\n[filter form and navigation region]\n" + region
                 + "\n\n[page tail]\n" + html.substring(Math.max(0, html.length() - 2_000));
     }
 
@@ -131,8 +145,31 @@ final class AiPromptCatalog {
                 {"selector":"the css selector","reasoning":"short explanation"}
                 If no repeating %s item structure is present, answer:
                 {"selector":null,"reasoning":"why none was found"}
-                --- SIMPLIFIED HTML EXCERPT (head and tail) ---
-                %s""".formatted(kind, kind, kind, excerpt(simplifiedHtml));
+                --- SIMPLIFIED HTML EXCERPT (list-item focused) ---
+                %s""".formatted(kind, kind, kind, listFocusedExcerpt(simplifiedHtml));
+    }
+
+    /**
+     * Head+tail window, but when the page clearly carries a list of
+     * repeating {@code <article>} items, the window centers on the list
+     * region (first to last article) — listing items usually sit in the
+     * middle of the page, where a plain head+tail window would miss them.
+     */
+    private static String listFocusedExcerpt(String html) {
+        int firstArticle = html.indexOf("<article");
+        int lastArticleEnd = html.lastIndexOf("</article>");
+        if (firstArticle < 0 || lastArticleEnd <= firstArticle) {
+            return excerpt(html);
+        }
+        String listRegion = html.substring(firstArticle,
+                Math.min(html.length(), lastArticleEnd + "</article>".length()));
+        if (listRegion.length() > FORM_BUDGET) {
+            listRegion = listRegion.substring(0, FORM_BUDGET)
+                    + "\n[... rest of the list region omitted ...]";
+        }
+        return "[page head]\n" + html.substring(0, Math.min(html.length(), 2_000))
+                + "\n\n[list region]\n" + listRegion
+                + "\n\n[page tail]\n" + html.substring(Math.max(0, html.length() - 2_000));
     }
 
     /**
