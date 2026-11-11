@@ -49,14 +49,14 @@ if [[ "$ADDR_COUNT" -eq 0 ]]; then
   cat >&2 <<'EOF'
 The address catalog is empty (fresh installs start empty - no automatic seeding).
 Register the addresses you want, then verify them (only verified addresses are
-eligible for the chain, US-04). Example (issue #62 seed set):
+eligible for the chain, US-04). Values with spaces need the whole command
+passed as ONE quoted string (the non-interactive shell re-parses the line):
 
-  start.sh address add --id ADDR-001 --name 'EU Digital Identity Wallet - News' \
-    --type URL_NEWS --description 'EUDI Wallet project news (Confluence)' \
-    --url 'https://ec.europa.eu/digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/712507533/News'
-  start.sh address add --id ADDR-005 --name 'HaDEA - Events' --type URL_EVENTS \
-    --url 'https://hadea.ec.europa.eu/events_en'
-  start.sh address verify --all true
+  start.sh -- 'address add --id ADDR-001 --name "EU Digi Wallet News" \
+    --type URL_NEWS --url "https://ec.europa.eu/digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/712507533/News"'
+  start.sh -- 'address add --id ADDR-005 --name "HaDEA Events" \
+    --type URL_EVENTS --url "https://hadea.ec.europa.eu/events_en"'
+  start.sh -- 'address verify --all true'
 
 (see the repo's issue #62 for the full seed set; the chain's SCRAPE step
 serves bundled fixtures keyed by address id, so the id is what matters)

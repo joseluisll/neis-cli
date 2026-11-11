@@ -1,17 +1,23 @@
 # NEIS MVP run kit
 
 One-command way to run the NEIS MVP (issue #90): the predefined static
-chain **SCRAPE → SIMPLIFY → ANALYZE → FILTER → PRINT** over the static
-address catalog (issue #62 seed data, ADDR-001..ADDR-009), with the
-static fixtures bundled in the application jar (no network access) and
-AI classification/selector identification via MeliousAI.
+chain **SCRAPE → SIMPLIFY → ANALYZE → FILTER → PRINT** over the
+registered address catalog, with the static fixtures bundled in the
+application jar (no network access) and AI classification/selector
+identification via MeliousAI.
+
+Since slice 2 of the platform (US-03/US-04) the catalog lives in the
+SQLite database and ships EMPTY — no automatic seeding. Register and
+verify the addresses you want first (only verified addresses are
+eligible for the chain); `run.sh` fails with copy-paste guidance when
+the catalog is empty.
 
 ## Run
 
 ```bash
-mvp/run.sh                 # whole static catalog (all nine addresses)
+mvp/run.sh                 # every eligible registered address
 mvp/run.sh ADDR-003        # one address
-mvp/run.sh --list          # show the static address catalog
+mvp/run.sh --list          # show the registered address catalog
 mvp/run.sh ADDR-003 --no-ai
 ```
 

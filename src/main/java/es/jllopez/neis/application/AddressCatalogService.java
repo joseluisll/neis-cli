@@ -82,12 +82,15 @@ public class AddressCatalogService {
                           String url, AddressType type) {
         requireValidUrl(url); // null keeps the current (validated) URL
         Address current = byId(id);
+        // Preserve the loaded verification state (US-04.2): catalog
+        // edits never touch it — only 'address verify' does.
         return catalogPort.save(new Address(current.id(),
                 name != null ? name : current.name(),
                 description != null ? description : current.description(),
                 url != null ? url : current.url(),
                 type != null ? type : current.type(),
-                current.capabilities()));
+                current.capabilities(),
+                current.verificationStatus(), current.verifiedAt()));
     }
 
     /**

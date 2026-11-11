@@ -9,7 +9,10 @@
 #   ./start.sh ADDR-003            # one address (ADDR-001..ADDR-004)
 #   ./start.sh ADDR-003 --no-ai    # force AI off (works once selectors
 #                                  # are stored under neis-mvp/selectors/)
-#   ./start.sh --list              # show the static address catalog
+#   ./start.sh --list              # show the address catalog
+#   ./start.sh -- address add ...  # passthrough: run any other CLI
+#                                  # command (e.g. the US-03 address CRUD)
+#                                  # against the same jar/JDK setup
 #
 # AI is enabled automatically when MELIOUS_API_KEY is available (read from
 # the environment or ~/.hermes/.env); ANALYZE then uses the AI prompt
@@ -51,6 +54,11 @@ fi
 TARGET="all"
 if [[ "${1:-}" == "--list" ]]; then
   exec java -Dspring.shell.interactive.enabled=false -jar "$JAR" mvp-addresses
+fi
+if [[ "${1:-}" == "--" ]]; then
+  # Passthrough: any other CLI command with the same JDK/jar setup.
+  shift
+  exec java -Dspring.shell.interactive.enabled=false -jar "$JAR" "$@"
 fi
 if [[ "${1:-}" == "--no-ai" ]]; then
   AI_ARGS=(); shift || true

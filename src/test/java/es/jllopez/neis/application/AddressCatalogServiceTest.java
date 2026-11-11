@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,19 @@ class AddressCatalogServiceTest {
         assertEquals("original description", edited.description());
         assertEquals("https://example.eu/a2", edited.url());
         assertEquals(AddressType.URL_NEWS, edited.type());
+    }
+
+    @Test
+    void updatePreservesTheVerificationState() {
+        catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
+                AddressType.URL_NEWS);
+        catalog.updateVerification("ADDR-001", VerificationStatus.VERIFIED,
+                "2026-11-11T12:00:00Z");
+
+        Address edited = catalog.update("ADDR-001", "Renamed", null, null, null);
+
+        assertEquals(VerificationStatus.VERIFIED, edited.verificationStatus());
+        assertEquals("2026-11-11T12:00:00Z", edited.verifiedAt());
     }
 
     @Test

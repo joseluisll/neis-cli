@@ -45,6 +45,11 @@ neis:
   # written as real HTML5 files.
   mvp:
     work-dir: ./neis-mvp
+  address:
+    verification:
+      # Address reachability check (US-04.2): per-request timeout of the
+      # verification HTTP call.
+      timeout-seconds: 10
   ai:
     # AI integration point (US-01.3) using the same MeliousAI provider as
     # the Hermes agent (owner decision 2026-11-11; provider management is

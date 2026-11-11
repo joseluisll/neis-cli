@@ -47,6 +47,8 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `ContentScrapePort` | driven | `StaticScrapeConnector` (MVP: static HTML5 fixtures of issue #62; real fetching connectors plug in behind it) |
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
+| `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
+| `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout) |
 
 The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
 issue #90; FILTER added for US-17) is orchestrated by `MvpChainService`
@@ -104,6 +106,26 @@ cap.
   Data repositories live in `infrastructure.persistence` and never leak
   into domain or application (enforced by the stack-freeze ArchUnit
   rule, which blocks JPA/Hibernate/Spring Data/sqlite there).
+
+## Addresses: catalog, validation, eligibility (US-03, US-04)
+
+- The registered address catalog is database-backed
+  (`AddressCatalogPort` -> `AddressCatalogConnector`); it ships EMPTY —
+  there is no automatic seeding (owner decision 2026-11-11). CRUD runs
+  through the `address add/list/show/edit/remove/verify` commands
+  (US-03.2); catalog edits never touch the verification columns.
+- Syntactic URL validation (US-04.1): `UrlSyntaxValidator` (pure
+  domain service) demands an absolute http/https URL with a host; it
+  runs at creation/edit time and again before an executor uses the
+  address.
+- Verification (US-04.2): `AddressVerificationPort` checks
+  reachability (HEAD with GET fallback, redirects followed, timeout via
+  `neis.address.verification.timeout-seconds`); the outcome
+  (VERIFIED/FAILED + ISO checked-at) persists on the address through
+  the catalog.
+- Eligibility (US-04.3): executors accept only addresses that are
+  syntactically valid AND VERIFIED. The MVP chain refuses ineligible
+  addresses; batch runs skip them and report the skip count.
 
 ## Enforced rules (ArchUnit)
 
