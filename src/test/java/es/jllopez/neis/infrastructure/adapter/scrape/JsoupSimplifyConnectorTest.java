@@ -92,4 +92,45 @@ class JsoupSimplifyConnectorTest {
         String simplified = connector.simplify(fixture("addr-003-news-spa-rendered.html")).html();
         assertTrue(simplified.contains("support/news/"), "news detail links must survive");
     }
+
+    @Test
+    void dropsCheckboxClonesOfSelectOptionsInFilterWidgets() {
+        // Multi-select filter widgets render every option twice (native
+        // select options + generated checkbox/label clones). The clones
+        // are duplication: they must go, the select with its values stays,
+        // and content after the form survives the cap.
+        String option = "<option value=\"%d\">Programme %d</option>";
+        String clone = "<div class=\"ecl-checkbox\"><input type=\"checkbox\" "
+                + "id=\"cb%d\"><label for=\"cb%d\">Programme %d</label></div>";
+        StringBuilder form = new StringBuilder("<form id=\"facets\"><select multiple>");
+        StringBuilder clones = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            form.append(String.format(option, i, i));
+            clones.append(String.format(clone, i, i, i));
+        }
+        form.append("</select>").append(clones).append("</form>");
+        String raw = "<html><body>" + form
+                + "<article class=\"item\">Real listing item</article></body></html>";
+        String simplified = connector.simplify(raw).html();
+
+        assertFalse(simplified.contains("type=\"checkbox\""),
+                "checkbox clones of select options must be dropped");
+        assertTrue(simplified.contains("<option"), "the select options must stay");
+        assertTrue(simplified.contains("Real listing item"),
+                "content after the form must survive the cap");
+    }
+
+    @Test
+    void keepsCheckboxFiltersThatAreNotSelectClones() {
+        // A standalone checkbox facet with no select twin is a REAL filter
+        // field — it must survive the dedup.
+        String raw = "<html><body><form id=\"facets\">"
+                + "<select name=\"topics\"><option value=\"1\">Cancer</option></select>"
+                + "<div class=\"ecl-checkbox\"><input type=\"checkbox\" id=\"x\">"
+                + "<label for=\"x\">Patient safety</label></div>"
+                + "</form></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertTrue(simplified.contains("Patient safety"),
+                "a checkbox filter that mirrors no select option stays");
+    }
 }

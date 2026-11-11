@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Outcome of one MVP chain run (SCRAPE - SIMPLIFY - ANALYZE - FILTER -
- * PRINT) for a single address. The PRINT step renders this for the shell.
+ * Outcome of one MVP chain run (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT)
+ * for a single address. The PRINT step renders this for the shell.
  *
  * @param selectorSource provenance of the used selector: "stored"
  *                        (persisted from a previous AI run — AI skipped),
@@ -33,6 +33,16 @@ import java.util.Set;
  * @param filterSource    provenance of the filter definitions: "ai",
  *                        "fallback" or "skipped" (address not flagged
  *                        with the filtering capability)
+ * @param appliedFilterField AI-chosen filter field APPLIED to narrow the
+ *                        listing before extraction (US-06.6 slice); null
+ *                        when no criterion was applied
+ * @param appliedFilterValue value of the applied filter criterion
+ * @param filterRequest   request representation the connector applied
+ *                        (query parameters / control token)
+ * @param filteredItems   items extracted from the filtered response
+ * @param filteredScrapeArtifact path of the filtered scrape artifact
+ * @param filterApplicationNote why no criterion was applied (skipped /
+ *                        connector cannot apply / AI chose none)
  */
 public record MvpChainResult(
         Address address,
@@ -53,5 +63,11 @@ public record MvpChainResult(
         String filterZoneSelector,
         List<FilterDefinition> filters,
         String filterSource,
-        String filterNote) {
+        String filterNote,
+        String appliedFilterField,
+        String appliedFilterValue,
+        String filterRequest,
+        List<NewsEventItem> filteredItems,
+        String filteredScrapeArtifact,
+        String filterApplicationNote) {
 }

@@ -1,6 +1,9 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.FilterDefinition;
+
+import java.util.List;
 
 /**
  * The catalog of AI prompts for the analysis-side blocks, one per task
@@ -139,6 +142,62 @@ final class AiPromptCatalog {
                 {"filterZoneSelector":null,"reasoning":"why none was found"}
                 --- SIMPLIFIED HTML EXCERPT (filter-form focused) ---
                 %s""".formatted(formFocusedExcerpt(simplifiedHtml));
+    }
+
+    /**
+     * Task: APPLY one filter criterion to narrow the listing (US-06.6
+     * slice of the FILTER block, issue #73). The AI chooses exactly one
+     * of the previously extracted filter fields with one of its values
+     * and derives the REQUEST the site's filter mechanism would receive:
+     * URL query parameters for static GET filters, or the connector
+     * representation of operating the page controls for rendered pages.
+     * When the SCRAPE connector can currently serve only some requests
+     * (the static MVP's captured responses), the choice is constrained
+     * to them — the applied criterion must match the response the
+     * connector returns. The code encodes no site-specific knowledge —
+     * the request comes from the extracted definitions and the
+     * connector's own capability statement, never hardcoded.
+     */
+    static String applyFilterPrompt(List<FilterDefinition> filters, Address address,
+                                    List<String> supportedRequests) {
+        StringBuilder fields = new StringBuilder();
+        for (FilterDefinition filter : filters) {
+            fields.append("- ").append(filter.name()).append(": ")
+                    .append(filter.values().isEmpty() ? "(free text input)"
+                            : String.join(" | ", filter.values()))
+                    .append('\n');
+        }
+        String constraint = "";
+        if (supportedRequests != null && !supportedRequests.isEmpty()) {
+            constraint = """
+                The SCRAPE connector can currently apply EXACTLY these filter requests:
+                %s
+                Choose one of THESE (its field and value above) — the connector serves \
+                the site's response for that request. If none corresponds to an available \
+                field, answer field=null.
+                """.formatted(String.join("\n", supportedRequests));
+        }
+        return """
+                You are applying ONE filter criterion to narrow the listing at %s \
+                before its news/events are extracted (the way a user would operate \
+                the page's filter controls or the site's filter URL).
+                The available filter fields of the page are:
+                %s
+                %s
+                Choose exactly ONE field and ONE of its values (a value that is \
+                expected to return a NON-EMPTY but NARROWED listing — avoid values \
+                that likely match nothing), and derive "request": the concrete \
+                request representation the site's filter mechanism receives for \
+                that criterion (for URL-parameter filters the query string, \
+                e.g. "facets[status]=past"; for control-operated filters a short \
+                parameter-style token naming the control and value, \
+                e.g. "event_type=CONFERENCE_SUMMIT").
+                Answer ONLY with a JSON object:
+                {"field":"chosen field name","value":"chosen value",
+                 "request":"the filter request representation","reasoning":"short explanation"}
+                If none of the fields can be applied, answer:
+                {"field":null,"value":null,"request":null,"reasoning":"why"}
+                """.formatted(address.url(), fields, constraint);
     }
 
     /**

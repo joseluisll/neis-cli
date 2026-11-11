@@ -136,6 +136,14 @@ class MvpChainServiceTest {
     /** AI stub with explicit capability-detection and filter answers (US-17). */
     private AiAssistantPort aiAnswering(String classification, String selectorJson,
                                         String capabilityJson, String filtersJson) {
+        return aiAnswering(classification, selectorJson, capabilityJson, filtersJson,
+                "{\"field\":null,\"value\":null,\"request\":null,\"reasoning\":\"stub default\"}");
+    }
+
+    /** AI stub with an explicit filter-application answer (US-06.6). */
+    private AiAssistantPort aiAnswering(String classification, String selectorJson,
+                                        String capabilityJson, String filtersJson,
+                                        String applyFilterJson) {
         return prompt -> {
             if (prompt.contains("Classify the page")) {
                 return classification;
@@ -145,6 +153,9 @@ class MvpChainServiceTest {
             }
             if (prompt.contains("FILTER ZONE")) {
                 return "{\"filterZoneSelector\":null,\"reasoning\":\"stub default\"}";
+            }
+            if (prompt.contains("applying ONE filter")) {
+                return applyFilterJson;
             }
             if (prompt.contains("FILTER controls")) {
                 return filtersJson;
@@ -519,5 +530,104 @@ class MvpChainServiceTest {
         assertEquals("form.oe-list-pages-facets-form", store.get("ADDR-005").filterSelector(),
                 "the zone selector must be persisted merged into the stored selectors");
         assertEquals(1, result.filters().size());
+    }
+
+    @Test
+    void filterApplicationRunsOnAFilterableAddress() {
+        // The captured filtered response of the SCRAPE connector stands
+        // in for what the site returns after the filter request; page 2
+        // of the HaDEA events fixture plays that role here.
+        ContentScrapePort withFilteredResponse = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return scrape(address, 0);
+            }
+
+            @Override
+            public ScrapeResult scrape(Address address, int pageIndex) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+
+            @Override
+            public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
+                assertEquals("oe_event_status=past", filterRequest);
+                return load("/mvp/samples/addr-005-events-page2-rendered.html");
+            }
+        };
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"facet form\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":"
+                        + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}",
+                "{\"field\":\"Event status\",\"value\":\"Past\","
+                        + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
+        MvpChainService service = new MvpChainService(withFilteredResponse, simplifyPort,
+                extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
+                aiProvider(ai), catalog, workDir.toString());
+
+        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+
+        assertEquals("Event status", result.appliedFilterField());
+        assertEquals("Past", result.appliedFilterValue());
+        assertEquals("oe_event_status=past", result.filterRequest());
+        assertTrue(result.filterApplicationNote() == null);
+        assertFalse(result.filteredItems().isEmpty(),
+                "extraction must run on the filtered response");
+        assertTrue(workDir.resolve("ADDR-005").resolve("scrape-filtered.html").toFile().exists());
+        assertTrue(workDir.resolve("ADDR-005").resolve("simplified-filtered.html")
+                .toFile().exists());
+    }
+
+    @Test
+    void filterApplicationSkipsWhenAiChoosesNoCriterion() {
+        // default aiAnswering: the apply prompt answers field=null
+        MvpChainResult result = service(aiProvider(aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":[\"Past\"]}],\"reasoning\":\"\"}")))
+                .run(catalog.byId("ADDR-005"));
+
+        assertTrue(result.appliedFilterField() == null);
+        assertTrue(result.filteredItems().isEmpty());
+        assertTrue(result.filterApplicationNote().contains("no applicable filter criterion"));
+    }
+
+    @Test
+    void filterApplicationSkipsWhenConnectorCannotApplyFilters() {
+        // Bare SCRAPE port: scrapeFiltered is not implemented -> the
+        // default port method rejects the application with a note.
+        ContentScrapePort limited = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+        };
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":[\"Past\"]}],\"reasoning\":\"\"}",
+                "{\"field\":\"Event status\",\"value\":\"Past\","
+                        + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
+        MvpChainService service = new MvpChainService(limited, simplifyPort,
+                extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
+                aiProvider(ai), catalog, workDir.toString());
+
+        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+
+        assertTrue(result.appliedFilterField() == null);
+        assertTrue(result.filterApplicationNote().contains("cannot apply"),
+                "note must say the connector cannot apply: " + result.filterApplicationNote());
+    }
+
+    private ScrapeResult load(String resource) {
+        try (InputStream in = getClass().getResourceAsStream(resource)) {
+            String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return new ScrapeResult(html, "text/html; charset=UTF-8", html.length());
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

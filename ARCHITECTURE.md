@@ -69,11 +69,23 @@ page-dependent functionality only on flagged addresses:
   addresses flagged PAGINATION, following the AI-derived page URL
   pattern up to the item cap;
 - the FILTER block extracts the filter definitions
-  (`FilterDefinition`) only on addresses flagged FILTERING.
+  (`FilterDefinition`) only on addresses flagged FILTERING, and then
+  APPLIES one criterion before extraction (US-06.6 slice, issue #73):
+  the AI chooses one criterion and derives the filter request
+  (constrained to what the SCRAPE connector reports it can apply via
+  `ContentScrapePort.supportedFilterRequests`), the connector serves the
+  filtered response (`ContentScrapePort.scrapeFiltered` — captured
+  real filtered pages in the static MVP), and the same validated
+  selector extracts the narrowed listing, reported next to the
+  unfiltered one. Addresses without filter controls are reported
+  skipped; there is no client-side/semantic filtering of extracted
+  items (owner decision 2026-11-11).
 
 SIMPLIFY keeps action/data elements that capability detection needs:
 pagination navs (pager chrome) and filter forms with selects survive
-the cleanse.
+the cleanse; duplicated multi-select widget clones (checkbox copies of
+select options) are dropped so the real data stays inside the 100 KB
+cap.
 
 ## Enforced rules (ArchUnit)
 

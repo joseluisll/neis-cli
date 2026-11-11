@@ -36,7 +36,11 @@ public class SpringAiConnector implements AiAssistantPort {
             @Value("${neis.ai.model:}") String model) {
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
-                .apiKey(apiKey);
+                .apiKey(apiKey)
+                // Deterministic analysis answers: the chain's decisions
+                // (selectors, capability flags, filter choice) must be
+                // reproducible across runs of the same page.
+                .temperature(0.0);
         if (model != null && !model.isBlank()) {
             options.model(model);
         }

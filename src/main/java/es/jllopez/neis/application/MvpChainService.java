@@ -194,6 +194,16 @@ public class MvpChainService {
                 : new FilterOutcome(List.of(), "skipped", null, null,
                 "address not flagged with the filtering capability");
 
+        // FILTER application block (US-06.6 slice, issue #73): the AI
+        // chooses ONE of the extracted criteria and the SCRAPE connector
+        // applies it BEFORE the filtered response is served; extraction
+        // then runs on the filtered result. Only on FILTERING-flagged
+        // addresses; the code encodes no site-specific filter knowledge.
+        FilterApplication application = null;
+        if (flagged.hasCapability(AddressCapability.FILTERING)) {
+            application = applyFilter(flagged, selection, filterOutcome);
+        }
+
         return new MvpChainResult(flagged, scrapeArtifact.toString(),
                 simplifyArtifact.toString(), scrape.sizeBytes(), simplified.sizeBytes(),
                 pagination, selection.analysis(), selection.selector(),
@@ -201,7 +211,13 @@ public class MvpChainService {
                 capabilities.evidence(), capabilities.pageUrlPattern(), pagesScraped,
                 capabilities.correctedAddress(),
                 filterOutcome.zoneSelector(),
-                filterOutcome.filters(), filterOutcome.source(), filterOutcome.note());
+                filterOutcome.filters(), filterOutcome.source(), filterOutcome.note(),
+                application == null ? null : application.field(),
+                application == null ? null : application.value(),
+                application == null ? null : application.request(),
+                application == null ? List.of() : application.items(),
+                application == null ? null : application.scrapeArtifact(),
+                application == null ? null : application.note());
     }
 
     /** Runs the chain for every address of the static catalog. */
@@ -421,6 +437,79 @@ public class MvpChainService {
     private String scopeHtml(String simplifiedHtml, String zoneSelector) {
         String zone = extractionPort.zoneHtml(simplifiedHtml, zoneSelector);
         return zone != null ? zone : simplifiedHtml;
+    }
+
+    /**
+     * FILTER application (US-06.6 slice, issue #73): the AI chooses ONE
+     * of the extracted filter criteria and derives the request the
+     * site's filter mechanism receives (query parameters or a control
+     * token — no site-specific knowledge in code); the SCRAPE connector
+     * applies it and the SAME validated item selector extracts the
+     * narrowed listing from the filtered response. Every failure degrades
+     * to an explanatory note, never to a chain failure. Called only on
+     * FILTERING-flagged addresses.
+     */
+    private FilterApplication applyFilter(Address address, SelectorSelection selection,
+                                          FilterOutcome outcome) {
+        if (outcome.filters().isEmpty()) {
+            return FilterApplication.skipped(
+                    "no filter definitions extracted — nothing to apply");
+        }
+        AiAssistantPort ai = aiPort.getIfAvailable();
+        if (ai == null) {
+            return FilterApplication.skipped(
+                    "AI not configured — no criterion can be chosen to apply");
+        }
+        String answer;
+        try {
+            List<String> supported = scrapePort.supportedFilterRequests(address);
+            answer = ai.complete(
+                    AiPromptCatalog.applyFilterPrompt(outcome.filters(), address, supported));
+        } catch (RuntimeException e) {
+            return FilterApplication.skipped("AI filter-apply call failed: " + e.getMessage());
+        }
+        String field = jsonField(answer, "field");
+        String value = jsonField(answer, "value");
+        String request = jsonField(answer, "request");
+        if (field == null || request == null || request.isBlank()) {
+            return FilterApplication.skipped("AI chose no applicable filter criterion");
+        }
+        // Coherence guard: when the connector constrains what it can
+        // apply, the chosen criterion must correspond to one of its
+        // supported requests (matched leniently on the request text or
+        // the chosen value).
+        List<String> supported = scrapePort.supportedFilterRequests(address);
+        if (!supported.isEmpty()) {
+            boolean coherent = supported.stream().anyMatch(s ->
+                    lower(s).contains(lower(request))
+                            || (value != null && lower(s).contains(lower(value))));
+            if (!coherent) {
+                return FilterApplication.skipped("AI chose a criterion the connector "
+                        + "cannot apply (supported: " + String.join("; ", supported) + ")");
+            }
+        }
+        ScrapeResult filteredScrape;
+        try {
+            filteredScrape = scrapePort.scrapeFiltered(address, request);
+        } catch (UnsupportedOperationException e) {
+            return FilterApplication.skipped("criterion '" + field + " = " + value
+                    + "' not applied: " + e.getMessage());
+        }
+        Path filteredArtifact = writeArtifact(addressDir(address), "scrape-filtered.html",
+                filteredScrape.html());
+        SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredScrape.html());
+        writeArtifact(addressDir(address), "simplified-filtered.html",
+                filteredSimplified.html());
+        List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
+                filteredSimplified.html(), selection.selector(), address.itemKind(),
+                address.id(), MAX_ITEMS));
+        return new FilterApplication(field, value, request,
+                filteredArtifact.toString(), filteredItems, "ai", null);
+    }
+
+    /** Case-insensitive containment helper for the coherence guard. */
+    private String lower(String s) {
+        return s == null ? "" : s.toLowerCase();
     }
 
     /** Dedupe key across pages: title + link. */
@@ -688,5 +777,18 @@ public class MvpChainService {
      * extracted from within it, and provenance (US-17.1). */
     record FilterOutcome(List<FilterDefinition> filters, String source,
                          String zoneSelector, String zoneSource, String note) {
+    }
+
+    /** FILTER application outcome (US-06.6 slice): the applied
+     * criterion, the filtered-response scrape and the narrowed
+     * extraction; {@code skipped} with a note when no criterion could
+     * be applied. */
+    record FilterApplication(String field, String value, String request,
+                             String scrapeArtifact, List<NewsEventItem> items,
+                             String source, String note) {
+        static FilterApplication skipped(String note) {
+            return new FilterApplication(null, null, null, null, List.of(),
+                    "skipped", note);
+        }
     }
 }

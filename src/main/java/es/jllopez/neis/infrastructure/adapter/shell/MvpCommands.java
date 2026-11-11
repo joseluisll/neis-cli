@@ -141,6 +141,37 @@ public class MvpCommands {
             out.append("           pagination iteration: ").append(r.pagesScraped())
                     .append(" page(s) scraped (gated on the PAGINATION flag)\n");
         }
+
+        // FILTER application (US-06.6 slice): one criterion applied by
+        // the SCRAPE connector before the filtered extraction.
+        if (r.appliedFilterField() != null) {
+            out.append("APPLY    : ").append(r.appliedFilterField()).append(" = ")
+                    .append(r.appliedFilterValue()).append(" [")
+                    .append(r.filterRequest()).append("]\n");
+            out.append("           filtered scrape: ").append(r.filteredScrapeArtifact())
+                    .append("\n");
+            out.append("PRINT(f) : ").append(r.filteredItems().size())
+                    .append(" ").append(r.address().itemKind())
+                    .append(" item(s) in the FILTERED listing (unfiltered: ")
+                    .append(r.items().size()).append(")\n");
+            if (r.filteredItems().isEmpty()) {
+                out.append("           (no items matched the selected selector "
+                        + "in the filtered response)\n");
+            }
+            int k = 1;
+            for (NewsEventItem item : r.filteredItems()) {
+                out.append("  ").append(k++).append(". ").append(item.title()).append("\n");
+                if (item.date() != null) {
+                    out.append("     date: ").append(item.date()).append("\n");
+                }
+                if (item.url() != null) {
+                    out.append("     link: ").append(item.url()).append("\n");
+                }
+            }
+        } else if (r.filterApplicationNote() != null) {
+            out.append("APPLY    : skipped — ").append(r.filterApplicationNote()).append("\n");
+        }
+
         if (!r.analysis().notes().isBlank()) {
             out.append("           notes: ").append(r.analysis().notes()).append("\n");
         }

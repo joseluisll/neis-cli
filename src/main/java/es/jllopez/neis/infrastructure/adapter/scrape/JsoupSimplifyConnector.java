@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Connector (driven adapter) implementing the SIMPLIFY port with jsoup
@@ -79,6 +81,7 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                 el.remove();
             }
         }
+        dropDuplicatedWidgetCheckboxEntries(doc);
         for (Element el : doc.select("*")) {
             for (String attr : STRIPPED_ATTRIBUTES) {
                 el.removeAttr(attr);
@@ -102,6 +105,62 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                 .toLowerCase();
         return marker.contains("pagination") || marker.contains("pager")
                 || !nav.select("[rel=next], a[href*=page=]").isEmpty();
+    }
+
+    /**
+     * Filter widgets often render every option of a native
+     * {@code <select>} TWICE — the native option list plus a generated
+     * checkbox/label clone group (multi-select widgets do this; the
+     * cloned group of a large facet form alone can outweigh the whole
+     * listing and push the real data past the output cap). Both carry
+     * the same values; the checkbox clone is pure duplication for the
+     * analysis. Drop the checkbox entries whose text mirrors an option
+     * of the select of the same widget group. Generic widget dedup —
+     * the select (the smaller, canonical representation) is kept with
+     * all its values.
+     */
+    private void dropDuplicatedWidgetCheckboxEntries(Document doc) {
+        for (Element select : doc.select("form select")) {
+            Set<String> optionTexts = new HashSet<>();
+            for (Element option : select.select("option")) {
+                String text = normalizedText(option.text());
+                if (!text.isEmpty()) {
+                    optionTexts.add(text);
+                }
+            }
+            if (optionTexts.isEmpty()) {
+                continue;
+            }
+            // Scope: the widget group that holds this select AND its
+            // checkbox clones (their common container).
+            Element scope = select.parent();
+            while (scope != null && !scope.tagName().equals("form")
+                    && scope.select("input[type=checkbox]").isEmpty()) {
+                scope = scope.parent();
+            }
+            if (scope == null) {
+                continue;
+            }
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (Element el : scope.select("*")) {
+                    if (el.select("input[type=checkbox]").size() != 1
+                            || !el.select("select, article, form").isEmpty()) {
+                        continue;
+                    }
+                    if (optionTexts.contains(normalizedText(el.text()))) {
+                        el.remove();
+                        changed = true;
+                        break; // DOM changed — restart the scan
+                    }
+                }
+            }
+        }
+    }
+
+    private String normalizedText(String text) {
+        return text == null ? "" : text.trim().replaceAll("\\s+", " ").toLowerCase();
     }
 
     private void removeComments(Node node) {
