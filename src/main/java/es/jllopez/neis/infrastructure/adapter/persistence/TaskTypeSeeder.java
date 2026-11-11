@@ -65,15 +65,24 @@ public class TaskTypeSeeder implements ApplicationRunner {
             try {
                 taskTypes.save(entity);
                 created++;
-            } catch (DataIntegrityViolationException lostTheRace) {
-                // Concurrent boots over one database: the other boot's
-                // seeding committed between this boot's existsById check
-                // and the insert, so the PRIMARY KEY refuses ours. The
-                // vocabulary is present either way — that is all this
-                // seeder needs; startup must not fail on it (deferred
-                // slice-3 review finding).
-                log.debug("Task-type {} was already seeded by a concurrent boot",
-                        type[0]);
+            } catch (DataIntegrityViolationException refused) {
+                // A concurrent boot's seeding may have committed between
+                // this boot's existsById check and the insert, so the
+                // PRIMARY KEY refuses ours — the vocabulary is present
+                // either way and startup must not fail on it (deferred
+                // slice-3 review finding). DataIntegrityViolationException
+                // is Spring's translation for EVERY integrity violation,
+                // though: only treat the refusal as a lost race when the
+                // row is actually there now. An unrelated integrity
+                // failure (a future NOT NULL or CHECK constraint on the
+                // vocabulary constants, say) must fail startup, not be
+                // swallowed (fail-closed review finding on 5a69d27).
+                if (taskTypes.existsById(type[0])) {
+                    log.info("Task-type {} was already seeded by a concurrent boot",
+                            type[0]);
+                } else {
+                    throw refused;
+                }
             }
         }
         if (created > 0) {
