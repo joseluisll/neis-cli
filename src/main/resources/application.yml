@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: neis
+
+neis:
+  name: NEIS
+  description: News and Events Information System
