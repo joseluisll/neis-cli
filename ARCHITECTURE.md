@@ -50,6 +50,8 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
 | `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout) |
 | `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
+| `ChainStorePort` | driven | `ChainStoreConnector` (US-08.1: chain definitions over the SQLite `chains`/`chain_tasks` tables) |
+| `ContentStorePort` | driven | `ContentStoreConnector` (US-11: webpage captures + content records over the SQLite `captures`/`content_records` tables) |
 
 The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
 issue #90; FILTER added for US-17) is orchestrated by `MvpChainService`
@@ -187,6 +189,31 @@ cap.
   chain — the record goes FAILED with the failed step, its cause and
   the completed steps; later steps never run. The outcome column is
   capped at 4000 chars.
+
+## Content storage (US-11)
+
+- Storage is a first-class capability: every task output lands in a
+  deterministic filesystem tree mirroring the domain model (US-11.4):
+  `<content root>/<address id>/<capture id>/content/<task code>/<file>`
+  plus `metadata/capture.json` (the fetch record). One folder per
+  registered address (US-11.1), one per webpage capture, content
+  organized per task within the capture (US-11.2, US-11.3).
+- Determinism: the capture id derives from the webpage URL (SHA-256
+  prefix, never run timestamps) and a content record's id derives from
+  address+capture+task+file — repeated operations land in (and
+  update) the same place; there are no timestamped copies. History
+  belongs to the repository (US-14), not to duplicated folders.
+- Consistency: every folder is backed by an entity and vice versa —
+  addresses (schema V1), captures (new `captures` table, V2
+  migration, composite PK address+capture), content files
+  (`content_records`, V1, UNIQUE path). All writes go through
+  `ContentStoreService` behind `ContentStorePort`.
+- The chain work dir IS the content root (`neis.mvp.work-dir`,
+  externalized; the run kit pins it via `NEIS_MVP_WORK_DIR`). The
+  selector store stays at `<root>/selectors/` (unchanged this slice).
+- `content list [--address]` and `content tree --address` inspect the
+  stored records; the tree view is the filesystem projection of the
+  database rows.
 
 ## Enforced rules (ArchUnit)
 
