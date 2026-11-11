@@ -42,4 +42,29 @@ class HexagonalArchitectureTest {
                 .resideInAnyPackage("org.springframework..");
         rule.check(importedClasses);
     }
+
+    /**
+     * US-01.4 (issue #63): the owner-confirmed open-source building
+     * blocks are implementation details behind the ports. Domain and
+     * application may never import them — swap a component without
+     * touching the inner layers.
+     */
+    @Test
+    void domainAndApplicationMustNotDependOnStackLibraries() {
+        ArchRule rule = noClasses().that()
+                .resideInAnyPackage("..domain..", "..application..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                        "org.jsoup..",               // HTML5 parsing / selectors
+                        "org.apache.hc..",           // Apache HttpClient 5
+                        "com.microsoft.playwright..", // JS rendering
+                        "org.apache.tika..",         // content detection
+                        "jakarta.persistence..",     // JPA
+                        "org.hibernate..",           // Hibernate ORM
+                        "org.springframework.ai..",  // Spring AI
+                        "com.rometools..",           // Rome feeds
+                        "net.dankito.readability4j..", // Readability4J
+                        "org.sqlite..");             // sqlite-jdbc
+        rule.check(importedClasses);
+    }
 }
