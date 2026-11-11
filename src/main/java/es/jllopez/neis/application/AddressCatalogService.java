@@ -40,17 +40,17 @@ public class AddressCatalogService {
 
     /** The registered address with the given id (case-insensitive). */
     public Address byId(String id) {
+        List<Address> all = catalogPort.findAll();
         return catalogPort.findById(id)
-                .or(() -> catalogPort.findAll().stream()
+                .or(() -> all.stream()
                         .filter(a -> a.id().equalsIgnoreCase(id))
                         .findFirst())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown address id: " + id
                                 + " (registered addresses: "
-                                + (catalogPort.findAll().isEmpty()
+                                + (all.isEmpty()
                                 ? "<catalog is empty — add one with 'address add'>"
-                                : catalogPort.findAll().stream()
-                                .map(Address::id).toList()) + ")"));
+                                : all.stream().map(Address::id).toList()) + ")"));
     }
 
     /**
@@ -110,7 +110,15 @@ public class AddressCatalogService {
         int max = catalogPort.findAll().stream()
                 .map(Address::id)
                 .filter(id -> id.toUpperCase(Locale.ROOT).matches("ADDR-\\d+"))
-                .mapToInt(id -> Integer.parseInt(id.substring(5)))
+                .mapToInt(id -> {
+                    // A user-supplied id may exceed int range: bound it
+                    // instead of letting the parse throw on every call.
+                    try {
+                        return Integer.parseInt(id.substring(5));
+                    } catch (NumberFormatException e) {
+                        return 0;
+                    }
+                })
                 .max()
                 .orElse(0);
         return Optional.of(String.format("ADDR-%03d", max + 1));

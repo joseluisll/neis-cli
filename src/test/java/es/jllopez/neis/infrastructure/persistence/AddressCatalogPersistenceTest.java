@@ -118,6 +118,13 @@ class AddressCatalogPersistenceTest {
     @Test
     void deleteIsRefusedWhileHistoryReferencesTheAddress() {
         catalog.save(address("ADDR-P6", "https://example.org/p6", AddressType.URL_NEWS));
+        SelectorEntity selector = new SelectorEntity();
+        selector.setAddressId("ADDR-P6");
+        selector.setKind("news");
+        selector.setSelector("ul.items > li");
+        selector.setDiscoveredBy("test");
+        selector.setDiscoveredAt("2026-11-11");
+        selectors.save(selector);
         jdbcTemplate.update(
                 "INSERT INTO executions (id, address_id, trigger_type, status) "
                         + "VALUES ('EXEC-P6', 'ADDR-P6', 'MANUAL', 'SUCCESS')");
@@ -127,6 +134,11 @@ class AddressCatalogPersistenceTest {
         assertTrue(e.getMessage().contains("ADDR-P6"));
         assertTrue(catalog.findById("ADDR-P6").isPresent(),
                 "the address stays registered while history references it");
+        // The whole delete rolled back atomically: the selector that the
+        // cascade removed BEFORE the FK refusal is back (slice-2 review
+        // finding — the rollback claim needs proof).
+        assertTrue(selectors.findById("ADDR-P6").isPresent(),
+                "the selector delete must roll back with the refused delete");
 
         jdbcTemplate.update("DELETE FROM executions WHERE id = 'EXEC-P6'");
         assertTrue(catalog.deleteById("ADDR-P6"));

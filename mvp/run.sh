@@ -40,9 +40,11 @@ fi
 
 # The address catalog is database-backed (US-03) and ships EMPTY (owner
 # decision: no automatic seeding). Fail early with copy-paste guidance
-# instead of letting the chain run into an empty catalog.
+# instead of letting the chain run into an empty catalog. The check
+# needs the sqlite3 CLI: when it is missing, skip the guard rather than
+# misreport a non-empty catalog as empty (slice-2 review finding).
 ADDR_COUNT=0
-if [[ -f "$NEIS_DB_PATH" ]]; then
+if command -v sqlite3 >/dev/null 2>&1 && [[ -f "$NEIS_DB_PATH" ]]; then
   ADDR_COUNT="$(sqlite3 "$NEIS_DB_PATH" 'SELECT COUNT(*) FROM addresses;' 2>/dev/null || echo 0)"
 fi
 if [[ "$ADDR_COUNT" -eq 0 ]]; then

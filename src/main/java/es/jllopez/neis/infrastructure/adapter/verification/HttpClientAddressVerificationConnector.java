@@ -65,6 +65,12 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
                     checkedAt, status,
                     verified ? "reachable (HTTP " + status + ")"
                             : "server responded HTTP " + status);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            String detail = "interrupted";
+            log.info("Address verification {} -> FAILED ({}, {} ms)",
+                    address.url(), detail, elapsedMs(start));
+            return new VerificationOutcome(VerificationStatus.FAILED, checkedAt, 0, detail);
         } catch (Exception e) {
             String detail = e.getClass().getSimpleName()
                     + (e.getMessage() != null ? ": " + e.getMessage() : "");
