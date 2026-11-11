@@ -1,12 +1,14 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.port.AddressCatalogPort;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -131,6 +133,21 @@ public class AddressCatalogService {
     public Address updateVerification(String id, VerificationStatus status,
                                       String checkedAt) {
         return catalogPort.save(byId(id).withVerification(status, checkedAt));
+    }
+
+    /**
+     * Records the capabilities ANALYZE detected onto the address
+     * (US-17, deferred slice-3 review finding): the only path that
+     * changes the capability flags. Detections MERGE with the stored
+     * flags — a detection run with weaker evidence (generic fallbacks
+     * when no AI is configured) must never erase a flag an earlier
+     * run established; only an owner action could retire a flag.
+     */
+    public Address updateCapabilities(String id, Set<AddressCapability> detected) {
+        Address current = byId(id);
+        Set<AddressCapability> merged = new HashSet<>(current.capabilities());
+        merged.addAll(detected == null ? Set.of() : detected);
+        return catalogPort.save(current.withCapabilities(merged));
     }
 
     /**

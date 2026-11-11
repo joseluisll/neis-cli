@@ -31,10 +31,12 @@ import java.util.List;
 public class TaskWorkService {
 
     private final MvpChainService chain;
+    private final AddressCatalogService addressCatalog;
     private final String workDir;
 
-    public TaskWorkService(MvpChainService chain) {
+    public TaskWorkService(MvpChainService chain, AddressCatalogService addressCatalog) {
         this.chain = chain;
+        this.addressCatalog = addressCatalog;
         this.workDir = chain.workDir;
     }
 
@@ -85,6 +87,9 @@ public class TaskWorkService {
                 chain.selectSelector(address, simplified.html());
         MvpChainService.CapabilityDetection capabilities =
                 chain.detectCapabilities(address, simplified.html());
+        // Persist the detection (US-17; deferred slice-3 review finding):
+        // the flags used to live only in this method's local variable.
+        addressCatalog.updateCapabilities(address.id(), capabilities.flags());
         return "ANALYZE: classification=" + selection.analysis().classification()
                 + ", selector=" + selection.selector() + " (" + selection.source() + ")"
                 + ", pagination=" + pagination.paginated()
@@ -102,6 +107,10 @@ public class TaskWorkService {
         MvpChainService.CapabilityDetection capabilities =
                 chain.detectCapabilities(address, simplified.html());
         Address flagged = address.withCapabilities(capabilities.flags());
+        // Persist the detection (US-17; deferred slice-3 review finding):
+        // the FILTERING flag used to live only in this method's local
+        // variable. The merge use case keeps flags a later run detects.
+        addressCatalog.updateCapabilities(address.id(), capabilities.flags());
         if (!flagged.hasCapability(AddressCapability.FILTERING)) {
             return "FILTER: skipped — address not flagged with the filtering capability "
                     + "(detected: " + capabilities.flags() + ")";

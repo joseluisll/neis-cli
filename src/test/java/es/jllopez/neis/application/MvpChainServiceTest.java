@@ -190,6 +190,34 @@ class MvpChainServiceTest {
         assertEquals(good.id(), results.get(0).address().id());
     }
 
+    @Test
+    void theChainPersistsTheDetectedCapabilitiesOntoTheAddress() {
+        // Deferred slice-3 review finding: the detection used to live
+        // only in the run's local `flagged` variable, so no run ever
+        // left the flags in the catalog.
+        Address good = SeedAddresses.verified().get(0);
+        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(),
+                aiProvider(aiAnswering("news", "{\"selector\":\"ul li\",\"reasoning\":\"\"}",
+                        "{\"pagination\":{\"detected\":true,\"pageUrlPattern\":null,"
+                                + "\"reasoning\":\"\"},"
+                                + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
+                                + "\"correctedAddress\":null}",
+                        "{\"filters\":[],\"reasoning\":\"none\"}")),
+                catalog, new UrlSyntaxValidator(), workDir.toString());
+
+        chain.run(good);
+
+        Address stored = catalog.byId(good.id());
+        assertTrue(stored.hasCapability(AddressCapability.FILTERING),
+                "the FILTERING detection must be persisted onto the address");
+        assertTrue(stored.hasCapability(AddressCapability.PAGINATION),
+                "the PAGINATION detection must be persisted onto the address");
+        assertEquals(good.verificationStatus(), stored.verificationStatus(),
+                "capability persistence must not touch the verification state");
+    }
+
     /** AI stub answering the task-specific prompt catalog (issue #90). */
     private AiAssistantPort aiAnswering(String classification, String selectorJson) {
         return aiAnswering(classification, selectorJson,

@@ -1,6 +1,7 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
@@ -133,5 +134,27 @@ class AddressCatalogServiceTest {
         assertTrue(e2.getMessage().contains("http or https"));
         // The address is untouched by the refused edit.
         assertEquals("https://example.eu/g", catalog.byId("ADDR-002").url());
+    }
+
+    @Test
+    void updateCapabilitiesMergesWithTheStoredFlags() {
+        catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
+                AddressType.URL_NEWS);
+        catalog.updateVerification("ADDR-001", VerificationStatus.VERIFIED,
+                "2026-11-11T18:00:00Z");
+        catalog.updateCapabilities("ADDR-001",
+                java.util.Set.of(AddressCapability.FILTERING));
+
+        // A weaker later detection (e.g. no AI configured) must not
+        // erase an earlier flag: detections merge.
+        catalog.updateCapabilities("ADDR-001",
+                java.util.Set.of(AddressCapability.PAGINATION));
+
+        Address stored = catalog.byId("ADDR-001");
+        assertTrue(stored.hasCapability(AddressCapability.FILTERING));
+        assertTrue(stored.hasCapability(AddressCapability.PAGINATION));
+        // The capability path never touches the verification state.
+        assertEquals(VerificationStatus.VERIFIED, stored.verificationStatus());
+        assertEquals("2026-11-11T18:00:00Z", stored.verifiedAt());
     }
 }

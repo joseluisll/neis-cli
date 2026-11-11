@@ -164,6 +164,14 @@ public class MvpChainService {
         } else {
             flagged = address.withCapabilities(capabilities.flags());
         }
+        // Persist the detection (US-17; deferred slice-3 review
+        // finding): the flags used to live only in this method's local
+        // variable, so no run ever left a trace in the catalog.
+        // Detections merge with the stored flags (see the use case);
+        // a corrected URL is NOT persisted here — correction is
+        // recorded with the stored selectors, not by rewriting the
+        // registered address (US-13.7 scope).
+        addressCatalog.updateCapabilities(address.id(), capabilities.flags());
 
         // PRINT input: selector-based extraction of the discovered items.
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
