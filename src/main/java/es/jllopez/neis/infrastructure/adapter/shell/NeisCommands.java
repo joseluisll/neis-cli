@@ -11,8 +11,10 @@ import org.springframework.stereotype.Component;
  * application use cases.
  *
  * <p>Spring Shell 4 command model: a {@code @Component} class whose
- * methods are annotated with {@code @Command}; the application class
- * lists it in {@code @EnableCommand}.</p>
+ * methods are annotated with {@code @Command}; Boot auto-configuration
+ * registers {@code @Component} command classes on its own — never put
+ * {@code @EnableCommand} on the application class (it makes Spring
+ * Shell's auto-configuration back off and silences all output).</p>
  */
 @Component
 @CommandGroup(name = "NEIS", description = "NEIS application commands")
