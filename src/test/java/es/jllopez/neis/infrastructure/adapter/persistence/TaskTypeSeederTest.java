@@ -55,6 +55,18 @@ class TaskTypeSeederTest {
         assertDoesNotThrow(() -> seeder.run(null));
         // The remaining vocabulary entries are still seeded after the lost race.
         assertEquals(TaskTypeSeeder.VOCABULARY.length - 1, calls.get());
+        // Mutation-tightness: the catch must CONFIRM the row via
+        // existsById before treating the refusal as a lost race — the
+        // raced code is checked twice (loop gate + confirmation), the
+        // others once. Removing the confirmation re-check fails here,
+        // not only in the sibling rethrow test (review finding on
+        // f4bb017).
+        verify(taskTypes, times(2)).existsById("WEBSCRAPE");
+        for (String[] type : TaskTypeSeeder.VOCABULARY) {
+            if (!"WEBSCRAPE".equals(type[0])) {
+                verify(taskTypes, times(1)).existsById(type[0]);
+            }
+        }
     }
 
     @Test
