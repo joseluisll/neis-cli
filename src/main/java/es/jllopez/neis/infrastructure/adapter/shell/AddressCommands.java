@@ -1,6 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.shell;
 
 import es.jllopez.neis.application.AddressCatalogService;
+import es.jllopez.neis.application.AddressVerificationService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
 import org.springframework.shell.core.command.annotation.Command;
@@ -21,9 +22,12 @@ import java.util.List;
 public class AddressCommands {
 
     private final AddressCatalogService catalog;
+    private final AddressVerificationService verificationService;
 
-    public AddressCommands(AddressCatalogService catalog) {
+    public AddressCommands(AddressCatalogService catalog,
+                           AddressVerificationService verificationService) {
         this.catalog = catalog;
+        this.verificationService = verificationService;
     }
 
     @Command(name = {"address", "add"}, group = "Addresses",
@@ -102,6 +106,30 @@ public class AddressCommands {
         return "Removed " + removed.id() + " (" + removed.name() + ")";
     }
 
+    @Command(name = {"address", "verify"}, group = "Addresses",
+            description = "Verify an address is reachable (US-04.2) and record "
+                    + "the outcome on it; with --all, verifies every registered address")
+    public String verify(
+            @Option(shortName = 'i', longName = "id",
+                    description = "Address id") String id,
+            @Option(longName = "all", description = "Verify every registered address",
+                    defaultValue = "false") boolean all) {
+        if (all) {
+            List<String> lines = verificationService.verifyAll();
+            StringBuilder out = new StringBuilder("Verification results:\n");
+            lines.forEach(line -> out.append("  ").append(line).append("\n"));
+            return out.toString();
+        }
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Give an address id or --all");
+        }
+        var outcome = verificationService.verify(id);
+        return id + " -> " + outcome.status()
+                + (outcome.statusCode() > 0 ? " (HTTP " + outcome.statusCode() + ")" : "")
+                + "\n  " + outcome.detail()
+                + "\n  checked at " + outcome.checkedAt();
+    }
+
     private AddressType parseType(String type) {
         if (type == null || type.isBlank()) {
             return null;
@@ -122,6 +150,9 @@ public class AddressCommands {
         out.append("  description : ")
                 .append(a.description() == null || a.description().isBlank()
                         ? "-" : a.description()).append("\n");
+        out.append("  verification: ").append(a.verificationStatus())
+                .append(a.verifiedAt() == null ? "" : " (checked at " + a.verifiedAt() + ")")
+                .append("\n");
         return out.toString();
     }
 }

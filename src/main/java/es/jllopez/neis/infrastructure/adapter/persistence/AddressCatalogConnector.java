@@ -45,7 +45,6 @@ public class AddressCatalogConnector implements AddressCatalogPort {
         boolean isNew = entity.getId() == null;
         if (isNew) {
             entity.setId(address.id());
-            entity.setVerificationStatus("UNVERIFIED");
             entity.setCreatedAt(now());
         }
         entity.setName(address.name());
@@ -56,6 +55,12 @@ public class AddressCatalogConnector implements AddressCatalogPort {
         // refills this collection in place, so neither the caller's
         // (immutable) set nor a shared instance may land here.
         entity.setCapabilities(new HashSet<>(address.capabilities()));
+        // Verification columns (US-04.2): owned by the domain record —
+        // the verification service persists outcomes through the same
+        // save path, while plain catalog edits preserve the state they
+        // loaded.
+        entity.setVerificationStatus(address.verificationStatus());
+        entity.setVerifiedAt(address.verifiedAt());
         entity.setUpdatedAt(now());
         return toDomain(jpa.save(entity));
     }
@@ -105,7 +110,8 @@ public class AddressCatalogConnector implements AddressCatalogPort {
 
     private Address toDomain(AddressEntity e) {
         return new Address(e.getId(), e.getName(), e.getDescription(), e.getUrl(),
-                e.getType(), Set.copyOf(e.getCapabilities()));
+                e.getType(), Set.copyOf(e.getCapabilities()),
+                e.getVerificationStatus(), e.getVerifiedAt());
     }
 
     private String now() {

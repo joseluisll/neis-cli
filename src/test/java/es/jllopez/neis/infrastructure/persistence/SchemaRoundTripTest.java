@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.persistence;
 
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.VerificationStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,7 +79,7 @@ class SchemaRoundTripTest {
         AddressEntity reloaded = addresses.findById("ADDR-TEST").orElseThrow();
         assertEquals("https://example.org/news", reloaded.getUrl());
         assertEquals(AddressType.URL_NEWS, reloaded.getType());
-        assertEquals("UNVERIFIED", reloaded.getVerificationStatus());
+        assertEquals(VerificationStatus.UNVERIFIED, reloaded.getVerificationStatus());
         assertEquals(Set.of(AddressCapability.PAGINATION), reloaded.getCapabilities());
     }
 

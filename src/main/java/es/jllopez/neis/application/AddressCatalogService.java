@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.port.AddressCatalogPort;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.springframework.stereotype.Service;
@@ -110,6 +111,15 @@ public class AddressCatalogService {
                 .max()
                 .orElse(0);
         return Optional.of(String.format("ADDR-%03d", max + 1));
+    }
+
+    /**
+     * Records a verification outcome onto the address (US-04.2, issue
+     * #22): the only path that changes the verification columns.
+     */
+    public Address updateVerification(String id, VerificationStatus status,
+                                      String checkedAt) {
+        return catalogPort.save(byId(id).withVerification(status, checkedAt));
     }
 
     /**

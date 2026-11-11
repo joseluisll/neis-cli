@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.persistence;
 
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.VerificationStatus;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -45,8 +46,10 @@ public class AddressEntity {
     @Column(nullable = false)
     private AddressType type;
 
+    /** Verification state (US-04.2), stored as its enum name. */
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String verificationStatus = "UNVERIFIED";
+    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
 
     private String verifiedAt;
 
@@ -103,11 +106,11 @@ public class AddressEntity {
         this.type = type;
     }
 
-    public String getVerificationStatus() {
+    public VerificationStatus getVerificationStatus() {
         return verificationStatus;
     }
 
-    public void setVerificationStatus(String verificationStatus) {
+    public void setVerificationStatus(VerificationStatus verificationStatus) {
         this.verificationStatus = verificationStatus;
     }
 
