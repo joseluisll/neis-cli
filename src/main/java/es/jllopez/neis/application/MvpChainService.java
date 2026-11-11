@@ -97,7 +97,6 @@ public class MvpChainService {
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
     final ContentStoreService contentStore;
-    final String workDir;
 
     public MvpChainService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
@@ -120,7 +119,6 @@ public class MvpChainService {
         this.addressCatalog = addressCatalog;
         this.urlValidator = urlValidator;
         this.contentStore = contentStore;
-        this.workDir = workDir;
     }
 
     /** Runs the whole static chain for one address. */
@@ -150,7 +148,7 @@ public class MvpChainService {
         }
         // SCRAPE (US-06.1 slice): obtain HTML5 for the address.
         ScrapeResult scrape = scrapePort.scrape(address);
-        Path scrapeArtifact = writeArtifact(address, "SCRAPE", "listing-html",
+        Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
@@ -207,7 +205,7 @@ public class MvpChainService {
                 } catch (RuntimeException e) {
                     break; // connector cannot address this page -> end of pagination
                 }
-                writeArtifact(flagged, "SCRAPE", "page-html",
+                writeArtifact(flagged, "WEBSCRAPE", "page-html",
                         "scrape-page" + (page + 1) + ".html", pageScrape.html());
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageScrape.html());
                 writeArtifact(flagged, "SIMPLIFY", "simplified-html",

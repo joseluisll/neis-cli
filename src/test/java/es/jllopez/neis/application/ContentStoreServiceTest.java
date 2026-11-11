@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -98,10 +99,29 @@ class ContentStoreServiceTest {
     }
 
     @Test
+    void aHostilePathSegmentIsRefusedNotResolved() {
+        ContentStoreService store = service();
+        // The store is a public application-layer API: traversal and
+        // separators must be REFUSED (review security finding), never
+        // resolved outside the capture folder.
+        assertThrows(IllegalArgumentException.class, () -> store.writeTaskOutput(
+                address, address.url(), "WEBSCRAPE", "listing-html",
+                "../../etc/passwd", "x"));
+        assertThrows(IllegalArgumentException.class, () -> store.writeTaskOutput(
+                address, address.url(), "../WEBSCRAPE", "listing-html",
+                "scrape.html", "x"));
+        assertThrows(IllegalArgumentException.class, () -> store.writeTaskOutput(
+                address, address.url(), "WEBSCRAPE", "listing-html",
+                "sub/dir/scrape.html", "x"));
+        assertTrue(store.listByAddress(address.id()).isEmpty(),
+                "refused writes must not record content");
+    }
+
+    @Test
     void chainStagesOrganizeContentPerTaskFolder() {
         // US-11.3: a chain's content lands in each constituent task's folder.
         ContentStoreService store = service();
-        store.writeTaskOutput(address, address.url(), "SCRAPE",
+        store.writeTaskOutput(address, address.url(), "WEBSCRAPE",
                 "listing-html", "scrape.html", "<html>s</html>");
         store.writeTaskOutput(address, address.url(), "SIMPLIFY",
                 "simplified-html", "simplified.html", "<html>si</html>");
@@ -110,7 +130,7 @@ class ContentStoreServiceTest {
 
         Path content = workDir.resolve("ADDR-001")
                 .resolve(store.captureId(address.url())).resolve("content");
-        assertTrue(Files.exists(content.resolve("SCRAPE").resolve("scrape.html")));
+        assertTrue(Files.exists(content.resolve("WEBSCRAPE").resolve("scrape.html")));
         assertTrue(Files.exists(content.resolve("SIMPLIFY").resolve("simplified.html")));
         assertTrue(Files.exists(content.resolve("FILTER").resolve("scrape-filtered.html")));
     }

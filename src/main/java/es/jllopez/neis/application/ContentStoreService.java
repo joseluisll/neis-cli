@@ -93,6 +93,8 @@ public class ContentStoreService {
      */
     public Path writeTaskOutput(Address address, String url, String taskCode,
                                 String kind, String fileName, String content) {
+        requireSafePathSegment(taskCode, "task code");
+        requireSafePathSegment(fileName, "file name");
         Path captureDir = captureDir(address, url);
         Path taskDir = ensureDir(captureDir.resolve("content").resolve(taskCode));
         Path file = taskDir.resolve(fileName);
@@ -129,15 +131,51 @@ public class ContentStoreService {
         Path metadataDir = ensureDir(captureDir.resolve("metadata"));
         Path record = metadataDir.resolve("capture.json");
         String json = "{\n"
-                + "  \"addressId\": \"" + address.id() + "\",\n"
-                + "  \"captureId\": \"" + captureId + "\",\n"
-                + "  \"url\": \"" + url.replace("\"", "\\\"") + "\"\n"
+                + "  \"addressId\": \"" + jsonEscape(address.id()) + "\",\n"
+                + "  \"captureId\": \"" + jsonEscape(captureId) + "\",\n"
+                + "  \"url\": \"" + jsonEscape(url) + "\"\n"
                 + "}\n";
         try {
             Files.writeString(record, json, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot write the fetch record for " + captureId, e);
         }
+    }
+
+    /**
+     * A path segment that stays inside the content tree: no separators,
+     * no traversal, no dot-only names. Callers pass task codes and file
+     * names; a hostile value must be REFUSED, not resolved (the store
+     * is a public application-layer API).
+     */
+    private void requireSafePathSegment(String segment, String what) {
+        if (segment == null || segment.isBlank()
+                || segment.contains("/") || segment.contains("\\")
+                || segment.contains("..") || segment.startsWith(".")) {
+            throw new IllegalArgumentException("Unsafe " + what + ": '" + segment + "'");
+        }
+    }
+
+    /** Minimal correct JSON string escaping (quotes, backslash, controls). */
+    private static String jsonEscape(String value) {
+        StringBuilder out = new StringBuilder(value.length() + 8);
+        for (char c : value.toCharArray()) {
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
+        }
+        return out.toString();
     }
 
     private Path ensureDir(Path dir) {

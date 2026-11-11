@@ -308,7 +308,7 @@ class MvpChainServiceTest {
         assertFalse(result.items().isEmpty(), "extraction must yield items");
         assertEquals("news", result.items().get(0).kind());
         assertTrue(captureDirOf(catalog.byId("ADDR-003"))
-                .resolve("content").resolve("SCRAPE").resolve("scrape.html")
+                .resolve("content").resolve("WEBSCRAPE").resolve("scrape.html")
                 .toFile().exists());
         assertTrue(captureDirOf(catalog.byId("ADDR-003"))
                 .resolve("content").resolve("SIMPLIFY").resolve("simplified.html")
