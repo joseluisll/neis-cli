@@ -53,9 +53,9 @@ public class MvpCommands {
     }
 
     @Command(name = "mvp-addresses", group = "MVP",
-            description = "List the static MVP address catalog (seed data of issue #62)")
+            description = "List the registered address catalog (US-03)")
     public String mvpAddresses() {
-        StringBuilder out = new StringBuilder("Static MVP address catalog:\n");
+        StringBuilder out = new StringBuilder("Registered address catalog:\n");
         for (Address address : addressCatalog.list()) {
             out.append("  ").append(address.id())
                     .append("  [").append(address.itemKind()).append("]  ")

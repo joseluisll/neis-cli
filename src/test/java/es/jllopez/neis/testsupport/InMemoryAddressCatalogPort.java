@@ -39,7 +39,12 @@ public class InMemoryAddressCatalogPort implements AddressCatalogPort {
 
     @Override
     public List<Address> findAll() {
-        return new ArrayList<>(addresses.values());
+        // The port contract orders by id; the JPA connector does the
+        // same via its query sort.
+        return addresses.values().stream()
+                .sorted(java.util.Comparator.comparing(Address::id,
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     @Override

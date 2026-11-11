@@ -6,12 +6,15 @@ import es.jllopez.neis.infrastructure.persistence.AddressEntity;
 import es.jllopez.neis.infrastructure.persistence.AddressJpaRepository;
 import es.jllopez.neis.infrastructure.persistence.SelectorJpaRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Driven adapter implementing {@link AddressCatalogPort} over the
@@ -50,7 +53,10 @@ public class AddressCatalogConnector implements AddressCatalogPort {
         entity.setDescription(address.description());
         entity.setUrl(address.url());
         entity.setType(address.type());
-        entity.setCapabilities(address.capabilities());
+        // Always a fresh MUTABLE copy: Hibernate's merge clears and
+        // refills this collection in place, so neither the caller's
+        // (immutable) set nor a shared instance may land here.
+        entity.setCapabilities(new HashSet<>(address.capabilities()));
         entity.setUpdatedAt(now());
         return toDomain(jpa.save(entity));
     }
@@ -64,7 +70,8 @@ public class AddressCatalogConnector implements AddressCatalogPort {
     @Override
     @Transactional(readOnly = true)
     public List<Address> findAll() {
-        return jpa.findAll().stream().map(this::toDomain).toList();
+        return jpa.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
+                .map(this::toDomain).toList();
     }
 
     @Override
@@ -91,7 +98,7 @@ public class AddressCatalogConnector implements AddressCatalogPort {
 
     private Address toDomain(AddressEntity e) {
         return new Address(e.getId(), e.getName(), e.getDescription(), e.getUrl(),
-                e.getType(), e.getCapabilities());
+                e.getType(), Set.copyOf(e.getCapabilities()));
     }
 
     private String now() {
