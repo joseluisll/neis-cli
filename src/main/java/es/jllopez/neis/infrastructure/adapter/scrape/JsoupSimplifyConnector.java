@@ -53,7 +53,10 @@ public class JsoupSimplifyConnector implements SimplifyPort {
 
         doc.select(STRIPPED_TAGS).remove();
         doc.select("head").remove(); // head carries metadata, not action/data elements
-        doc.select("[aria-hidden=true]").remove(); // decorative/hidden chrome
+        // Decorative/hidden chrome — but never the ECL date-block parts,
+        // which are aria-hidden yet carry the VISIBLE rendered date.
+        doc.select("[aria-hidden=true]:not(.ecl-date-block__day)"
+                + ":not(.ecl-date-block__month):not(.ecl-date-block__year)").remove();
         for (String fragment : STRIPPED_CLASS_FRAGMENTS) {
             doc.select("[class*=" + fragment + "]").remove();
         }
