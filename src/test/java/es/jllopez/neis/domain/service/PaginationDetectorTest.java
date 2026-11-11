@@ -57,4 +57,13 @@ class PaginationDetectorTest {
         assertFalse(detector.detect(null).paginated());
         assertFalse(detector.detect("  ").paginated());
     }
+
+    @Test
+    void detectsDrupalPagerLinks() {
+        // HADEA (OpenEuropa) pager: plain ?page=N links plus a Next link
+        String html = "<ul class=\"ecl-pagination__list\">"
+                + "<li><a href=\"?page=1\">2</a></li>"
+                + "<li><a href=\"?page=1\">Next</a></li></ul>";
+        assertTrue(detector.detect(html).paginated());
+    }
 }

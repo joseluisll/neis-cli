@@ -1,7 +1,9 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PageAnalysis;
 import es.jllopez.neis.domain.model.PaginationInfo;
@@ -13,6 +15,7 @@ import es.jllopez.neis.domain.port.ContentScrapePort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
 import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
+import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,16 +27,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Use case: the predefined static MVP chain
- * SCRAPE - SIMPLIFY - ANALYZE - PRINT (issue #90), executed sequentially
- * for one address of the static catalog (chain slice of US-08.1/US-08.2,
- * issues #33/#34).
+ * SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT (issue #90; FILTER added
+ * for US-17), executed sequentially for one address of the static
+ * catalog (chain slice of US-08.1/US-08.2, issues #33/#34).
  *
  * <p>ANALYZE selector strategy (owner decision 2026-11-11): a stored,
  * previously validated selector for the address is used directly and the
@@ -44,12 +49,31 @@ import java.util.regex.Pattern;
  * probe extraction, and persist it with the address so future runs need
  * no AI. Static heuristic selectors remain as last-resort fallback and
  * are never persisted.</p>
+ *
+ * <p>Capability flagging (US-17, owner decision 2026-11-11): ANALYZE
+ * detects the listing capabilities of the address — pagination and
+ * filtering — via the shared AI service (one capability prompt; no
+ * site-specific knowledge is ever encoded in code) and FLAGS them onto
+ * the address. The page-specific data (selectors, filter values, page
+ * URL pattern) is likewise AI-identified. Downstream blocks execute
+ * their page-dependent functionality only when the address has been
+ * flagged with the corresponding capability: the pagination-iteration
+ * block runs only on PAGINATION-flagged addresses (following the
+ * AI-derived page URL pattern up to the item cap), and the FILTER block
+ * extracts the filter definitions only on FILTERING-flagged addresses.
+ * Generic HTML5 heuristics ({@link PaginationDetector},
+ * {@link ExposedFilterDetector}) are the fallback when no AI is
+ * configured; without an AI-derived page URL pattern the iteration
+ * block cannot address pages and is skipped.</p>
  */
 @Service
 public class MvpChainService {
 
     /** Maximum items extracted per address (US-12.5 spirit). */
     private static final int MAX_ITEMS = 50;
+
+    /** Safety guard for the pagination-iteration block. */
+    private static final int MAX_PAGES = 10;
 
     private static final List<String> FALLBACK_NEWS_SELECTORS =
             List.of("ul.news-list li", ".news-item", ".news-entry", "article",
@@ -62,6 +86,7 @@ public class MvpChainService {
     private final SelectorExtractionPort extractionPort;
     private final SelectorStorePort selectorStore;
     private final PaginationDetector paginationDetector;
+    private final ExposedFilterDetector exposedFilterDetector;
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
     private final String workDir;
@@ -71,6 +96,7 @@ public class MvpChainService {
                            SelectorExtractionPort extractionPort,
                            SelectorStorePort selectorStore,
                            PaginationDetector paginationDetector,
+                           ExposedFilterDetector exposedFilterDetector,
                            ObjectProvider<AiAssistantPort> aiPort,
                            AddressCatalogService addressCatalog,
                            @Value("${neis.mvp.work-dir:./neis-mvp}") String workDir) {
@@ -79,6 +105,7 @@ public class MvpChainService {
         this.extractionPort = extractionPort;
         this.selectorStore = selectorStore;
         this.paginationDetector = paginationDetector;
+        this.exposedFilterDetector = exposedFilterDetector;
         this.aiPort = aiPort;
         this.addressCatalog = addressCatalog;
         this.workDir = workDir;
@@ -95,20 +122,73 @@ public class MvpChainService {
         SimplifiedContent simplified = simplifyPort.simplify(scrape.html());
         Path simplifyArtifact = writeArtifact(addressDir, "simplified.html", simplified.html());
 
-        // ANALYZE (US-12.4 slice): pagination detection.
+        // ANALYZE (US-12.4 slice): pagination detection (evidence for the flag).
         PaginationInfo pagination = paginationDetector.detect(simplified.html());
 
         // ANALYZE (US-13.2..4 slices): classification + working selector.
         SelectorSelection selection = selectSelector(address, simplified.html());
 
-        // PRINT input: selector-based extraction of the discovered items.
-        List<NewsEventItem> items = extractionPort.extract(simplified.html(),
-                selection.selector(), address.itemKind(), address.id(), MAX_ITEMS);
+        // ANALYZE (US-17 slice): detect capabilities and FLAG them onto
+        // the address. The AI carries the detection; generic HTML5
+        // heuristics are the fallback when no AI is configured.
+        CapabilityDetection capabilities = detectCapabilities(address, simplified.html());
+        Address flagged = address.withCapabilities(capabilities.flags());
 
-        return new MvpChainResult(address, scrapeArtifact.toString(),
+        // PRINT input: selector-based extraction of the discovered items.
+        List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
+                selection.selector(), flagged.itemKind(), flagged.id(), MAX_ITEMS));
+
+        // Pagination-iteration block (US-12.4 slice): ONLY on addresses
+        // flagged PAGINATION, and only when the AI derived a page URL
+        // pattern to address the following pages with.
+        int pagesScraped = 1;
+        if (flagged.hasCapability(AddressCapability.PAGINATION)
+                && capabilities.pageUrlPattern() != null) {
+            for (int page = 1; page < MAX_PAGES; page++) {
+                if (items.size() >= MAX_ITEMS) {
+                    break;
+                }
+                ScrapeResult pageScrape;
+                try {
+                    pageScrape = scrapePort.scrape(flagged, page);
+                } catch (RuntimeException e) {
+                    break; // connector cannot address this page -> end of pagination
+                }
+                writeArtifact(addressDir, "scrape-page" + (page + 1) + ".html",
+                        pageScrape.html());
+                SimplifiedContent pageSimplified = simplifyPort.simplify(pageScrape.html());
+                writeArtifact(addressDir, "simplified-page" + (page + 1) + ".html",
+                        pageSimplified.html());
+                int before = items.size();
+                for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
+                        selection.selector(), flagged.itemKind(), flagged.id(), MAX_ITEMS)) {
+                    if (isNew(items, item)) {
+                        items.add(item);
+                    }
+                    if (items.size() >= MAX_ITEMS) {
+                        break;
+                    }
+                }
+                pagesScraped = page + 1;
+                if (items.size() == before) {
+                    break; // no new items -> end of the pagination
+                }
+            }
+        }
+
+        // FILTER block (US-17): ONLY on addresses flagged FILTERING.
+        // The AI extracts the filter definitions the listing offers.
+        FilterOutcome filterOutcome = flagged.hasCapability(AddressCapability.FILTERING)
+                ? extractFilters(simplified.html())
+                : new FilterOutcome(List.of(), "skipped",
+                "address not flagged with the filtering capability");
+
+        return new MvpChainResult(flagged, scrapeArtifact.toString(),
                 simplifyArtifact.toString(), scrape.sizeBytes(), simplified.sizeBytes(),
                 pagination, selection.analysis(), selection.selector(),
-                selection.source(), items);
+                selection.source(), items, capabilities.flags(),
+                capabilities.evidence(), capabilities.pageUrlPattern(), pagesScraped,
+                filterOutcome.filters(), filterOutcome.source(), filterOutcome.note());
     }
 
     /** Runs the chain for every address of the static catalog. */
@@ -118,6 +198,99 @@ public class MvpChainService {
             results.add(run(address));
         }
         return results;
+    }
+
+    /**
+     * Capability detection (US-17): the AI carries the detection via the
+     * capability prompt (pagination + page URL pattern, filtering);
+     * unresolved capabilities fall back to the generic HTML5 heuristics.
+     */
+    private CapabilityDetection detectCapabilities(Address address, String simplifiedHtml) {
+        Set<AddressCapability> flags = new LinkedHashSet<>();
+        List<String> evidence = new ArrayList<>();
+        String pageUrlPattern = null;
+        boolean paginationResolved = false;
+        boolean filteringResolved = false;
+
+        AiAssistantPort ai = aiPort.getIfAvailable();
+        if (ai != null) {
+            try {
+                String answer = ai.complete(
+                        AiPromptCatalog.capabilityPrompt(simplifiedHtml, address.itemKind()));
+                String paginationSection = section(answer, "pagination");
+                String filteringSection = section(answer, "filtering");
+                if (paginationSection != null) {
+                    paginationResolved = true;
+                    if (isTrue(paginationSection, "detected")) {
+                        flags.add(AddressCapability.PAGINATION);
+                        pageUrlPattern = jsonField(paginationSection, "pageUrlPattern");
+                        evidence.add("pagination flagged by AI"
+                                + (pageUrlPattern == null ? "" : ": " + pageUrlPattern));
+                    } else {
+                        evidence.add("pagination not detected by AI");
+                    }
+                }
+                if (filteringSection != null) {
+                    filteringResolved = true;
+                    if (isTrue(filteringSection, "detected")) {
+                        flags.add(AddressCapability.FILTERING);
+                        evidence.add("filtering flagged by AI");
+                    } else {
+                        evidence.add("filtering not detected by AI");
+                    }
+                }
+            } catch (RuntimeException e) {
+                evidence.add("AI capability call failed: " + e.getMessage());
+            }
+        } else {
+            evidence.add("AI not configured — generic HTML5 heuristics used");
+        }
+
+        if (!paginationResolved && paginationDetector.detect(simplifiedHtml).paginated()) {
+            flags.add(AddressCapability.PAGINATION);
+            evidence.add("pagination flagged by URL/pager heuristic");
+        }
+        if (!filteringResolved && exposedFilterDetector.detect(simplifiedHtml)) {
+            flags.add(AddressCapability.FILTERING);
+            evidence.add("filtering flagged by form/select heuristic");
+        }
+        return new CapabilityDetection(flags, pageUrlPattern,
+                String.join("; ", evidence));
+    }
+
+    /**
+     * FILTER block (US-17): the AI extracts the filter definitions; the
+     * generic select/option parsing is the fallback when no AI is
+     * configured. Called only on FILTERING-flagged addresses.
+     */
+    private FilterOutcome extractFilters(String simplifiedHtml) {
+        AiAssistantPort ai = aiPort.getIfAvailable();
+        if (ai != null) {
+            try {
+                String answer = ai.complete(AiPromptCatalog.filtersPrompt(simplifiedHtml));
+                List<FilterDefinition> filters = parseFilters(answer);
+                if (!filters.isEmpty()) {
+                    return new FilterOutcome(filters, "ai", null);
+                }
+                return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
+                        "fallback", "AI found no filter fields — generic select parsing used");
+            } catch (RuntimeException e) {
+                return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
+                        "fallback", "AI filter call failed: " + e.getMessage());
+            }
+        }
+        return new FilterOutcome(exposedFilterDetector.parseSelects(simplifiedHtml),
+                "fallback", "AI not configured — generic select parsing used");
+    }
+
+    /** Dedupe key across pages: title + link. */
+    private boolean isNew(List<NewsEventItem> items, NewsEventItem candidate) {
+        String key = (candidate.title() == null ? "" : candidate.title().trim())
+                + "|" + (candidate.url() == null ? "" : candidate.url().trim());
+        return items.stream().noneMatch(existing ->
+                ((existing.title() == null ? "" : existing.title().trim())
+                        + "|" + (existing.url() == null ? "" : existing.url().trim()))
+                        .equalsIgnoreCase(key));
     }
 
     /**
@@ -242,6 +415,105 @@ public class MvpChainService {
         return m.group(2);
     }
 
+    /** Flat JSON object section of one key: `"key":{ ... }` -> contents. */
+    private String section(String json, String key) {
+        if (json == null) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"" + key + "\"\\s*:\\s*\\{").matcher(json);
+        if (!m.find()) {
+            return null;
+        }
+        // Brace-aware scan: string values may contain braces ({n} page
+        // placeholders in URL patterns).
+        int start = m.end();
+        int depth = 1;
+        for (int i = start; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return json.substring(start, i);
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isTrue(String section, String field) {
+        if (section == null) {
+            return false;
+        }
+        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*(true|false)")
+                .matcher(section);
+        return m.find() && m.group(1).equals("true");
+    }
+
+    /**
+     * Lenient parse of the filters prompt answer:
+     * {@code {"filters":[{"name":..,"values":[..]},..],"reasoning":..}}.
+     */
+    private List<FilterDefinition> parseFilters(String answer) {
+        List<FilterDefinition> filters = new ArrayList<>();
+        if (answer == null) {
+            return filters;
+        }
+        int arrayStart = answer.indexOf("\"filters\"");
+        if (arrayStart < 0) {
+            return filters;
+        }
+        arrayStart = answer.indexOf('[', arrayStart);
+        if (arrayStart < 0) {
+            return filters;
+        }
+        // Scan top-level objects of the array by brace depth.
+        int depth = 0;
+        int objectStart = -1;
+        for (int i = arrayStart + 1; i < answer.length(); i++) {
+            char c = answer.charAt(i);
+            if (c == '{') {
+                if (depth == 0) {
+                    objectStart = i;
+                }
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0 && objectStart >= 0) {
+                    String object = answer.substring(objectStart, i + 1);
+                    String name = jsonField(object, "name");
+                    List<String> values = arrayField(object, "values");
+                    if (name != null) {
+                        filters.add(new FilterDefinition(name, values));
+                    }
+                    objectStart = -1;
+                }
+            } else if (c == ']' && depth == 0) {
+                break; // end of the filters array
+            }
+        }
+        return filters;
+    }
+
+    /** Parses a flat string array: `["a","b"]` -> [a, b]. */
+    private List<String> arrayField(String json, String field) {
+        List<String> values = new ArrayList<>();
+        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*\\[(.*?)\\]",
+                Pattern.DOTALL).matcher(json);
+        if (!m.find()) {
+            return values;
+        }
+        for (String raw : m.group(1).split("\",\\s*\"")) {
+            String value = raw.replaceFirst("^\"+", "").replaceFirst("\"+$", "")
+                    .replace("\\\"", "\"").trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
     private Path addressDir(Address address) {
         Path dir = Path.of(workDir, address.id());
         try {
@@ -264,5 +536,14 @@ public class MvpChainService {
 
     /** Chosen selector plus its provenance and the page analysis. */
     record SelectorSelection(String selector, String source, PageAnalysis analysis) {
+    }
+
+    /** Detected capabilities flagged onto the address (US-17). */
+    record CapabilityDetection(Set<AddressCapability> flags, String pageUrlPattern,
+                               String evidence) {
+    }
+
+    /** FILTER block outcome: definitions plus provenance (US-17). */
+    record FilterOutcome(List<FilterDefinition> filters, String source, String note) {
     }
 }

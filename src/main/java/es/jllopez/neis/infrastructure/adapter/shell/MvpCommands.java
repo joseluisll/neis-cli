@@ -4,6 +4,8 @@ import es.jllopez.neis.application.AddressCatalogService;
 import es.jllopez.neis.application.MvpChainResult;
 import es.jllopez.neis.application.MvpChainService;
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressCapability;
+import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import org.springframework.shell.core.command.annotation.Argument;
 import org.springframework.shell.core.command.annotation.Command;
@@ -31,9 +33,9 @@ public class MvpCommands {
 
     @Command(name = "mvp-chain", group = "MVP",
             description = "Run the predefined static chain "
-                    + "SCRAPE -> SIMPLIFY -> ANALYZE -> PRINT for catalog address(es)")
+                    + "SCRAPE -> SIMPLIFY -> ANALYZE -> FILTER -> PRINT for catalog address(es)")
     public String mvpChain(
-            @Argument(index = 0, description = "Address id (ADDR-001..ADDR-004) or 'all'",
+            @Argument(index = 0, description = "Address id (ADDR-001..ADDR-006) or 'all'",
                     defaultValue = "ADDR-001") String target) {
         boolean all = "all".equalsIgnoreCase(target);
         List<MvpChainResult> results = all
@@ -94,6 +96,39 @@ public class MvpCommands {
                     case "ai" -> "AI-identified, validated, stored with the source";
                     default -> "heuristic fallback";
                 }).append(")\n");
+
+        // Capability flags set by ANALYZE (US-17) and the blocks they gate.
+        out.append("ANALYZE  : capabilities flagged: ");
+        out.append(r.capabilities().isEmpty() ? "(none)" : String.join(", ",
+                r.capabilities().stream().map(Enum::name).sorted().toList()));
+        if (r.capabilityEvidence() != null && !r.capabilityEvidence().isBlank()) {
+            out.append(" (").append(r.capabilityEvidence()).append(")");
+        }
+        out.append("\n");
+
+        out.append("FILTER   : ");
+        if ("skipped".equals(r.filterSource())) {
+            out.append("skipped — ").append(r.filterNote()).append("\n");
+        } else {
+            out.append(r.filters().size()).append(" filter field(s) available [")
+                    .append(r.filterSource()).append("]\n");
+            if (r.filterNote() != null) {
+                out.append("           note: ").append(r.filterNote()).append("\n");
+            }
+            for (FilterDefinition f : r.filters()) {
+                out.append("           - ").append(f.name()).append(": ")
+                        .append(f.values().isEmpty() ? "(free text)"
+                                : String.join(" | ", f.values())).append("\n");
+            }
+        }
+
+        if (r.pageUrlPattern() != null) {
+            out.append("           page URL pattern: ").append(r.pageUrlPattern()).append("\n");
+        }
+        if (r.capabilities().contains(AddressCapability.PAGINATION)) {
+            out.append("           pagination iteration: ").append(r.pagesScraped())
+                    .append(" page(s) scraped (gated on the PAGINATION flag)\n");
+        }
         if (!r.analysis().notes().isBlank()) {
             out.append("           notes: ").append(r.analysis().notes()).append("\n");
         }

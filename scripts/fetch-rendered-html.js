@@ -1,6 +1,6 @@
 // Render the NEIS MVP source pages with a real browser (Playwright/Chromium)
 // and save the rendered HTML5 as static test data for the MVP chain.
-// Usage: node fetch-rendered.js <outdir>
+// Usage: node fetch-rendered-html.js <outdir> [id-filter ...]
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -26,14 +26,35 @@ const SOURCES = [
     url: 'https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/events?isExactMatch=false&order=DESC&pageNumber=1&pageSize=50&sortBy=status',
     file: 'addr-004-events-spa-rendered.html',
   },
+  {
+    // HADEA (HaDEA) events list, page 1 of 2 (Drupal OpenEuropa list page;
+    // 10 events per page, facet filter form, pager links ?page=N).
+    id: 'ADDR-005',
+    url: 'https://hadea.ec.europa.eu/events_en',
+    file: 'addr-005-events-rendered.html',
+  },
+  {
+    // HADEA events list, page 2 of 2 (?page=1, last 3 events).
+    id: 'ADDR-005-P2',
+    url: 'https://hadea.ec.europa.eu/events_en?page=1',
+    file: 'addr-005-events-page2-rendered.html',
+  },
+  {
+    // HADEA news list, page 1 of 9 (100 news per page, same facet form).
+    id: 'ADDR-006',
+    url: 'https://hadea.ec.europa.eu/news_en',
+    file: 'addr-006-news-rendered.html',
+  },
 ];
 
 (async () => {
   const outdir = process.argv[2] || '.';
+  const filter = process.argv.slice(3);
   fs.mkdirSync(outdir, { recursive: true });
   const browser = await chromium.launch({ headless: true });
 
   for (const src of SOURCES) {
+    if (filter.length && !filter.includes(src.id)) continue;
     const page = await browser.newPage({
       userAgent: 'Mozilla/5.0 (X11; Linux x86_64) NEIS-MVP-fetch',
       viewport: { width: 1280, height: 900 },

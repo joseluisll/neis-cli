@@ -27,8 +27,9 @@ public class JsoupSimplifyConnector implements SimplifyPort {
     private static final String STRIPPED_TAGS =
             "script, style, link, meta, noscript, iframe, svg, img, video, audio, "
                     + "source, picture, canvas, object, embed, map, area, "
-                    // structural/layout-only containers (US-07.1)
-                    + "header, nav, footer, aside";
+                    // structural/layout-only containers (US-07.1); nav is
+                    // handled separately below (pagination navs are kept)
+                    + "header, footer, aside";
 
     private static final String[] STRIPPED_ATTRIBUTES = {
             "style", "srcset", "sizes", "media", "onload", "onclick", "data-src",
@@ -53,12 +54,29 @@ public class JsoupSimplifyConnector implements SimplifyPort {
 
         doc.select(STRIPPED_TAGS).remove();
         doc.select("head").remove(); // head carries metadata, not action/data elements
+        // Nav elements are page chrome (menus, breadcrumbs) — EXCEPT
+        // pagination navs: their next/page links are action elements the
+        // ANALYZE capability detection needs (US-17).
+        doc.select("nav").stream()
+                .filter(nav -> !isPaginationNav(nav))
+                .forEach(node -> node.remove());
         // Decorative/hidden chrome — but never the ECL date-block parts,
         // which are aria-hidden yet carry the VISIBLE rendered date.
         doc.select("[aria-hidden=true]:not(.ecl-date-block__day)"
                 + ":not(.ecl-date-block__month):not(.ecl-date-block__year)").remove();
         for (String fragment : STRIPPED_CLASS_FRAGMENTS) {
-            doc.select("[class*=" + fragment + "]").remove();
+            for (Element el : doc.select("[class*=" + fragment + "]")) {
+                // Filter UI (form with select dropdowns) is action/data
+                // content (US-07.2) — often wrapped in layout containers
+                // whose class carries a stripped fragment ("sidebar",
+                // "search"). Keep those wrappers so the ANALYZE capability
+                // detection and the FILTER block can see the filter
+                // controls; strip plain chrome as before.
+                if (el.selectFirst("form select") != null) {
+                    continue;
+                }
+                el.remove();
+            }
         }
         for (Element el : doc.select("*")) {
             for (String attr : STRIPPED_ATTRIBUTES) {
@@ -74,6 +92,17 @@ public class JsoupSimplifyConnector implements SimplifyPort {
         return new SimplifiedContent(html, sizeBytes(html));
     }
 
+    /**
+     * True when a nav element is a pagination control (generic HTML5
+     * semantics: pagination label/class, rel=next or page-number links).
+     */
+    private boolean isPaginationNav(Element nav) {
+        String marker = (nav.attr("aria-label") + " " + nav.className())
+                .toLowerCase();
+        return marker.contains("pagination") || marker.contains("pager")
+                || !nav.select("[rel=next], a[href*=page=]").isEmpty();
+    }
+
     private void removeComments(Node node) {
         for (Node child : new ArrayList<>(node.childNodes())) {
             if (child instanceof org.jsoup.nodes.Comment
@@ -84,7 +113,6 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             }
         }
     }
-
     /**
      * Hard cap: cut at the last tag boundary and let jsoup re-parse to
      * close the broken markup (US-07.6 is later scope); iterate because

@@ -17,6 +17,21 @@ class JsoupSimplifyConnectorTest {
 
     private final JsoupSimplifyConnector connector = new JsoupSimplifyConnector();
 
+    @Test
+    void keepsPaginationNavsButStripsOtherChrome() {
+        String html = "<html><body>"
+                + "<nav class=\"main-menu\"><a href=\"/home\">Menu</a></nav>"
+                + "<p>Content</p>"
+                + "<nav class=\"ecl-pagination\" aria-label=\"Pagination\">"
+                + "<a href=\"?page=1\">2</a><a href=\"?page=1\">Next</a></nav>"
+                + "</body></html>";
+        String out = connector.simplify(html).html();
+        assertFalse(out.contains("main-menu"), "menu navs are page chrome");
+        assertTrue(out.contains("ecl-pagination"),
+                "pagination navs are action elements the capability detection needs");
+        assertTrue(out.contains("?page=1"));
+    }
+
     private String fixture(String name) throws Exception {
         try (InputStream in = getClass().getResourceAsStream("/mvp/samples/" + name)) {
             if (in == null) {

@@ -1,5 +1,6 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,5 +16,10 @@ public class DomainServiceConfig {
     @Bean
     public PaginationDetector paginationDetector() {
         return new PaginationDetector();
+    }
+
+    @Bean
+    public ExposedFilterDetector exposedFilterDetector() {
+        return new ExposedFilterDetector();
     }
 }

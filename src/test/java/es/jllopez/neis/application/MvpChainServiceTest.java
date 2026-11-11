@@ -1,6 +1,7 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
@@ -8,6 +9,7 @@ import es.jllopez.neis.domain.port.ContentScrapePort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
 import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
+import es.jllopez.neis.domain.service.ExposedFilterDetector;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
@@ -61,19 +63,34 @@ class MvpChainServiceTest {
         }
     };
 
-    private final ContentScrapePort scrapePort = address -> {
-        String fixture = "/mvp/samples/" + switch (address.id()) {
-            case "ADDR-001" -> "addr-001-news.html";
-            case "ADDR-002" -> "addr-002-events.html";
-            case "ADDR-003" -> "addr-003-news-spa-rendered.html";
-            case "ADDR-004" -> "addr-004-events-spa-rendered.html";
-            default -> throw new IllegalStateException("unexpected " + address.id());
-        };
-        try (InputStream in = getClass().getResourceAsStream(fixture)) {
-            String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            return new ScrapeResult(html, "text/html; charset=UTF-8", html.length());
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
+    private final ContentScrapePort scrapePort = new ContentScrapePort() {
+        private String fixture(Address address, int pageIndex) {
+            String key = pageIndex == 0 ? address.id() : address.id() + "#p" + pageIndex;
+            return "/mvp/samples/" + switch (key) {
+                case "ADDR-001" -> "addr-001-news.html";
+                case "ADDR-002" -> "addr-002-events.html";
+                case "ADDR-003" -> "addr-003-news-spa-rendered.html";
+                case "ADDR-004" -> "addr-004-events-spa-rendered.html";
+                case "ADDR-005" -> "addr-005-events-rendered.html";
+                case "ADDR-005#p1" -> "addr-005-events-page2-rendered.html";
+                case "ADDR-006" -> "addr-006-news-rendered.html";
+                default -> throw new IllegalStateException("unexpected " + key);
+            };
+        }
+
+        @Override
+        public ScrapeResult scrape(Address address) {
+            return scrape(address, 0);
+        }
+
+        @Override
+        public ScrapeResult scrape(Address address, int pageIndex) {
+            try (InputStream in = getClass().getResourceAsStream(fixture(address, pageIndex))) {
+                String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                return new ScrapeResult(html, "text/html; charset=UTF-8", html.length());
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
         }
     };
 
@@ -86,14 +103,34 @@ class MvpChainServiceTest {
 
     private MvpChainService service(ObjectProvider<AiAssistantPort> ai) {
         return new MvpChainService(scrapePort, simplifyPort, extractionPort,
-                selectorStore, paginationDetector, ai, catalog, workDir.toString());
+                selectorStore, paginationDetector, new ExposedFilterDetector(),
+                ai, catalog, workDir.toString());
     }
 
     /** AI stub answering the task-specific prompt catalog (issue #90). */
     private AiAssistantPort aiAnswering(String classification, String selectorJson) {
-        return prompt -> prompt.contains("Classify the page")
-                ? classification
-                : selectorJson;
+        return aiAnswering(classification, selectorJson,
+                "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,"
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"}}",
+                "{\"filters\":[],\"reasoning\":\"none\"}");
+    }
+
+    /** AI stub with explicit capability-detection and filter answers (US-17). */
+    private AiAssistantPort aiAnswering(String classification, String selectorJson,
+                                        String capabilityJson, String filtersJson) {
+        return prompt -> {
+            if (prompt.contains("Classify the page")) {
+                return classification;
+            }
+            if (prompt.contains("CAPABILITIES")) {
+                return capabilityJson;
+            }
+            if (prompt.contains("FILTER controls")) {
+                return filtersJson;
+            }
+            return selectorJson;
+        };
     }
 
     @Test
@@ -123,12 +160,22 @@ class MvpChainServiceTest {
         store.put("ADDR-003", new StoredSelectors("ADDR-003", "news",
                 "sedia-result-card-news-translation", "ai", "2026-11-11",
                 "repeated news result cards"));
-        // AI that must not be reached: any call fails the test.
-        AiAssistantPort mustNotCall = prompt -> {
-            throw new AssertionError("AI must be skipped when a stored selector works");
+        // The selector-identification AI must not be reached; the
+        // capability-detection block still uses its own AI prompt (US-17).
+        AiAssistantPort selectorAiMustNotCall = prompt -> {
+            if (prompt.contains("CSS selector")) {
+                throw new AssertionError(
+                        "selector AI must be skipped when a stored selector works");
+            }
+            if (prompt.contains("CAPABILITIES")) {
+                return "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,"
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"}}";
+            }
+            return "news";
         };
 
-        MvpChainResult result = service(aiProvider(mustNotCall)).run(catalog.byId("ADDR-003"));
+        MvpChainResult result = service(aiProvider(selectorAiMustNotCall)).run(catalog.byId("ADDR-003"));
 
         assertEquals("stored", result.selectorSource());
         assertFalse(result.analysis().aiAssisted());
@@ -199,5 +246,86 @@ class MvpChainServiceTest {
             assertTrue(workDir.resolve(r.address().id())
                     .resolve("simplified.html").toFile().exists());
         });
+    }
+
+    @Test
+    void chainFlagsCapabilitiesAndIteratesPaginationForHaDeaEvents() {
+        AiAssistantPort ai = aiAnswering("event",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"repeating content items\"}",
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://hadea.ec.europa.eu/events_en?page={n}\","
+                        + "\"reasoning\":\"pager links\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"facet form\"}}",
+                "{\"filters\":[{\"name\":\"Event status\",\"values\":"
+                        + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
+
+        assertTrue(result.address().hasCapability(AddressCapability.PAGINATION),
+                "AI flagged pagination must be set on the address");
+        assertTrue(result.address().hasCapability(AddressCapability.FILTERING),
+                "AI flagged filtering must be set on the address");
+        assertEquals("https://hadea.ec.europa.eu/events_en?page={n}",
+                result.pageUrlPattern());
+        assertEquals("ai", result.selectorSource());
+        assertEquals(13, result.items().size(),
+                "pagination iteration must collect all events of both pages");
+        assertEquals(2, result.pagesScraped());
+        assertEquals(1, result.filters().size());
+        assertEquals("ai", result.filterSource());
+        assertEquals("Event status", result.filters().get(0).name());
+    }
+
+    @Test
+    void filterBlockIsSkippedWhenAddressNotFlagged() {
+        // default aiAnswering: AI reports no capabilities -> nothing flagged
+        MvpChainResult result = service(aiProvider(aiAnswering("event",
+                "{\"selector\":\"div.exc-event-item\",\"reasoning\":\"\"}")))
+                .run(catalog.byId("ADDR-002"));
+
+        assertTrue(result.capabilities().isEmpty());
+        assertEquals("skipped", result.filterSource(),
+                "FILTER block must not run on an address without the filtering flag");
+        assertTrue(result.filters().isEmpty());
+    }
+
+    @Test
+    void heuristicsFlagCapabilitiesWhenNoAiConfigured() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<AiAssistantPort> empty = mock(ObjectProvider.class);
+        when(empty.getIfAvailable()).thenReturn(null);
+
+        MvpChainResult result = service(empty).run(catalog.byId("ADDR-005"));
+
+        assertTrue(result.address().hasCapability(AddressCapability.PAGINATION),
+                "generic pager heuristic must flag pagination (simplified page keeps the pager nav)");
+        assertTrue(result.address().hasCapability(AddressCapability.FILTERING),
+                "generic form/select heuristic must flag filtering");
+        assertEquals("fallback", result.filterSource());
+        assertFalse(result.filters().isEmpty(),
+                "generic select parsing must extract filter fields");
+        assertTrue(result.pageUrlPattern() == null,
+                "no AI -> no page URL pattern -> iteration cannot run");
+        assertEquals(1, result.pagesScraped(),
+                "without the page pattern no additional page may be scraped");
+        assertTrue(result.items().size() < 13,
+                "page 1 only: the 3 events of page 2 must be missing");
+    }
+
+    @Test
+    void haDeaNewsIsCappedAtMaxItems() {
+        AiAssistantPort ai = aiAnswering("news",
+                "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"repeating content items\"}",
+                "{\"pagination\":{\"detected\":true,"
+                        + "\"pageUrlPattern\":\"https://hadea.ec.europa.eu/news_en?page={n}\","
+                        + "\"reasoning\":\"pager links\"},"
+                        + "\"filtering\":{\"detected\":true,\"reasoning\":\"facet form\"}}",
+                "{\"filters\":[],\"reasoning\":\"\"}");
+
+        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-006"));
+
+        assertTrue(result.items().size() <= 50, "MAX_ITEMS cap must hold");
+        assertFalse(result.items().isEmpty());
+        assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
     }
 }

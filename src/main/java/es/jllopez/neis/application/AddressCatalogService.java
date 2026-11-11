@@ -40,7 +40,15 @@ public class AddressCatalogService {
                     "https://ec.europa.eu/info/funding-tenders/opportunities/portal/"
                             + "screen/support/events?isExactMatch=false&order=DESC"
                             + "&pageNumber=1&pageSize=50&sortBy=status",
-                    AddressType.URL_EVENTS));
+                    AddressType.URL_EVENTS),
+            new Address("ADDR-005",
+                    "HaDEA - Events",
+                    "https://hadea.ec.europa.eu/events_en",
+                    AddressType.URL_EVENTS),
+            new Address("ADDR-006",
+                    "HaDEA - News",
+                    "https://hadea.ec.europa.eu/news_en",
+                    AddressType.URL_NEWS));
 
     public List<Address> list() {
         return addresses;
@@ -52,6 +60,6 @@ public class AddressCatalogService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown address id: " + id
-                                + " (known: ADDR-001..ADDR-004, seed data of issue #62)"));
+                                + " (known: ADDR-001..ADDR-006, seed data of issue #62)"));
     }
 }

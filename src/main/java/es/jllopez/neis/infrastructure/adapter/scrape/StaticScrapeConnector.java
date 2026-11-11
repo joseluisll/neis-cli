@@ -16,14 +16,18 @@ import java.util.Map;
  * network access at chain runtime, the fixture stands in for what the
  * real fetch would return (issue #90).
  *
- * <p>Fixture provenance: all four fixtures are REAL pages of the issue
- * #62 seed addresses, captured 2026-11-11 with a real browser —
- * Node + Playwright (Chromium) via {@code scripts/fetch-rendered-html.js}
- * (wait for network idle, then serialize the DOM). ADDR-001/002 are
- * Confluence pages; ADDR-003/004 are Angular SPAs whose lists only exist
- * client-side, so the fixture is the Playwright-RENDERED DOM (a plain
- * HTTP fetch returns an empty app shell — US-06.1 rendering connector).
- * Regenerate with {@code node scripts/fetch-rendered-html.js <dir>}.</p>
+ * <p>Fixture provenance: all fixtures are REAL pages of the issue #62
+ * seed addresses (ADDR-005/006: HADEA lists, US-17 work), captured
+ * 2026-11-11 with a real browser — Node + Playwright (Chromium) via
+ * {@code scripts/fetch-rendered-html.js} (wait for network idle, then
+ * serialize the DOM). ADDR-001/002 are Confluence pages; ADDR-003/004
+ * are Angular SPAs whose lists only exist client-side; ADDR-005/006 are
+ * Drupal (OpenEuropa) list pages. All are Playwright-RENDERED DOMs (a
+ * plain HTTP fetch would not return the list). Paginated addresses
+ * store one fixture per page, keyed {@code <id>#p<N>} for page N
+ * (page 0 = base fixture) — the chain's pagination-iteration block
+ * addresses pages through the port's page index. Regenerate with
+ * {@code node scripts/fetch-rendered-html.js <dir>}.</p>
  */
 @Component
 public class StaticScrapeConnector implements ContentScrapePort {
@@ -32,15 +36,25 @@ public class StaticScrapeConnector implements ContentScrapePort {
             "ADDR-001", "/mvp/samples/addr-001-news.html",
             "ADDR-002", "/mvp/samples/addr-002-events.html",
             "ADDR-003", "/mvp/samples/addr-003-news-spa-rendered.html",
-            "ADDR-004", "/mvp/samples/addr-004-events-spa-rendered.html");
+            "ADDR-004", "/mvp/samples/addr-004-events-spa-rendered.html",
+            "ADDR-005", "/mvp/samples/addr-005-events-rendered.html",
+            "ADDR-005#p1", "/mvp/samples/addr-005-events-page2-rendered.html",
+            "ADDR-006", "/mvp/samples/addr-006-news-rendered.html");
 
     @Override
     public ScrapeResult scrape(Address address) {
-        String resource = FIXTURES.get(address.id());
+        return scrape(address, 0);
+    }
+
+    @Override
+    public ScrapeResult scrape(Address address, int pageIndex) {
+        String resource = FIXTURES.get(
+                pageIndex == 0 ? address.id() : address.id() + "#p" + pageIndex);
         if (resource == null) {
             throw new IllegalStateException(
                     "No static fixture for address " + address.id()
-                            + " (MVP SCRAPE serves fixtures of issue #62 only)");
+                            + (pageIndex == 0 ? "" : " page " + pageIndex)
+                            + " (MVP SCRAPE serves fixtures of issue #62 / US-17 only)");
         }
         try (InputStream in = getClass().getResourceAsStream(resource)) {
             if (in == null) {

@@ -48,10 +48,32 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
 
-The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - PRINT, issue #90) is
-orchestrated by `MvpChainService` over these ports; pagination detection is
-a pure-Java domain service (`PaginationDetector`), and AI classification and
-selector identification reuse `AiAssistantPort`.
+The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
+issue #90; FILTER added for US-17) is orchestrated by `MvpChainService`
+over these ports. Pure-Java domain services (`PaginationDetector`,
+`ExposedFilterDetector`) are the heuristic fallbacks when no AI is
+configured; AI classification, selector identification, capability
+detection (pagination + page URL pattern, filtering) and filter
+extraction all reuse `AiAssistantPort` through the task-specific prompts
+of `AiPromptCatalog` — no site-specific knowledge is encoded in code.
+
+## Capability flagging (US-17)
+
+ANALYZE detects the listing capabilities of an address — pagination and
+filtering — and FLAGS them onto the address (`AddressCapability`,
+`Address.hasCapability`). Downstream blocks execute their
+page-dependent functionality only on flagged addresses:
+
+- the pagination-iteration block scrapes following pages (via the
+  page-aware `ContentScrapePort.scrape(address, pageIndex)`) only on
+  addresses flagged PAGINATION, following the AI-derived page URL
+  pattern up to the item cap;
+- the FILTER block extracts the filter definitions
+  (`FilterDefinition`) only on addresses flagged FILTERING.
+
+SIMPLIFY keeps action/data elements that capability detection needs:
+pagination navs (pager chrome) and filter forms with selects survive
+the cleanse.
 
 ## Enforced rules (ArchUnit)
 

@@ -14,4 +14,19 @@ import es.jllopez.neis.domain.model.ScrapeResult;
 public interface ContentScrapePort {
 
     ScrapeResult scrape(Address address);
+
+    /**
+     * Scrapes one page of a paginated listing (US-12.4 iteration slice):
+     * page 0 is the base URL, page N the Nth following page. Connectors
+     * that cannot address pages throw {@link UnsupportedOperationException};
+     * the chain treats that as the end of the pagination.
+     */
+    default ScrapeResult scrape(Address address, int pageIndex) {
+        if (pageIndex == 0) {
+            return scrape(address);
+        }
+        throw new UnsupportedOperationException(
+                "This SCRAPE connector cannot address page " + pageIndex
+                        + " of " + address.id());
+    }
 }
