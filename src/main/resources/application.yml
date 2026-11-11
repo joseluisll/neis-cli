@@ -11,6 +11,10 @@ logging:
 neis:
   name: NEIS
   description: News and Events Information System
+  # MVP static chain (issue #90): where the SCRAPE/SIMPLIFY artifacts are
+  # written as real HTML5 files.
+  mvp:
+    work-dir: ./neis-mvp
   ai:
     # AI integration point (US-01.3) using the same MeliousAI provider as
     # the Hermes agent (owner decision 2026-11-11; provider management is

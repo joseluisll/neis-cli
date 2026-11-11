@@ -23,3 +23,6 @@ Thumbs.db
 *.class
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.properties
+
+### NEIS MVP chain artifacts (runtime output) ###
+neis-mvp/

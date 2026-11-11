@@ -22,6 +22,7 @@
         <spring-shell.version>4.0.3</spring-shell.version>
         <spring-ai.version>2.0.2</spring-ai.version>
         <archunit.version>1.5.1</archunit.version>
+        <jsoup.version>1.24.1</jsoup.version>
     </properties>
 
     <dependencies>
@@ -38,6 +39,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
             <version>${spring-ai.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
         </dependency>
 
         <dependency>

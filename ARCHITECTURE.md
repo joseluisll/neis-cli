@@ -44,6 +44,14 @@ NEIS is a CLI application organized as a hexagonal architecture
 |---|---|---|
 | `RuntimeInfoPort` | driven | `MavenRuntimeInfoConnector` (Spring Boot build properties) |
 | `AiAssistantPort` | driven | `SpringAiConnector` (Spring AI `ChatClient`, provider-neutral) |
+| `ContentScrapePort` | driven | `StaticScrapeConnector` (MVP: static HTML5 fixtures of issue #62; real fetching connectors plug in behind it) |
+| `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
+| `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
+
+The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - PRINT, issue #90) is
+orchestrated by `MvpChainService` over these ports; pagination detection is
+a pure-Java domain service (`PaginationDetector`), and AI classification and
+selector identification reuse `AiAssistantPort`.
 
 ## Enforced rules (ArchUnit)
 
