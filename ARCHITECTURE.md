@@ -49,6 +49,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
 | `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout) |
+| `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
 
 The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
 issue #90; FILTER added for US-17) is orchestrated by `MvpChainService`
@@ -126,6 +127,30 @@ cap.
 - Eligibility (US-04.3): executors accept only addresses that are
   syntactically valid AND VERIFIED. The MVP chain refuses ineligible
   addresses; batch runs skip them and report the skip count.
+
+## Execution: async executor, scheduling, records (US-05)
+
+- Every task run — manual (US-05.4) or scheduled (US-05.2) — goes
+  through `ExecutionService`, which validates the task type, refuses
+  ineligible addresses (the US-04.3 gate), runs the work on a small
+  background executor pool so the caller never blocks, and drives the
+  execution record's lifecycle (PENDING -> RUNNING -> SUCCESS/FAILED).
+- Task types are the chain's stages as runnable prefixes (WEBSCRAPE,
+  SIMPLIFY, ANALYZE, FILTER, PRINT) plus the whole CHAIN
+  (`TaskWorkService`); the fixed vocabulary is seeded idempotently into
+  the `task_types` table (schema vocabulary, not user data).
+- Execution records (US-05.3) live in the `executions` table behind
+  `ExecutionStorePort`; `execution run --wait`, `execution list/show`
+  expose them. The `executions.task_code` and `address_id` FKs are
+  enforced.
+- Schedules (US-05.2) are configuration, never code:
+  `neis.schedule.entries` (name, task, address, Spring 6-field cron)
+  registers cron triggers (`ScheduleRegistrar`) that submit SCHEDULED
+  runs to the executor. A refused submission is logged and does not
+  cancel the schedule.
+- Timestamps in new entities are ISO-8601 TEXT at the entity boundary
+  and typed `Instant` in the domain — SQLite stores TEXT (the US-02
+  lesson; `Instant` columns fail Hibernate's timestamp parsing).
 
 ## Enforced rules (ArchUnit)
 

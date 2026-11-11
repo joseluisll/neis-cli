@@ -50,6 +50,19 @@ neis:
       # Address reachability check (US-04.2): per-request timeout of the
       # verification HTTP call.
       timeout-seconds: 10
+  execution:
+    # How long the CLI --wait option blocks for an asynchronous run.
+    await-timeout-seconds: 300
+  schedule:
+    # Configurable schedules (US-05.2): which task runs over which
+    # address, and when (Spring 6-field cron). Defined here, never
+    # hard-coded; a schedule entry fires the asynchronous executor and
+    # leaves an execution record like a manual run. Empty by default.
+    entries: []
+#      - name: hourly-news-scrape
+#        task: WEBSCRAPE
+#        address: ADDR-001
+#        cron: "0 5 * * * *"
   ai:
     # AI integration point (US-01.3) using the same MeliousAI provider as
     # the Hermes agent (owner decision 2026-11-11; provider management is
