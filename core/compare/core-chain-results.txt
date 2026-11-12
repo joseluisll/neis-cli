@@ -1,0 +1,1564 @@
+core-chain-ssafp for ADDR-001 — EU Digital Identity Wallet - News
+  URL: https://ec.europa.eu/digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/712507533/News
+SCRAPE   : 548289 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-001/cap-7369982bcd29/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 64323 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-001/cap-7369982bcd29/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination not detected
+           classification: news [stored]
+           selectors: news=ul.content-by-label > li, events=-
+           used selector: ul.content-by-label > li (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: (none) (pagination not detected by AI; filtering not detected by AI)
+FILTER   : skipped — address not flagged with the filtering capability
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. The news listing is the Confluence content-by-label macro: <ul class=\
+PRINT    : 20 news item(s) discovered
+  1. New report sheds light on successful EU Japan Interoperability Pilot
+     date: Jul 16, 2026
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/978682024/New+report+sheds+light+on+successful+EU+Japan+Interoperability+Pilot
+  2. Discover the key takeaways from Launchpad 2025
+     date: Apr 27, 2026
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/964167040/Discover+the+key+takeaways+from+Launchpad+2025
+  3. New round of EU Digital Identity Wallet implementing regulations adopted
+     date: Jul 30, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/909706465/New+round+of+EU+Digital+Identity+Wallet+implementing+regulations+adopted
+  4. Catch up on the Global Digital Collaboration Conference
+     date: July 4, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/915931902/Catch+up+on+the+Global+Digital+Collaboration+Conference
+  5. What do Europeans want out of their EUDI Wallets New study sheds light
+     date: Jan 23, 2026
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/940311900/What+do+Europeans+want+out+of+their+EUDI+Wallets+New+study+sheds+light
+  6. Catch up on the CONNECT University event exploring EUDI Wallets and the Digital Digital Decade Policy Programme
+     date: July 15, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/908525758/Catch+up+on+the+CONNECT+University+event+exploring+EUDI+Wallets+and+the+Digital+Digital+Decade+Policy+Programme
+  7. The legal and technical road to EU Digital Identity Wallets
+     date: Sep 02, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/915931903/The+legal+and+technical+road+to+EU+Digital+Identity+Wallets
+  8. The European Digital Identity Regulation was created in a more agile way
+     date: Sep 02, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/915931909/The+European+Digital+Identity+Regulation+was+created+in+a+more+agile+way
+  9. Catch up on the Commissions FOSDEM 2025 talk on the wallets.
+     date: Feb 14, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/883826306/Catch+up+on+the+Commissions+FOSDEM+2025+talk+on+the+wallets.
+  10. The European Commission explains how EU Digital Identity Wallets are empowering businesses at this years Web Summit
+     date: Dec 05, 2024
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/848625712/The+European+Commission+explains+how+EU+Digital+Identity+Wallets+are+empowering+businesses+at+this+years+Web+Summit
+  11. New batch of Implementing Acts published for feedback
+     date: June 26, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/905216055/New+batch+of+Implementing+Acts+published+for+feedback
+  12. Version 2.0 of the Architecture and Reference Framework now available
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/900014854/Version+2.0+of+the+Architecture+and+Reference+Framework+now+available
+  13. European Commission adopts new round of EU Digital Identity Wallet implementing regulations
+     date: May 7, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/896827698/European+Commission+adopts+new+round+of+EU+Digital+Identity+Wallet+implementing+regulations
+  14. New Implementing Acts ready for your feedback
+     date: Apr 16, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/892470289/New+Implementing+Acts+ready+for+your+feedback
+  15. New version of the Architecture and Reference Framework now available
+     date: Mar 07, 2025
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/887380261/New+version+of+the+Architecture+and+Reference+Framework+now+available
+  16. EU Digital Identity Wallet milestone reached as Commission adopts implementing regulations
+     date: Dec 4, 2024
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/844759146/EU+Digital+Identity+Wallet+milestone+reached+as+Commission+adopts+implementing+regulations
+  17. Your feedback wanted on new round of Implementing Acts
+     date: Nov 29, 2024
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/841679016/Your+feedback+wanted+on+new+round+of+Implementing+Acts
+  18. Agreement reached on EU Digital Identity Regulation
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/797082382/Agreement+reached+on+EU+Digital+Identity+Regulation
+  19. Open-source code of the wallet now published
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/797082387/Open-source+code+of+the+wallet+now+published
+  20. Version 1.4 of the Architecture and Reference Framework (ARF) released
+     link: /digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/797082397/Version+1.4+of+the+Architecture+and+Reference+Framework+ARF+released
+
+========================================================================
+core-chain-ssafp for ADDR-002 — EU Digital Identity Wallet - Events
+  URL: https://ec.europa.eu/digital-building-blocks/sites/spaces/EUDIGITALIDENTITYWALLET/pages/694497147/Events
+SCRAPE   : 488832 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-002/cap-a078ea976d91/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 25046 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-002/cap-a078ea976d91/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination not detected
+           classification: event [stored]
+           selectors: news=-, events=div.exc-event-item
+           used selector: div.exc-event-item (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: (none) (pagination not detected by AI; filtering not detected by AI)
+FILTER   : skipped — address not flagged with the filtering capability
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each event entry in the content-by-label list contains a div.exc-event-item (with exc-ev-dates, exc-ev-title, exc-ev-description, start/end dates, image), repeated for every event. The ar-exc-item variant appears to be for archived/news items, and the surrounding li elements are generic list entries, so div.exc-event-item is the repeating event item container.
+PRINT    : 3 event item(s) discovered
+  1. 29-30 october, 2026 - THE EGG, BRUSSELS EUDI.WALLETS LAUNCHPAD 2.0 On October 29-30 the European Commission will host the Launchpad 2026, a two-days event of testing, demos, workshops, keynotes, and m...
+     date: 2026-10-29
+  2. 10-11-12 December 2025 Sparks, Brussels EUDI.WALLETS LAUNCHPAD The Launchpad event programme combines high-level vision with hands-on collaboration. Over three days, participants will hear from EU lea...
+     date: 12 December 2025
+  3. 9th - 13th October 2023 10:00 - 16:00 cet CONNECT University Autumn School A session exploring how the EU Digital Identity Wallet aims to revolutionise online transactions and ensure secure and safe a...
+     date: 2023-10-09
+
+========================================================================
+core-chain-ssafp for ADDR-003 — EU Funding and Tenders Portal - Support News
+  URL: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/news?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+SCRAPE   : 347574 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-003/cap-ab814cfc94bd/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 70932 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-003/cap-ab814cfc94bd/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="/info/funding-tenders/opportunities/portal/screen/support/news/40108?sortBy=publicationDate&amp;order=DESC&amp;pageNumber=1&amp;pageSize=10&amp;isExactMatch=false")
+           classification: news [stored]
+           selectors: news=sedia-result-card-news-translation, events=-
+           used selector: sedia-result-card-news-translation (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/news?sortBy=publicationDate&order=DESC&pageNumber={n}&pageSize=10&isExactMatch=false; filtering flagged by AI)
+FILTER   : 4 filter field(s) available [ai]
+           filter zone: sedia-corporate-search-filters-translation form (identified by ai, persisted with the address)
+           - Quick search: (free text)
+           - Categories: Funding Opportunities | Get Involved | Discover More About Us | Programmes and Legal Updates | Tender Opportunities
+           - Programme: Horizon Europe (HORIZON) | Erasmus+ Programme (ERASMUS) | Research Fund for Coal and Steel (RFCS) | All | Citizens, Equality, Rights and Values programme (CERV) | EU4Health Programme (EU4H) | European Maritime Fisheries and Aquaculture Fund (EMFAF) | Digital Europe Programme (DIGITAL) | Promotion of Agricultural Products (AGRIP) | Creative Europe (CREA)
+           - Publication date: (free text)
+           page URL pattern: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/news?sortBy=publicationDate&order=DESC&pageNumber={n}&pageSize=10&isExactMatch=false
+           pagination iteration: 1 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Programme = Horizon Europe (HORIZON) [programme=HORIZON]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-003/cap-ab814cfc94bd/content/FILTER/scrape-filtered.html
+PRINT(f) : 10 news item(s) in the FILTERED listing (unfiltered: 10)
+  1. Looking for Research Opportunities on Food, Bioeconomy, Natural Resources, Agriculture and Environment? Register for the Info Days
+     date: 6 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40111?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  2. Horizon Europe’s Horizontal Actions 2027: Extra Research Funding for Nature, Innovation and Competitiveness
+     date: 30 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40099?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  3. New Call for Proposals to Build a Resilient, Inclusive & Competitive EU Research Area Opens Soon. Join the Brokerage Event!
+     date: 30 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40101?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  4. Strong Interest in Research Funding under the Horizon Europe Widening Actions: 2562 Applicants Competing for €52 million
+     date: 30 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40100?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  5. New European Excellence Initiative projects to empower higher education institutions and widen cooperation
+     date: 22 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40094?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  6. EU-funded project ARTILLERY: AI for early detection of chronic disease risks in breast cancer patients
+     date: 15 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40086?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  7. Over €210 million boost for the Marie Skłodowska-Curie Actions to support more researchers in Europe
+     date: 7 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40080?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  8. €8 million for excellent researchers in Widening countries: new ERA Fellowships kick off
+     date: 7 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40079?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  9. EU Innovation Platform & EU IP Helpdesk: “IP in EU-Funded Projects, Start-ups and Spin-offs”
+     date: 5 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40077?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+  10. 1800 Projects’ Proposals Submitted to Support Democracy, Culture and Inclusive Transformation
+     date: 1 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40076?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false&programmes=Horizon%20Europe%20(HORIZON)
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each news entry is wrapped in a <sedia-result-card-news-translation class=\
+PRINT    : 10 news item(s) discovered
+  1. Q&A Session – Erasmus Mundus 2027
+     date: 9 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40108?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: The European Education and Culture Executive Agency (EACEA) is hosting an online Q&A Session on 27 November 2026 on Erasmus Mundus Joint Masters and Erasmus Mundus Design Measures. For more details, visit the EACEA website.
+  2. Online Info Session - Erasmus+ - European Youth Together 2027
+     date: 9 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40105?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: On 4 December, the European Education and Culture Executive Agency will organise an info session about the 2027 European Youth Together (EYT) Call for proposals, and how to prepare a quality proposal and successfully submit your application. For more details, visit the EACEA website.
+  3. Online Info Session - Erasmus+ Cooperation Partnerships in the field of Youth submitted by European NGOs 2027
+     date: 9 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40104?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: On 3 December 2026, the European Education and Culture Executive Agency will organise an info session about the 2027 Cooperation Partnerships in the field of Youth submitted by European NGOs (ENGOs Youth) call for proposals, and how to prepare a quality proposal and successfully submit your applicat...
+  4. Looking for Research Opportunities on Food, Bioeconomy, Natural Resources, Agriculture and Environment? Register for the Info Days
+     date: 6 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40111?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: The registration for the Horizon Europe Cluster 6 info days and brokerage event 2027 is open!
+  5. Steel Innovation for Europe’s Future: Advancing Competitive and Sustainable Steelmaking. Register for the Event!
+     date: 6 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40110?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: How can Europe’s steel sector remain competitive, sustainable and technologically advanced?
+  6. Online Info session: 2026 CERV Union Values Call
+     date: 5 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40109?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: On 3 December 2026, the European Education and Culture Executive Agency (EACEA) is organising an info session on the 2026 Call for proposals for civil society organisations active on protecting and promoting Union values: call to intermediaries (financial support to third parties) CERV-2026-CITIZENS...
+  7. Online Info Session - Erasmus+ European Degree Exploratory Action
+     date: 5 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40103?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: The European Education and Culture Executive Agency (EACEA) is organising an online Info session on 20 November to present the main elements of the second round of the Erasmus+ European Degree Exploratory Action and to support potential applicants in the preparation of their project proposal. For mo...
+  8. Online Info Session - Erasmus+ Capacity building in the field of Youth 2027
+     date: 5 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40106?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: On 30 November 2026 from 09:30 (09:00 connection of participants) to 13:15 CET, the European Education and Culture Executive Agency will organise an info session about the 2027 Erasmus+ Capacity building in the field of Youth call for proposals, and how to prepare a quality proposal and successfully...
+  9. Online Info session: European Universities 2027 call for proposals
+     date: 5 November 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40107?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: The European Education and Culture Executive Agency (EACEA) is organising an online info session on Thursday 17 November 2026 from 10:30 to 13:00 (CET time) to illustrate the 2027 European Universities call for proposals, along with information about the application process. For more details, visit ...
+  10. EC-FUNDING-TENDER-SERVICE-DESK@ec.europa.eu
+     date: 30 October 2026
+     link: /info/funding-tenders/opportunities/portal/screen/support/news/40102?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+     desc: New process for submission of deliverables
+
+========================================================================
+core-chain-ssafp for ADDR-004 — EU Funding and Tenders Portal - Support Events
+  URL: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/events?isExactMatch=false&order=DESC&pageNumber=1&pageSize=50&sortBy=status
+SCRAPE   : 442841 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-004/cap-a835d610c021/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 100648 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-004/cap-a835d610c021/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination not detected
+           classification: event [stored]
+           selectors: news=-, events=sedia-events-card-translation
+           used selector: sedia-events-card-translation (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/events?isExactMatch=false&order=DESC&pageNumber={n}&pageSize=50&sortBy=status; filtering flagged by AI)
+FILTER   : 4 filter field(s) available [ai]
+           filter zone: form.ng-untouched.ng-pristine.ng-valid (identified by ai, persisted with the address)
+           - Quick search: (free text)
+           - Status: Upcoming | Ongoing | Past
+           - Programme: Horizon Europe (HORIZON) | Research Fund for Coal and Steel (RFCS) | European Maritime Fisheries and Aquaculture Fund (EMFAF) | Erasmus+ Programme (ERASMUS) | Creative Europe (CREA) | All | Citizens, Equality, Rights and Values programme (CERV) | Digital Europe Programme (DIGITAL) | Connecting Europe Facility (CEF) | Internal Security Fund (ISF)
+           - Date: (free text)
+           page URL pattern: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/events?isExactMatch=false&order=DESC&pageNumber={n}&pageSize=50&sortBy=status
+           pagination iteration: 1 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Status = Past [status=PAST]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-004/cap-a835d610c021/content/FILTER/scrape-filtered.html
+PRINT(f) : 33 event item(s) in the FILTERED listing (unfiltered: 33)
+  1. Information Session Call for Proposals on Digital Investigations and Standardisation (ISF- 2026-TF2-AG-CYBER)
+     date: 10 November 2026
+     link: https://ecconf.webex.com/ecconf/j.php?MTID=m7c5d247ec2c99ed82f3bb90bb4344df5
+  2. Horizon Europe: Widening Participation and Strengthening the European Research Area - Excellence Hubs Brokerage Event
+     date: 28-29 October 2026
+     link: https://rea.ec.europa.eu/events/excellence-hubs-brokerage-event-2026-10-28_en
+  3. Join New Online Episode of Infrastructure Stories: Overcoming Challenges in Quantum Computing with SemiQon and VTT
+     date: 20 October 2026
+     link: https://link.europa.eu/PVDXXn
+  4. Horizon Europe info day: Horizontal Activities Nature and Bridging calls
+     date: 16 October 2026
+     link: https://research-innovation-community.ec.europa.eu/events/eugq0jjabLAe8efhoXQBd/overview
+  5. Info session - Creative Europe-MEDIA - European Film Sales 2027
+     date: 15 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  6. Horizon Implementation Day: Grant Management in Horizon Europe
+     date: 15 October 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261015.htm
+  7. EU - Webinar & EU Innovation Platform: IP in EU-Funded Projects, Start-ups and Spin-offs
+     date: 14 October 2026
+     link: https://intellectual-property-helpdesk.ec.europa.eu/news-events/upcoming-trainings-events/eu-webinar-eu-innovation-platform-ip-eu-funded-projects-start-ups-and-spin-offs-2026-10-14_en
+  8. Info Session – Creative Europe-MEDIA – European Slate and Mini-slate development 2027
+     date: 14 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  9. Info session - Creative Europe-MEDIA - European Film Distribution 2027
+     date: 13 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  10. Info Session – Creative Europe-MEDIA – TV and Online Content 2027
+     date: 12 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  11. EIC Launches Silicon Valley Expansion Programme for European Innovators
+     date: 12-16 October 2026
+     link: https://eic.ec.europa.eu/bas/eic-global-business-expansion-programme-silicon-valley-2026-10-12_en
+  12. Horizon Implementation Day: Grant Agreement Preparation in Horizon Europe
+     date: 8 October 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261008.htm
+  13. EU Knowledge Valorisation Talk on 'Setting the standard: accelerating market uptake'. Join us online!
+     date: 29 September 2026
+     link: https://link.europa.eu/pBbHjV
+  14. Clean energy, restored lands: The path forward for coal regions
+     date: 29-30 September 2026
+     link: https://rea.ec.europa.eu/events/clean-energy-restored-lands-path-forward-coal-regions-2026-09-29_en
+  15. Talent Ecosystems: Building sustainable research careers
+     date: 29 September 2026
+     link: https://rea.ec.europa.eu/events/talent-ecosystems-building-sustainable-research-careers-2026-09-29_en
+  16. Connecting Europe Days
+     date: 28-1 September 2026
+     link: https://transport.ec.europa.eu/news-events/main-events/connecting-europe-days-2026_en
+  17. Horizon Implementation Day: Finding opportunities and submitting a proposal in Horizon Europe
+     date: 24 September 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event260924.htm
+  18. Online Q&A Session: Call for proposals Town Twinning 2026
+     date: 8 September 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-questions-answers-session-call-proposals-town-twinning-2026-09-08_en
+  19. Webinar session: Reinforcing synergies between experimentation spaces and innovation procurement
+     date: 2 September 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event260902.htm
+  20. Info Session: Call for Proposals on Asylum case law (i.e., EUAA Case Law Database)
+     date: 13 July 2026
+     link: https://events.teams.microsoft.com/event/41affaec-19ef-4bc8-8ead-ca69a4acb417@d19e4243-f480-4af5-8899-71f10798d806
+  21. RFCS Info Day: Annual Call 2026 and Big Tickets Dual-Use 2026
+     date: 8 July 2026
+     link: https://rea.ec.europa.eu/events/rfcs-info-day-annual-call-2026-and-big-tickets-dual-use-2026-2026-07-08_en
+  22. Online training session: Horizon Dashboard for you!
+     date: 6 July 2026
+     link: https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/support/news/40034?sortBy=publicationDate&order=DESC&pageNumber=1&pageSize=10&isExactMatch=false
+  23. Info day: CEF-Digital call for proposals for emergency submarine cables repair modules
+     date: 2 July 2026
+     link: https://hadea.ec.europa.eu/events/info-day-cef-digital-call-proposals-emergency-submarine-cables-repair-modules-2026-07-02_en
+  24. EU Knowledge Valorisation Talk on how to make research results work for policy!
+     date: 30 June 2026
+     link: https://link.europa.eu/Rmcq9b
+  25. Mission Soil Investment Forum
+     date: 30 June 2026
+     link: https://mission-soil-platform.ec.europa.eu/node/1411
+  26. Online information session call for proposals on the fight against organised crime - ISF-2026-TF2-AG-OC
+     date: 19 June 2026
+     link: https://ecconf.webex.com/ecconf/j.php?MTID=m5726326babc934d6503b830121daba52
+  27. Online Info session: European Solidarity Corps - Quality Label for Humanitarian Aid Volunteering 2026!
+     date: 11 June 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-european-solidarity-corps-quality-label-humanitarian-aid-volunteering-2026-2026-06-11_en
+  28. Info session - Call for proposals Digital solutions for regulatory compliance through data
+     date: 8 June 2026
+     link: https://digital-strategy.ec.europa.eu/en/events/info-session-call-proposals-digital-solutions-regulatory-compliance-through-data
+  29. Info session - Creative Europe-MEDIA - European Film Sales 2026
+     date: 4 June 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2026-2025-10-14_en
+  30. Lump Sum Funding in Horizon Europe: How does it work? How to write a proposal?
+     date: 4 June 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event260604.htm
+  31. Info session: Call for Proposals to support the application of the EU Charter of Fundamental Rights 2026
+     date: 4 June 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/info-session-call-proposals-support-application-eu-charter-fundamental-rights-2026-cerv-2026-char-2026-06-04_en
+  32. Online Info Session: Call for proposals Town Twinning 2026!
+     date: 3 June 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-call-proposals-town-twinning-cerv-2026-citizens-town-tt-2026-06-03_en
+  33. 17804718000003
+     date: 1780471800000
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each event entry is rendered as a repeated <sedia-events-card-translation class=\
+PRINT    : 33 event item(s) discovered
+  1. Lump Sum Funding in Horizon Europe: How does it work? How to write a proposal?
+     date: 12 November 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261112.htm
+  2. European Commission to Host Information Session on the EU AI Media Platform Funding Opportunity
+     date: 16 November 2026
+     link: https://ec.europa.eu/eusurvey/runner/HORIZON-BRIDGING-2027-01-09_EU_AI_Media_Platform
+  3. European Mission Soil Week 2026
+     date: 17-18 November 2026
+     link: https://mission-soil-platform.ec.europa.eu/news-events/events/european-mission-soil-week-2026
+  4. Online Info session: European Universities 2027 Call for Proposals
+     date: 17 November 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-european-universities-2027-call-proposals-2026-11-17_en
+  5. Online Info Session – Creative Europe – Circulation of European Literary Works 2027
+     date: 17 November 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-circulation-european-literary-works-call-proposals-2027-2026-11-17_en
+  6. Horizon Europe info day - Cluster 5: Climate, Energy and Mobility
+     date: 19 November 2026
+     link: https://research-innovation-community.ec.europa.eu/events/1BlOchF5f8ViHvC1DosGqo/overview
+  7. Online Info session: Erasmus+ European Degree Exploratory Action
+     date: 20 November 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-erasmus-european-degree-exploratory-action-2026-11-20_en
+  8. Q&A Session – Erasmus Mundus 2027
+     date: 27 November 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/erasmus-mundus-qa-session-2027-2026-11-27_en
+  9. Online Info Session - Erasmus+ Capacity building in the field of Youth 2027
+     date: 30 November 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-erasmus-capacity-building-field-youth-2027-2026-11-30_en
+  10. Steel Innovation for Europe’s Future: Advancing Competitive and Sustainable Steelmaking
+     date: 2 December 2026
+     link: https://rea.ec.europa.eu/events/steel-innovation-europes-future-advancing-competitive-and-sustainable-steelmaking-2026-12-02_en
+  11. Online Info Session - Erasmus+ Cooperation Partnerships in the field of Youth submitted by European NGOs 2027
+     date: 3 December 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-erasmus-cooperation-partnerships-field-youth-submitted-european-ngos-2027-2026-12-03_en
+  12. Online Info session: 2026 CERV Union Values Call
+     date: 3 December 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-2026-cerv-union-values-call-2026-12-03_en
+  13. Online Info Session - Erasmus+ - European Youth Together 2027
+     date: 4 December 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-session-erasmus-european-youth-together-2027-2026-12-04_en
+  14. Horizon Europe - Marie Skłodowska-Curie Actions Choose Europe for Science 2027 call - info session
+     date: 10 December 2026
+     link: https://marie-sklodowska-curie-actions.ec.europa.eu/whats-new/events/choose-europe-for-science-2027-call-info-session
+  15. Horizon Europe WIDERA Brokerage Event 2027
+     date: 16 December 2026
+     link: https://www.b2match.com/e/horizon-widera2027
+  16. Horizon Europe info days—Cluster 6 Food, Bioeconomy, Natural Resources, Agriculture and Environment
+     date: 13-14 January 2027
+     link: https://research-innovation-community.ec.europa.eu/events/3zC9IT5qNjzK3t74ACHOwW/overview
+  17. Booster Info Session: free guidance for EU-funded research results
+     date: 20 January 2027
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261021.htm
+  18. Promotion of Agricultural Products: Info Days 2027
+     date: 28-29 January 2027
+     link: https://rea.ec.europa.eu/events/promotion-agricultural-products-info-days-2027-2027-01-28_en
+  19. Information Session Call for Proposals on Digital Investigations and Standardisation (ISF- 2026-TF2-AG-CYBER)
+     date: 10 November 2026
+     link: https://ecconf.webex.com/ecconf/j.php?MTID=m7c5d247ec2c99ed82f3bb90bb4344df5
+  20. Horizon Europe: Widening Participation and Strengthening the European Research Area - Excellence Hubs Brokerage Event
+     date: 28-29 October 2026
+     link: https://rea.ec.europa.eu/events/excellence-hubs-brokerage-event-2026-10-28_en
+  21. Join New Online Episode of Infrastructure Stories: Overcoming Challenges in Quantum Computing with SemiQon and VTT
+     date: 20 October 2026
+     link: https://link.europa.eu/PVDXXn
+  22. Horizon Europe info day: Horizontal Activities Nature and Bridging calls
+     date: 16 October 2026
+     link: https://research-innovation-community.ec.europa.eu/events/eugq0jjabLAe8efhoXQBd/overview
+  23. Info session - Creative Europe-MEDIA - European Film Sales 2027
+     date: 15 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  24. Horizon Implementation Day: Grant Management in Horizon Europe
+     date: 15 October 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261015.htm
+  25. EU - Webinar & EU Innovation Platform: IP in EU-Funded Projects, Start-ups and Spin-offs
+     date: 14 October 2026
+     link: https://intellectual-property-helpdesk.ec.europa.eu/news-events/upcoming-trainings-events/eu-webinar-eu-innovation-platform-ip-eu-funded-projects-start-ups-and-spin-offs-2026-10-14_en
+  26. Info Session – Creative Europe-MEDIA – European Slate and Mini-slate development 2027
+     date: 14 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  27. Info session - Creative Europe-MEDIA - European Film Distribution 2027
+     date: 13 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  28. Info Session – Creative Europe-MEDIA – TV and Online Content 2027
+     date: 12 October 2026
+     link: https://www.eacea.ec.europa.eu/news-events/events/online-info-sessions-creative-europe-media-and-cross-sectoral-2027-2026-10-12_en
+  29. EIC Launches Silicon Valley Expansion Programme for European Innovators
+     date: 12-16 October 2026
+     link: https://eic.ec.europa.eu/bas/eic-global-business-expansion-programme-silicon-valley-2026-10-12_en
+  30. Horizon Implementation Day: Grant Agreement Preparation in Horizon Europe
+     date: 8 October 2026
+     link: https://ec.europa.eu/research/participants/docs/h2020-funding-guide/other/event261008.htm
+  31. EU Knowledge Valorisation Talk on 'Setting the standard: accelerating market uptake'. Join us online!
+     date: 29 September 2026
+     link: https://link.europa.eu/pBbHjV
+  32. Clean energy, restored lands: The path forward for coal regions
+     date: 29-30 September 2026
+     link: https://rea.ec.europa.eu/events/clean-energy-restored-lands-path-forward-coal-regions-2026-09-29_en
+  33. 179066520000029 Sep 2026
+     date: 29 September 2026
+
+========================================================================
+core-chain-ssafp for ADDR-005 — HaDEA - Events
+  URL: https://hadea.ec.europa.eu/events_en
+SCRAPE   : 222555 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-005/cap-15f609a53def/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 50558 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-005/cap-15f609a53def/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="?page=1")
+           classification: event [stored]
+           selectors: news=-, events=div.ecl-layout-item > div.contextual-region > article.ecl-content-item
+           used selector: div.ecl-layout-item > div.contextual-region > article.ecl-content-item (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://hadea.ec.europa.eu/events_en?page={n}; filtering flagged by AI)
+FILTER   : 11 filter field(s) available [ai]
+           filter zone: form#oe-list-pages-facets-form (identified by ai, persisted with the address)
+           - Keywords: (free text)
+           - Status: Upcoming and ongoing | Past
+           - Event type: Conferences and summits | Info days | Training and workshops | Exhibitions | Partner meetings
+           - Event date (operator): Select | After | Before | In between
+           - Event date (start date): (free text)
+           - Event date (end date): (free text)
+           - Subject: medical research | public health | digital technology | health policy | cancer | crisis management | EU quality schemes | industrial research | mental health | preparedness | research
+           - Venue: MEO Arena and FIL
+           - Online type: Livestream
+           - Programme: Horizon Europe Cluster 1: Health | Horizon Europe Cluster 4: Space | Horizon Europe Cluster 4: Industry | Horizon Europe Cluster 4: Digital | EU4Health | Horizon Europe | Connecting Europe Facility 2
+           - Programme Sector: Health | Digital | Industry | Space
+           page URL pattern: https://hadea.ec.europa.eu/events_en?page={n}
+           pagination iteration: 2 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Status = Past [facets[status]=past]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-005/cap-15f609a53def/content/FILTER/scrape-filtered.html
+PRINT(f) : 10 event item(s) in the FILTERED listing (unfiltered: 13)
+  1. Info Session on Joint Actions under the EU4Health 2026 Annual Work Programme
+     date: 10 November 2026
+     link: /events/info-session-joint-actions-under-eu4health-2026-annual-work-programme-2026-11-10_en
+  2. Integrating digital health into care pathways for people with neurocognitive disorders
+     date: 28 October 2026
+     link: /events/integrating-digital-health-care-pathways-people-neurocognitive-disorders-2026-10-28_en
+  3. HORUS project final event
+     date: 28 October 2026
+     link: /events/horus-project-final-event-2026-10-28_en
+  4. AI in Science Summit 2026
+     date: 15-16 October 2026
+     link: /events/ai-science-summit-2026-2026-10-15_en
+  5. Horizon Europe Cluster 4: Digital, Industry and Space info days
+     date: 14-15 October 2026
+     link: https://research-innovation-community.ec.europa.eu/events/4HBxLk2CjtGDNOtgoHmlsH/overview
+  6. Turning Evidence into Action: Introducing the PIECES Toolkit
+     date: 13 October 2026
+     link: /events/turning-evidence-action-introducing-pieces-toolkit-2026-10-13_en
+  7. European AI, Data, Robotics Forum
+     date: 13-14 October 2026
+     link: /events/european-ai-data-robotics-forum-2026-10-13_en
+  8. Preparatory webinar for Pre-commercial procurements
+     date: 12 October 2026
+     link: /events/preparatory-webinar-pre-commercial-procurements-2026-10-12_en
+  9. RMIS (Raw Materials Information System) workshop
+     date: 30-01 September-October 2026
+     link: /events/rmis-raw-materials-information-system-workshop-2026-09-30_en
+  10. 5 years EU Cancer Mission: Stronger Through Connection
+     date: 29-01 September-October 2026
+     link: /events/5-years-eu-cancer-mission-stronger-through-connection-2026-09-29_en
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each event entry is wrapped in a div.ecl-layout-item (numbered ecl-layout-item--N) containing a contextual-region with an article.ecl-content-item that holds the date block, labels, metadata and title link. This structure repeats for every event in the listing, distinct from the pagination (nav.ecl-pagination) and the overall list container.
+PRINT    : 13 event item(s) discovered
+  1. Web Summit 2026
+     date: 09-12 November 2026
+     link: /events/web-summit-2026-2026-11-09_en
+  2. European Research & Innovation Days 2026
+     date: 10-11 November 2026
+     link: https://research-and-innovation.ec.europa.eu/events/european-research-and-innovation-days_en
+  3. European Public Health Conference 2026
+     date: 11-13 November 2026
+     link: /events/european-public-health-conference-2026-2026-11-11_en
+  4. Info session on operating grants - EU4Health 2026 Annual Work Programme
+     date: 16 November 2026
+     link: /events/info-session-operating-grants-eu4health-2026-annual-work-programme-2026-11-16_en
+  5. The Manufacturing Partnership Days 2026
+     date: 17-18 November 2026
+     link: /events/manufacturing-partnership-days-2026-2026-11-17_en
+  6. Brain Innovation Days 2026
+     date: 18-19 November 2026
+     link: /events/brain-innovation-days-2026-2026-11-18_en
+  7. HERA Industry Days 2026
+     date: 23-24 November 2026
+     link: https://health.ec.europa.eu/events/hera-industry-days-2026-11-23_en
+  8. Brokerage event - Horizon Europe Cluster 1 'Health'
+     date: 24-25 November 2026
+     link: /events/brokerage-event-horizon-europe-cluster-1-health-2026-11-24_en
+  9. Delivering on the EU Safe Hearts Plan: the impact of EU-funded projects
+     date: 24 November 2026
+     link: /events/delivering-eu-safe-hearts-plan-impact-eu-funded-projects-2026-11-24_en
+  10. Horizon Europe info days - Cluster 1 'Health'
+     date: 26 November 2026
+     link: /events/horizon-europe-info-days-cluster-1-health-2026-11-26_en
+  11. CEF Digital Community Conference 2026
+     date: 02 December 2026
+     link: https://digital-strategy.ec.europa.eu/en/events/save-date-cef-digital-community-conference-2026
+  12. European Quality Assurance Scheme for Breast Cancer Services: Supporting Implementation and Sharing Experience
+     date: 03 December 2026
+     link: /events/european-quality-assurance-scheme-breast-cancer-services-supporting-implementation-and-sharing-2026-12-03_en
+  13. EU-PROMENS Final Conference: Building a Stronger Mental Health Workforce in Europe
+     date: 09 December 2026
+     link: /events/eu-promens-final-conference-building-stronger-mental-health-workforce-europe-2026-12-09_en
+
+========================================================================
+core-chain-ssafp for ADDR-006 — HaDEA - News
+  URL: https://hadea.ec.europa.eu/news_en
+SCRAPE   : 387572 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-006/cap-6954cee2571a/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 100520 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-006/cap-6954cee2571a/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Pager markup detected: class="oe-list-page-pager-sort")
+           classification: news [stored]
+           selectors: news=article.ecl-content-item, events=-
+           used selector: article.ecl-content-item (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://hadea.ec.europa.eu/news_en?page={n}; filtering flagged by AI)
+FILTER   : 5 filter field(s) available [ai]
+           filter zone: form#oe-list-pages-facets-form (identified by ai, persisted with the address)
+           - Keywords: (free text)
+           - News type: News article | News announcement
+           - Programme: Better Training For Safer Food Initiative | Horizon Europe Cluster 1: Health | WiFi4EU Initiative | Horizon Europe Cluster 4: Space | Horizon Europe Cluster 4: Industry | Horizon Europe Cluster 4: Digital | EU4Health | Horizon Europe | Connecting Europe Facility 1 | Connecting Europe Facility 2 | Digital Europe Programme | Single Market Programme Food Chain
+           - Programme Sector: Health | Food | Digital | Industry | Space
+           - Tags: AWP | Calls for experts | Careers | COVID-19 | Crisis preparedness | Cybersecurity | Digital single market | Digital technology | Digital transformation | EUCancerPlan | EU financing | EUFunded | Event | Food safety | Health data | Health preparedness | HealthUnion | Industrial research | Info day | Innovation | Medical research | Pharmaceutical industry | Prior Information Notice | Proposals | Public health | Public procurement | Raw material | Scientific article | Scientific research | Tendering
+           page URL pattern: https://hadea.ec.europa.eu/news_en?page={n}
+           pagination iteration: 1 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Programme = EU4Health [programme=EU4Health]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-006/cap-6954cee2571a/content/FILTER/scrape-filtered.html
+PRINT(f) : 50 news item(s) in the FILTERED listing (unfiltered: 50)
+  1. EU4Health call for tenders - support services for expert groups and other stakeholders in the field of health and food
+     date: 2026-11-10T12:00:00Z
+     link: /news/eu4health-call-tenders-support-services-expert-groups-and-other-stakeholders-field-health-and-food-2026-11-10_en
+  2. EU4Health call for proposals - operating grants to non-governmental organisations
+     date: 2026-11-09T12:00:00Z
+     link: /news/eu4health-call-proposals-operating-grants-non-governmental-organisations-2026-11-09_en
+  3. CHOICE: empowering women with BRCA mutation
+     date: 2026-10-15T12:00:00Z
+     link: /news/choice-empowering-women-brca-mutation-2026-10-15_en
+  4. HaDEA signs new contracts to strengthen SoHO oversight and national implementation of organ transplant practices
+     date: 2026-10-14T12:00:00Z
+     link: /news/hadea-signs-new-contracts-strengthen-soho-oversight-and-national-implementation-organ-transplant-2026-10-14_en
+  5. Spotlight on mental health: projects building stronger mental health support systems across Europe
+     date: 2026-10-12T12:00:00Z
+     link: /news/spotlight-mental-health-projects-building-stronger-mental-health-support-systems-across-europe-2026-10-12_en
+  6. European Day for Organ, Tissue and Cell Donation: Safe testing for safer donations
+     date: 2026-10-10T12:00:00Z
+     link: /news/european-day-organ-tissue-and-cell-donation-safe-testing-safer-donations-2026-10-10_en
+  7. Marking the Irish Presidency: exploring Ireland’s role in EU-funded projects
+     date: 2026-10-06T12:00:00Z
+     link: /news/marking-irish-presidency-exploring-irelands-role-eu-funded-projects-2026-10-06_en
+  8. JACARDI - Reducing the burden of cardiovascular diseases (CVDs) and diabetes
+     date: 2026-09-30T12:00:00Z
+     link: /news/jacardi-reducing-burden-cardiovascular-diseases-cvds-and-diabetes-2026-09-30_en
+  9. World Heart Day: showcasing the EU's comprehensive approach to cardiovascular disease
+     date: 2026-09-29T12:00:00Z
+     link: /news/world-heart-day-showcasing-eus-comprehensive-approach-cardiovascular-disease-2026-09-29_en
+  10. EUCervScreen QA: Updating guidelines for cervical cancer screening
+     date: 2026-09-28T12:00:00Z
+     link: /news/eucervscreen-qa-updating-guidelines-cervical-cancer-screening-2026-09-28_en
+  11. EU4Health projects supporting lung health in Europe
+     date: 2026-09-25T12:00:00Z
+     link: /news/eu4health-projects-supporting-lung-health-europe-2026-09-25_en
+  12. How the EU is addressing its health workforce crisis - EU4Health Joint Action HEROES
+     date: 2026-09-24T12:00:00Z
+     link: /news/how-eu-addressing-its-health-workforce-crisis-eu4health-joint-action-heroes-2026-09-24_en
+  13. Health Technology Assessment: new opportunity to apply for Joint Scientific Consultations
+     date: 2026-09-22T12:00:00Z
+     link: /news/health-technology-assessment-new-opportunity-apply-joint-scientific-consultations-2026-09-22_en
+  14. Childhood Cancer Awareness Month 2026: EU4Health projects improving care and quality of life for young cancer patients and their caregivers
+     date: 2026-09-22T12:00:00Z
+     link: /news/childhood-cancer-awareness-month-2026-eu4health-projects-improving-care-and-quality-life-young-2026-09-22_en
+  15. Spotlight on environment and health: projects protecting human health and the environment in prospect of increasingly frequent heat waves
+     date: 2026-09-10T12:00:00Z
+     link: /news/spotlight-environment-and-health-projects-protecting-human-health-and-environment-prospect-2026-09-10_en
+  16. World Suicide Prevention Day: EU action addressing and preventing suicide
+     date: 2026-09-10T12:00:00Z
+     link: /news/world-suicide-prevention-day-eu-action-addressing-and-preventing-suicide-2026-09-10_en
+  17. World Field Epidemiology Day 2026: EU4Health grants and contracts supporting wastewater surveillance in Africa, Asia and Europe
+     date: 2026-09-07T12:00:00Z
+     link: /news/world-field-epidemiology-day-2026-eu4health-grants-and-contracts-supporting-wastewater-surveillance-2026-09-07_en
+  18. EU4Health grants improving and strengthening national surveillance systems
+     date: 2026-09-07T12:00:00Z
+     link: /news/eu4health-grants-improving-and-strengthening-national-surveillance-systems-2026-09-07_en
+  19. CHIP-AML22: improving the diagnosis and treatment of paediatric acute myeloid leukemia (AML)
+     date: 2026-09-04T12:00:00Z
+     link: /news/chip-aml22-improving-diagnosis-and-treatment-paediatric-acute-myeloid-leukemia-aml-2026-09-04_en
+  20. HaDEA signs new contracts under EU4Health to respond to virus outbreaks
+     date: 2026-08-28T12:00:00Z
+     link: /news/hadea-signs-new-contracts-under-eu4health-respond-virus-outbreaks-2026-08-28_en
+  21. A clearer picture of cancer in Europe: how the EU4Health Joint Action CancerWatch is improving European cancer registries data
+     date: 2026-08-06T12:00:00Z
+     link: /news/clearer-picture-cancer-europe-how-eu4health-joint-action-cancerwatch-improving-european-cancer-2026-08-06_en
+  22. Spotlight on data spaces: projects contributing to an interconnected and competitive European data economy
+     date: 2026-08-04T12:00:00Z
+     link: /news/spotlight-data-spaces-projects-contributing-interconnected-and-competitive-european-data-economy-2026-08-04_en
+  23. EU4Health projects tackling lung cancer prevention and screening
+     date: 2026-08-01T12:00:00Z
+     link: /news/eu4health-projects-tackling-lung-cancer-prevention-and-screening-2026-08-01-0_en
+  24. SOLACE: Improving lung cancer screening in Europe
+     date: 2026-08-01T12:00:00Z
+     link: /news/solace-improving-lung-cancer-screening-europe-2026-08-01_en
+  25. EU-funded projects decreasing the burden of viral hepatitis
+     date: 2026-07-28T12:00:00Z
+     link: /news/eu-funded-projects-decreasing-burden-viral-hepatitis-2026-07-28_en
+  26. Call for tenders: Capacity reservation for personal protective equipment pilot (EU FAB+ PPE)
+     date: 2026-07-22T12:00:00Z
+     link: /news/call-tenders-capacity-reservation-personal-protective-equipment-pilot-eu-fab-ppe-2026-07-22_en
+  27. Call for tenders: Framework contracts to speed up the development of and access to next-generation therapeutics for infectious diseases
+     date: 2026-07-02T12:00:00Z
+     link: /news/call-tenders-framework-contracts-speed-development-and-access-next-generation-therapeutics-2026-07-02_en
+  28. Call for tenders: Long-term stockpiling of active pharmaceutical ingredients (APIs) and rapid production of finished dose forms
+     date: 2026-06-24T12:00:00Z
+     link: /news/call-tenders-long-term-stockpiling-active-pharmaceutical-ingredients-apis-and-rapid-production-2026-06-24_en
+  29. Call for tenders: Clinical trial preparedness for filovirus outbreaks through the establishment of a pilot vaccine reserve
+     date: 2026-06-03T12:00:00Z
+     link: /news/call-tenders-clinical-trial-preparedness-filovirus-outbreaks-through-establishment-pilot-vaccine-2026-06-03_en
+  30. Health Technology Assessment: new opportunity to apply for Joint Scientific Consultations
+     date: 2026-06-03T12:00:00Z
+     link: /news/health-technology-assessment-new-opportunity-apply-joint-scientific-consultations-2026-06-03_en
+  31. European Week Against Cancer 2026: EU4Health projects working to reduce cancer inequalities
+     date: 2026-05-27T12:00:00Z
+     link: /news/european-week-against-cancer-2026-eu4health-projects-working-reduce-cancer-inequalities-2026-05-27_en
+  32. EU4Health projects deploying best practices across Europe to reduce the burden of stroke
+     date: 2026-05-12T12:00:00Z
+     link: /news/eu4health-projects-deploying-best-practices-across-europe-reduce-burden-stroke-2026-05-12_en
+  33. EU4Health projects supporting the development of orphan medical devices for children with rare diseases
+     date: 2026-05-08T12:00:00Z
+     link: /news/eu4health-projects-supporting-development-orphan-medical-devices-children-rare-diseases-2026-05-08_en
+  34. Targeted consultation on EU4Health Work Programme 2027
+     date: 2026-05-08T12:00:00Z
+     link: /news/targeted-consultation-eu4health-work-programme-2027-2026-05-08_en
+  35. Spotlight on cancer: projects advancing the fight against one of Europe’s biggest public health challenges
+     date: 2026-05-07T12:00:00Z
+     link: /news/spotlight-cancer-projects-advancing-fight-against-one-europes-biggest-public-health-challenges-2026-05-07_en
+  36. European Mental Health Week 2026: Discover EU-funded projects making mental health a priority
+     date: 2026-05-05T12:00:00Z
+     link: /news/european-mental-health-week-2026-discover-eu-funded-projects-making-mental-health-priority-2026-05-05_en
+  37. EU4Health projects supporting patients’ involvement in Health Technology Assessments
+     date: 2026-05-04T12:00:00Z
+     link: /news/eu4health-projects-supporting-patients-involvement-health-technology-assessments-2026-05-04_en
+  38. European Immunisation Week 2026: EU funding in action to prevent diseases and protect lives
+     date: 2026-04-21T12:00:00Z
+     link: /news/european-immunisation-week-2026-eu-funding-action-prevent-diseases-and-protect-lives-2026-04-21_en
+  39. Prior Information Notice - EU FAB+ capacity reservation for personal protective equipment (PPE)
+     date: 2026-04-21T12:00:00Z
+     link: /news/prior-information-notice-eu-fab-capacity-reservation-personal-protective-equipment-ppe-2026-04-21_en
+  40. New EU4Health contracts signed: support for the implementation of the new Substances of Human Origin Regulation and the European Health Data Space
+     date: 2026-04-17T12:00:00Z
+     link: /news/new-eu4health-contracts-signed-support-implementation-new-substances-human-origin-regulation-and-2026-04-17_en
+  41. Health Technology Assessment: New Opportunity to Apply for Joint Scientific Consultations
+     date: 2026-04-09T12:00:00Z
+     link: /news/health-technology-assessment-new-opportunity-apply-joint-scientific-consultations-2026-04-09_en
+  42. Spotlight on Artificial Intelligence: projects enhancing EU tech sovereignty through excellence in AI
+     date: 2026-04-08T12:00:00Z
+     link: /news/spotlight-artificial-intelligence-projects-enhancing-eu-tech-sovereignty-through-excellence-ai-2026-04-08_en
+  43. World Health Day 2026: Nine EU4Health grants setting up a coordinated surveillance system for cross-border pathogens
+     date: 2026-04-07T12:00:00Z
+     link: /news/world-health-day-2026-nine-eu4health-grants-setting-coordinated-surveillance-system-cross-border-2026-04-07_en
+  44. Prior Information Notice: Long-term stockpiling of active pharmaceutical ingredients (APIs) and rapid production of finished dose forms
+     date: 2026-04-01T12:00:00Z
+     link: /news/prior-information-notice-long-term-stockpiling-active-pharmaceutical-ingredients-apis-and-rapid-2026-04-01_en
+  45. Prior Information Notice - Clinical trial preparedness for filovirus outbreak through the establishment of a pilot vaccine reserve
+     date: 2026-03-27T12:00:00Z
+     link: /news/prior-information-notice-clinical-trial-preparedness-filovirus-outbreak-through-establishment-pilot-2026-03-27_en
+  46. Prior Information Notice: Framework contracts to speed up the development of next generation therapeutics for infectious diseases
+     date: 2026-03-26T12:00:00Z
+     link: /news/prior-information-notice-framework-contracts-speed-development-next-generation-therapeutics-2026-03-26_en
+  47. Single framework contract for the implementation of the new SoHO regulation: training and networking of SoHO competent authorities' staff for oversight
+     date: 2026-03-23T12:00:00Z
+     link: /news/single-framework-contract-implementation-new-soho-regulation-training-and-networking-soho-competent-2026-03-23_en
+  48. Spotlight on digital skills: projects strengthening Europe’s workforce for the digital decade
+     date: 2026-03-09T12:00:00Z
+     link: /news/spotlight-digital-skills-projects-strengthening-europes-workforce-digital-decade-2026-03-09_en
+  49. How EU-funded projects make an impact on women’s and girls’ lives
+     date: 2026-03-08T12:00:00Z
+     link: /news/how-eu-funded-projects-make-impact-womens-and-girls-lives-2026-03-08_en
+  50. Rare Disease Day 2026: how the EU4Health Joint Action JARDIN is supporting the work of the European Reference Networks (ERNs)
+     date: 2026-02-28T12:00:00Z
+     link: /news/rare-disease-day-2026-how-eu4health-joint-action-jardin-supporting-work-european-reference-networks-2026-02-28_en
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each news entry is rendered as an <article class=\
+PRINT    : 50 news item(s) discovered
+  1. EU4Health call for tenders - support services for expert groups and other stakeholders in the field of health and food
+     date: 2026-11-10T12:00:00Z
+     link: /news/eu4health-call-tenders-support-services-expert-groups-and-other-stakeholders-field-health-and-food-2026-11-10_en
+     desc: HaDEA has published the EU4Health call for tenders HADEA/2026/OP/0060: Framework contracts in cascade for support services for expert groups and other stakeholders in the field of health and food 2027-2031.
+  2. EU4Health call for proposals - operating grants to non-governmental organisations
+     date: 2026-11-09T12:00:00Z
+     link: /news/eu4health-call-proposals-operating-grants-non-governmental-organisations-2026-11-09_en
+     desc: The European Commission has published the EU4Health call for proposals for operating grants in 2027 to non-governmental organisations.
+  3. Turning Research & Innovation into impact: learning from experience at the Feedback-to-Policy workshop
+     date: 2026-11-06T12:00:00Z
+     link: /news/turning-research-innovation-impact-learning-experience-feedback-policy-workshop-2026-11-06_en
+     desc: On 4–5 November 2026, the European Health and Digital Executive Agency (HaDEA) and DG Research and Innovation (DG RTD) co-organised a Feedback-to-Policy Stakeholders’ Workshop (in the area of Horizon Europe-Cluster4-Industry) at the Conference Centre A. Borschette in Brussels.
+  4. European Space Weather Week: tackling solar threats with EU Space Research
+     date: 2026-11-03T12:00:00Z
+     link: /news/european-space-weather-week-tackling-solar-threats-eu-space-research-2026-11-03_en
+     desc: Meet three HaDEA-managed projects that are enhancing our knowledge of space weather events and are developing novel tools to analyse space weather data.
+  5. Liver Cancer Awareness Month: EU-funded research advancing our understanding of liver cancer
+     date: 2026-10-30T12:00:00Z
+     link: /news/liver-cancer-awareness-month-eu-funded-research-advancing-our-understanding-liver-cancer-2026-10-30_en
+     desc: On the occasion of Liver Cancer Awareness Month, discover projects managed by HaDEA working to improve liver cancer prevention, early detection and patient outcomes
+  6. 2027 Horizon Europe 'Health' calls are open to proposals
+     date: 2026-10-29T12:00:00Z
+     link: /news/2027-horizon-europe-health-calls-are-open-proposals-2026-10-29_en
+     desc: The European Commission has published the 2027 Horizon Europe ‘Health’ calls for proposals
+  7. Tusass Connect is building a more connected and resilient Greenland
+     date: 2026-10-29T12:00:00Z
+     link: /news/tusass-connect-building-more-connected-and-resilient-greenland-2026-10-29_en
+     desc: Greenland's vast distances, harsh Arctic conditions and dispersed population make reliable digital connectivity both essential and challenging. Strengthening the country's telecommunications infrastructure is key to ensuring that citizens, businesses and public authorities remain connected.
+  8. Discover HaDEA-managed projects on cybersecurity funded by the Digital Europe Programme
+     date: 2026-10-27T12:00:00Z
+     link: /news/discover-hadea-managed-projects-cybersecurity-funded-digital-europe-programme-2026-10-27_en
+     desc: October is an important month for cybersecurity awareness across Europe, thanks to the European Cybersecurity Month (ECSM), a campaign to raise awareness of the importance of cybersecurity, encourage best practices and provide resources to help individuals and organisations stay safe online.
+  9. HaDEA is looking for expert evaluators in the fields of applying and scaling AI in various domains and photonic
+     date: 2026-10-26T12:00:00Z
+     link: /news/hadea-looking-expert-evaluators-fields-applying-and-scaling-ai-various-domains-and-photonic-2026-10-26_en
+     desc: Horizon Europe is the European Union’s research and innovation framework programme for 2021–2027. Cluster 4: Digital, Industry and Space supports research and innovation across advanced digital technologies, industrial leadership and strategic autonomy, contributing to Europe’s long-term competitive
+  10. Horizon Europe Cluster 4 'Digital, Industry and Space' Info Days: recordings available
+     date: 2026-10-20T12:00:00Z
+     link: /news/horizon-europe-cluster-4-digital-industry-and-space-info-days-recordings-available-2026-10-20_en
+     desc: The Horizon Europe Info Days on Cluster 4 – Digital, Industry and Space were held online on 14 and 15 October 2026. The event was designed to inform potential applicants about the funding opportunities available under the Horizon Europe Cluster 4 Work Programme 2026-2027.
+  11. CHOICE: empowering women with BRCA mutation
+     date: 2026-10-15T12:00:00Z
+     link: /news/choice-empowering-women-brca-mutation-2026-10-15_en
+     desc: The EU4Health project CHOICE is addressing the elements that might reduce access to breast cancer preventive measures for women with BRCA1 and BRCA2 mutations and providing healthcare professionals with effective communication and information tools, empowering women to make informed decisions.
+  12. HaDEA signs new contracts to strengthen SoHO oversight and national implementation of organ transplant practices
+     date: 2026-10-14T12:00:00Z
+     link: /news/hadea-signs-new-contracts-strengthen-soho-oversight-and-national-implementation-organ-transplant-2026-10-14_en
+     desc: HaDEA has signed two new contracts under the EU4Health programme to improve oversight in the field of Substances of Human Origin (SoHO) and strengthen the national implementation of organ transplant practices.
+  13. Digital Europe Programme - new call results published
+     date: 2026-10-13T12:00:00Z
+     link: /news/digital-europe-programme-new-call-results-published-2026-10-13_en
+     desc: The Health and Digital Executive Agency has completed the calls DIGITAL-2026-BESTUSE-10 and DIGITAL-2026-SKILLS-10, funded under the Digital Europe Programme.
+  14. Spotlight on mental health: projects building stronger mental health support systems across Europe
+     date: 2026-10-12T12:00:00Z
+     link: /news/spotlight-mental-health-projects-building-stronger-mental-health-support-systems-across-europe-2026-10-12_en
+     desc: Mental health is an essential part of our overall health and is just as important as physical wellbeing. Discover a number of projects, managed by the European Health and Digital Executive Agency (HaDEA), that are contributing to a more comprehensive approach to mental health across Europe.
+  15. New publication: Discover EU-funded projects advancing AI, data and robotics
+     date: 2026-10-12T12:00:00Z
+     link: /news/new-publication-discover-eu-funded-projects-advancing-ai-data-and-robotics-2026-10-12_en
+     desc: HaDEA has published a new brochure highlighting EU-funded projects under Horizon Europe Cluster 4: Digital, Industry and Space, showcasing their results and contributions to Europe's technological competitiveness and digital transformation.
+  16. European Day for Organ, Tissue and Cell Donation: Safe testing for safer donations
+     date: 2026-10-10T12:00:00Z
+     link: /news/european-day-organ-tissue-and-cell-donation-safe-testing-safer-donations-2026-10-10_en
+     desc: When organs, tissues and cells are donated for transplantation, reliable testing is essential to assess their safety and reduce the risk of transmitting infections. Discover how he EU4Health project EURL-IVD.3 contributes to safer organ, tissue and cell donations.
+  17. ARTILLERY project: AI for early detection of chronic disease risks in breast cancer patients
+     date: 2026-10-09T12:00:00Z
+     link: /news/artillery-project-ai-early-detection-chronic-disease-risks-breast-cancer-patients-2026-10-09_en
+     desc: Breast cancer survivors are at higher risk of developing other health-related issues and diseases. The ARTILLERY project, funded under Horizon Europe, uses AI to detect information about risk factors of these chronic diseases.
+  18. World Space Week 2026: discover how HaDEA is supporting the rocket revolution
+     date: 2026-10-06T12:00:00Z
+     link: /news/world-space-week-2026-discover-how-hadea-supporting-rocket-revolution-2026-10-06_en
+     desc: World Space Week, held annually from 4 to 10 October, is an international celebration of space science and technology.
+  19. EU-funded projects rethinking the magnets powering Europe's mobility
+     date: 2026-10-06T12:00:00Z
+     link: /news/eu-funded-projects-rethinking-magnets-powering-europes-mobility-2026-10-06_en
+     desc: EU-funded projects managed by HaDEA under Horizon Europe Cluster 4 address different parts of the magnet and rare earth value chain, from developing new magnetic materials and improving magnet design to strengthening supply chains.
+  20. Marking the Irish Presidency: exploring Ireland’s role in EU-funded projects
+     date: 2026-10-06T12:00:00Z
+     link: /news/marking-irish-presidency-exploring-irelands-role-eu-funded-projects-2026-10-06_en
+     desc: From strengthening health surveillance and creating a safer digital environment to developing advanced technologies and improving Europe’s connectivity, discover projects bringing together Irish and European expertise across a wide range of fields.
+  21. Horizon Europe Cluster 4: Digital 2027 calls now published
+     date: 2026-10-05T12:00:00Z
+     link: /news/horizon-europe-cluster-4-digital-2027-calls-now-published-2026-10-05_en
+     desc: The Horizon Europe 2027 Work Programme establishes one call under the Digital pillar in one destination: HORIZON-CL4-2027-05 (25 million EUR one topic). Annex XIV (Horizontal Activities) establishes the call HORIZON-BRIDGING-2027-01 (55 million EUR, 4 topics).
+  22. Horizon Europe Cluster 4: Industry 2027 calls now published
+     date: 2026-10-05T12:00:00Z
+     link: /news/horizon-europe-cluster-4-industry-2027-calls-now-published-2026-10-05_en
+     desc: Discover the new Horizon Europe Cluster 4: Industry calls.
+  23. EU Cancer Mission Showcase event: Meet HaDEA-managed projects on Day 3
+     date: 2026-10-01T12:00:00Z
+     link: /news/eu-cancer-mission-showcase-event-meet-hadea-managed-projects-day-3-2026-10-01_en
+     desc: Meet the HaDEA-managed projects present at Day 3 of the EU Cancer Mission Showcase event
+  24. International Day of Older Persons 2026: combatting loneliness and isolation among older people
+     date: 2026-10-01T12:00:00Z
+     link: /news/international-day-older-persons-2026-combatting-loneliness-and-isolation-among-older-people-2026-10-01_en
+     desc: On International day of older persons, learn about JA PRISM's practice Circle of Friends (CoF), addressing loneliness of older adults.
+  25. EU Cancer Mission Showcase event: Discover the HaDEA-managed projects participating on Day 2
+     date: 2026-09-30T12:00:00Z
+     link: /news/eu-cancer-mission-showcase-event-discover-hadea-managed-projects-participating-day-2-2026-09-30_en
+     desc: Meet the HaDEA-managed projects present at Day 2 of the EU Cancer Mission Showcase event
+  26. JACARDI - Reducing the burden of cardiovascular diseases (CVDs) and diabetes
+     date: 2026-09-30T12:00:00Z
+     link: /news/jacardi-reducing-burden-cardiovascular-diseases-cvds-and-diabetes-2026-09-30_en
+     desc: The Joint Action JACARDI, co-funded by the EU4Health programme, focuses on the importance of preventing cardiovascular diseases and diabetes, identifying risks early and ensuring that interventions reach the right people and communities.
+  27. World Heart Day: when EU funding meets research to improve cardiovascular disease treatment and care
+     date: 2026-09-29T12:00:00Z
+     link: /news/world-heart-day-when-eu-funding-meets-research-improve-cardiovascular-disease-treatment-and-care-2026-09-29_en
+     desc: On World Heart Day, discover projects funded under Horizon Europe 'Health' advancing research to alleviate the burden of cardiovascular diseases in Europe.
+  28. EU Cancer Mission Showcase event: Discover the HaDEA-managed projects participating on Day 1
+     date: 2026-09-29T12:00:00Z
+     link: /news/eu-cancer-mission-showcase-event-discover-hadea-managed-projects-participating-day-1-2026-09-29_en
+     desc: Discover the HaDEA-managed projects present at Day 1 of the EU Cancer Mission Showcase event (29 September - 1 October).
+  29. Horizon Europe - EU Space Research call 2026: 132 proposals submitted
+     date: 2026-09-29T12:00:00Z
+     link: /news/horizon-europe-eu-space-research-call-2026-132-proposals-submitted-2026-09-29_en
+     desc: The call HORIZON-CL4-2026-03 (SPACE), part of Horizon Europe Cluster 4: Digital, Industry and Space (Destination 5), closed on 16 September 2026. A total of 132 proposals has been submitted.
+  30. World Heart Day: showcasing the EU's comprehensive approach to cardiovascular disease
+     date: 2026-09-29T12:00:00Z
+     link: /news/world-heart-day-showcasing-eus-comprehensive-approach-cardiovascular-disease-2026-09-29_en
+     desc: Across Europe, EU-funded projects managed by HaDEA are contributing to better heart health by developing new tools, testing new approaches and supporting better outcomes for patients.
+  31. EUCervScreen QA: Updating guidelines for cervical cancer screening
+     date: 2026-09-28T12:00:00Z
+     link: /news/eucervscreen-qa-updating-guidelines-cervical-cancer-screening-2026-09-28_en
+     desc: Funded under EU4Health and coordinated by the International Agency for Research on Cancer (IARC) with guidance from the Commission’s Joint Research Centre, the project EUCervScreen QA was tasked with supporting the Initiative on Cervical Cancer.
+  32. EU-funded projects advancing smarter, more sustainable tourism
+     date: 2026-09-27T12:00:00Z
+     link: /news/eu-funded-projects-advancing-smarter-more-sustainable-tourism-2026-09-27_en
+     desc: Tourism is entering a new digital era. Artificial intelligence, data spaces, 3D technologies and extended reality are creating new ways to experience cultural heritage, manage destinations and make tourism more accessible and sustainable.
+  33. EU4Health projects supporting lung health in Europe
+     date: 2026-09-25T12:00:00Z
+     link: /news/eu4health-projects-supporting-lung-health-europe-2026-09-25_en
+     desc: On WorldLungDay, discover a selection of EU4Health projects supporting lung health in Europe.
+  34. Childhood Cancer Awareness Month 2026: Horizon Europe projects advancing novel treatments for rare and high-risk paediatric cancers
+     date: 2026-09-25T12:00:00Z
+     link: /news/childhood-cancer-awareness-month-2026-horizon-europe-projects-advancing-novel-treatments-rare-and-2026-09-25_en
+     desc: While survival rates are improving, rare and high-risk childhood cancers remain challenging to treat. The recently started Horizon Europe projects EPICA-DIPG, THEODORA and PHOENIX are advancing treatment research for rare and high-risk paediatric cancers as part of the EU Cancer Mission.
+  35. How the EU is addressing its health workforce crisis - EU4Health Joint Action HEROES
+     date: 2026-09-24T12:00:00Z
+     link: /news/how-eu-addressing-its-health-workforce-crisis-eu4health-joint-action-heroes-2026-09-24_en
+     desc: Health work force planning capacities of European countries are essential to ensure accessibility, sustainability and resilience of healthcare services. Discover how the EU4Health Joint Action (JA) HEROES achieved significant progress in strengthening health workforce planning capacities in the EU.
+  36. Advancing sustainable supply of raw materials through EU-Canada cooperation
+     date: 2026-09-23T12:00:00Z
+     link: /news/advancing-sustainable-supply-raw-materials-through-eu-canada-cooperation-2026-09-23_en
+     desc: EU-Canada relations were given renewed prominence in the 2026 State of the Union address, where European Commission President Ursula von der Leyen highlighted plans to further deepen the cooperation, including on the Arctic, energy, critical minerals and batteries.
+  37. Health Technology Assessment: new opportunity to apply for Joint Scientific Consultations
+     date: 2026-09-22T12:00:00Z
+     link: /news/health-technology-assessment-new-opportunity-apply-joint-scientific-consultations-2026-09-22_en
+     desc: On 23 September, the Commission will open the fourth request period for joint scientific consultations (JSCs) for 2026.
+  38. Childhood Cancer Awareness Month 2026: EU4Health projects improving care and quality of life for young cancer patients and their caregivers
+     date: 2026-09-22T12:00:00Z
+     link: /news/childhood-cancer-awareness-month-2026-eu4health-projects-improving-care-and-quality-life-young-2026-09-22_en
+     desc: Improving the diagnosis, treatment and care of childhood cancer is among the priorities highlighted in Europe’s Beating Cancer Plan. Discover EU4Health projects improving care and quality of life for children and their caregivers.
+  39. How digital technologies can help preserve and reimagine Europe’s cultural heritage
+     date: 2026-09-18T12:00:00Z
+     link: /news/how-digital-technologies-can-help-preserve-and-reimagine-europes-cultural-heritage-2026-09-18_en
+     desc: Every year, the European Heritage Days invite millions of people across Europe to discover, celebrate and share the continent’s rich cultural heritage. In 2026, the event takes on a particularly timely theme: “Heritage at Risk: Revive, Resist, Reimagine.”
+  40. Horizon Europe call on research and development in support of the clean industrial deal closed
+     date: 2026-09-16T12:00:00Z
+     link: /news/horizon-europe-call-research-and-development-support-clean-industrial-deal-closed-2026-09-16_en
+     desc: The call HORIZON-CID-2026-01 “R&I in Support of the Clean Industrial Deal, part of Horizon Europe “Horizonal activities”, closed on 15 September 2026.
+  41. Game-changing innovation for European launch solutions: 3 proposals selected to receive €20 million
+     date: 2026-09-16T12:00:00Z
+     link: /news/game-changing-innovation-european-launch-solutions-3-proposals-selected-receive-eur20-million-2026-09-16_en
+     desc: The call for proposals Game-Changing Innovation for European Launch Solutions (PPPA-2026-LAUNCHERS-GAMECHANGING) closed on 29 April 2026. A total of 13 proposals were submitted. The evaluation of the proposals submitted under this call has been completed.
+  42. EU-funded projects advancing cleaner and more energy-efficient steel production
+     date: 2026-09-15T12:00:00Z
+     link: /news/eu-funded-projects-advancing-cleaner-and-more-energy-efficient-steel-production-2026-09-15_en
+     desc: Steel plays a strategic role in the European economy, providing essential inputs to sectors including automotive, construction, electronics and clean technologies. At the same time, the sector faces significant challenges.
+  43. Spotlight on environment and health: projects protecting human health and the environment in prospect of increasingly frequent heat waves
+     date: 2026-09-10T12:00:00Z
+     link: /news/spotlight-environment-and-health-projects-protecting-human-health-and-environment-prospect-2026-09-10_en
+     desc: Across Europe, periods of extreme heat are becoming an increasingly pressing concern, with unusually high temperatures persisting for days across numerous regions. Discover a selection of projects, managed by HaDEA, that are protecting human health in the context of an increasingly changing climate.
+  44. World Suicide Prevention Day: EU action addressing and preventing suicide
+     date: 2026-09-10T12:00:00Z
+     link: /news/world-suicide-prevention-day-eu-action-addressing-and-preventing-suicide-2026-09-10_en
+     desc: On World Suicide Prevention Day, discover EU actions addressing and preventing suicide
+  45. World Field Epidemiology Day 2026: EU4Health grants and contracts supporting wastewater surveillance in Africa, Asia and Europe
+     date: 2026-09-07T12:00:00Z
+     link: /news/world-field-epidemiology-day-2026-eu4health-grants-and-contracts-supporting-wastewater-surveillance-2026-09-07_en
+     desc: On the occasion of World Field Epidemiology Day, we focus on relevant initiatives managed by the European Health and Digital Executive Agency (HaDEA).
+  46. EU4Health grants improving and strengthening national surveillance systems
+     date: 2026-09-07T12:00:00Z
+     link: /news/eu4health-grants-improving-and-strengthening-national-surveillance-systems-2026-09-07_en
+     desc: Under the EU4Health programme, HaDEA managed the Joint Action UNITED4Surveillance, which improved the surveillance, prevention and control of infectious diseases across the EU/EEA.
+  47. CHIP-AML22: improving the diagnosis and treatment of paediatric acute myeloid leukemia (AML)
+     date: 2026-09-04T12:00:00Z
+     link: /news/chip-aml22-improving-diagnosis-and-treatment-paediatric-acute-myeloid-leukemia-aml-2026-09-04_en
+     desc: The EU4Health project CHIP-AML22 is working to improve treatment outcomes for children with AML by advancing targeted treatments that reduce the level of toxicity and guarantee more equal outcomes across Europe.
+  48. HILIGHT is advancing microscope analysis with photonics
+     date: 2026-09-02T12:00:00Z
+     link: /news/hilight-advancing-microscope-analysis-photonics-2026-09-02_en
+     desc: Modern healthcare solutions heavily rely on digital imaging technologies that involve photonics, i.e. illuminating samples by a laser and scanning the light refractions using various photonics sensors to diagnose diseases and develop novel therapies.
+  49. Horizon Europe Digital call 2026: 7 proposals funded
+     date: 2026-08-31T12:00:00Z
+     link: /news/horizon-europe-digital-call-2026-7-proposals-funded-2026-08-31_en
+     desc: The call HORIZON-CL4-2026-05, funded under Horizon Europe Cluster 4: Digital, Industry and Space, closed on 15 April 2026. HaDEA has now completed the evaluation of the proposals submitted under this call.
+  50. HaDEA signs new contracts under EU4Health to respond to virus outbreaks
+     date: 2026-08-28T12:00:00Z
+     link: /news/hadea-signs-new-contracts-under-eu4health-respond-virus-outbreaks-2026-08-28_en
+     desc: Three new contracts signed by HaDEA will support the actions of the European Commission's Health Emergency Preparedness and Response Authority (DG HERA) to respond to ongoing virus outbreaks.
+
+========================================================================
+core-chain-ssafp for ADDR-007 — EMA - News
+  URL: https://www.ema.europa.eu/en/news
+SCRAPE   : 153137 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-007/cap-1268054308c9/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 52042 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-007/cap-1268054308c9/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="?page=1")
+           classification: news [stored]
+           selectors: news=article.ema-news.teaser, events=-
+           used selector: article.ema-news.teaser (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://www.ema.europa.eu/en/news?page={n}; filtering flagged by AI)
+FILTER   : 8 filter field(s) available [ai]
+           filter zone: #oe-list-pages-facets-form (identified by ai, persisted with the address)
+           - Keyword: (free text)
+           - Last updated date: Show all | After | Before | From - To
+           - Date range: This week | This month | Last week | Last month
+           - Category: (free text)
+           - Topic: (free text)
+           - Diseases area: (free text)
+           - Responsible body: CHMP | CVMP | PRAC | Management Board | COMP | PDCO | CMDh | HMPC | CAT
+           - Patient safety information: Patient safety
+           page URL pattern: https://www.ema.europa.eu/en/news?page={n}
+           pagination iteration: 5 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Responsible body = CHMP [responsible_body=CHMP]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-007/cap-1268054308c9/content/FILTER/scrape-filtered.html
+PRINT(f) : 10 news item(s) in the FILTERED listing (unfiltered: 50)
+  1. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 12-15 October 2026
+     date: 15 October 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-12-15-october-2026
+  2. EMA concludes review of ipidacrine-containing medicines
+     date: 18 September 2026
+     link: /en/news/ema-concludes-review-ipidacrine-containing-medicines
+  3. Benefits of sodium oxybate continue to outweigh risks in people with alcohol dependency
+     date: 18 September 2026
+     link: /en/news/benefits-sodium-oxybate-continue-outweigh-risks-people-alcohol-dependency
+  4. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 14-17 September 2026
+     date: 17 September 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-14-17-september-2026
+  5. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 20-23 July 2026
+     date: 23 July 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-20-23-july-2026
+  6. New treatment option for neovascular age-related macular degeneration
+     date: 24 July 2026
+     link: /en/news/new-treatment-option-neovascular-age-related-macular-degeneration
+  7. First oral medicine targeting interleukin-23 receptor recommended for plaque psoriasis
+     date: 24 July 2026
+     link: /en/news/first-oral-medicine-targeting-interleukin-23-receptor-recommended-plaque-psoriasis
+  8. EMA fast tracks review of a medicine for metastatic pancreatic cancer
+     date: 7 July 2026
+     link: /en/news/ema-fast-tracks-review-medicine-metastatic-pancreatic-cancer
+  9. EMA recommends revoking marketing authorisation for Tavneos
+     date: 26 June 2026
+     link: /en/news/ema-recommends-revoking-marketing-authorisation-tavneos
+  10. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 22-25 June 2026
+     date: 25 June 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-22-25-june-2026
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each news entry is rendered as an <article class=\
+PRINT    : 50 news item(s) discovered
+  1. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 3-5 November 2026
+     date: 5 November 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-3-5-november-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  2. Meeting highlights from the Pharmacovigilance Risk Assessment Committee (PRAC) 26 - 29 October 2026
+     date: 29 October 2026
+     link: /en/news/meeting-highlights-pharmacovigilance-risk-assessment-committee-prac-26-29-october-2026
+     desc: PRAC starts review of depression and anxiety medicine Deanxit and a safety signal related to human normal immunoglobulin medicines
+  3. EMA closed on All Souls' Day, 2 November
+     date: 29 October 2026
+     link: /en/news/ema-closed-all-souls-day-2-november
+     desc: The European Medicines Agency's (EMA) office is closed from 18:00 on Friday 30 October until 08:30 on Tuesday 3 November
+  4. AMA and EMA issue joint guidance on Ebola vaccine development
+     date: 23 October 2026
+     link: /en/news/ama-ema-issue-joint-guidance-ebola-vaccine-development
+     desc: Clinical trial requirements defined for rapid development of Bundibugyo virus vaccines
+  5. New oral GLP-1 medicine for weight management and type 2 diabetes
+     date: 16 October 2026
+     link: /en/news/new-oral-glp-1-medicine-weight-management-type-2-diabetes
+     desc: Once-daily tablet provides an alternative to other oral and injectable GLP-1 medicines
+  6. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 12-15 October 2026
+     date: 15 October 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-12-15-october-2026
+     desc: Six new medicines recommended for approval; another five medicines recommended for extension of their therapeutic indications
+  7. EMA recommends authorisation of Rasonque for metastatic pancreatic cancer
+     date: 15 October 2026
+     link: /en/news/ema-recommends-authorisation-rasonque-metastatic-pancreatic-cancer
+     desc: Phased review fast tracks assessment of medicine addressing unmet medical need
+  8. EMA recommends authorisation of veterinary vaccine for lumpy skin disease in cattle
+     date: 9 October 2026
+     link: /en/news/ema-recommends-authorisation-veterinary-vaccine-lumpy-skin-disease-cattle
+     desc: Bovilis Lumpyvax helps protect cattle against serious viral infection
+  9. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 6-8 October 2026
+     date: 8 October 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-6-8-october-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  10. Clinical trial applications advice pilot becomes permanent
+     date: 8 October 2026
+     link: /en/news/clinical-trial-applications-advice-pilot-becomes-permanent
+     desc: Technical and regulatory support for preparing clinical trial applications will continue from January 2027
+  11. Meeting highlights from the Pharmacovigilance Risk Assessment Committee (PRAC) 28 September - 1 October
+     date: 2 October 2026
+     link: /en/news/meeting-highlights-pharmacovigilance-risk-assessment-committee-prac-28-september-1-october
+     desc: PRAC carried out its broad range of responsibilities for managing the safety of medicines
+  12. Advice on ‘end-of-year’ submission dates for type I variations in 2026
+     date: 1 October 2026
+     link: /en/news/advice-end-year-submission-dates-type-i-variations-2026
+     desc: Regulatory update
+  13. EMA Management Board: highlights of September 2026 meeting
+     date: 1 October 2026
+     link: /en/news/ema-management-board-highlights-september-2026-meeting
+     desc: Mid-year report and new pharmaceutical legislation among key topics
+  14. Global regulators call for advancing alternatives to animal testing across the medicine lifecycle
+     date: 1 October 2026
+     link: /en/news/global-regulators-call-advancing-alternatives-animal-testing-across-medicine-lifecycle
+     desc: International harmonisation is a key pillar of EMA’s 3Rs strategy
+  15. Executive Director speech at EMA women’s health multi-stakeholder workshop
+     date: 1 October 2026
+     link: /en/news/executive-director-speech-ema-womens-health-multi-stakeholder-workshop
+     desc: Emer Cooke spoke about EMA’s role in helping improve health outcomes for women
+  16. Women are missing from medicines development: EMA’s roadmap for change
+     date: 30 September 2026
+     link: /en/news/women-are-missing-medicines-development-emas-roadmap-change
+     desc: 10 priorities proposed to drive change in medicines for women’s health
+  17. EMA concludes review of ipidacrine-containing medicines
+     date: 18 September 2026
+     link: /en/news/ema-concludes-review-ipidacrine-containing-medicines
+     desc: Benefits continue to outweigh risks, but important restrictions on the medicines' use are recommended
+  18. Benefits of sodium oxybate continue to outweigh risks in people with alcohol dependency
+     date: 18 September 2026
+     link: /en/news/benefits-sodium-oxybate-continue-outweigh-risks-people-alcohol-dependency
+     desc: Studies required to further characterise efficacy
+  19. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 14-17 September 2026
+     date: 17 September 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-14-17-september-2026
+     desc: 12 new medicines recommended for approval; another 11 medicines recommended for extension of their therapeutic indications
+  20. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 8-10 September 2026
+     date: 10 September 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-8-10-september-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  21. Executive Director's speech at Duke-NUS Medical School in Singapore
+     date: 4 September 2026
+     link: /en/news/executive-directors-speech-duke-nus-medical-school-singapore
+     desc: Emer Cooke spoke about reimagining the future of medicines regulation as part of the Sir Alasdair Breckenridge Lecture Series
+  22. Meeting highlights from the Pharmacovigilance Risk Assessment Committee (PRAC) 31 August - 3 September 2026
+     date: 3 September 2026
+     link: /en/news/meeting-highlights-pharmacovigilance-risk-assessment-committee-prac-31-august-3-september-2026
+     desc: PRAC starts safety review of injectable iron-containing medicines
+  23. New EU supply chain to end Visudyne shortage
+     date: 4 September 2026
+     link: /en/news/new-eu-supply-chain-end-visudyne-shortage
+     desc: Critical shortage of eye medicine expected to be resolved in 2027.
+  24. Voluntary data submission pilot to advance innovative alternatives to animal testing
+     date: 1 September 2026
+     link: /en/news/voluntary-data-submission-pilot-advance-innovative-alternatives-animal-testing
+     desc: Developers can submit New Approach Methodologies (NAMs) data and receive tailored feedback.
+  25. New leadership team appointments
+     date: 30 July 2026
+     link: /en/news/new-leadership-team-appointments
+     desc: Appointments made as Ivo Claassen retires
+  26. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 20-23 July 2026
+     date: 23 July 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-20-23-july-2026
+     desc: Twelve new medicines recommended for approval; another eight medicines recommended for extension of their therapeutic indications
+  27. New treatment option for neovascular age-related macular degeneration
+     date: 24 July 2026
+     link: /en/news/new-treatment-option-neovascular-age-related-macular-degeneration
+     desc: Susvimo is delivered over time via an ocular implant, reducing the need for frequent intravitreal injections
+  28. First oral medicine targeting interleukin-23 receptor recommended for plaque psoriasis
+     date: 24 July 2026
+     link: /en/news/first-oral-medicine-targeting-interleukin-23-receptor-recommended-plaque-psoriasis
+     desc: Icotyde shown to clear psoriasis skin lesions in many patients with moderate to-severe plaque psoriasis
+  29. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 14-16 July 2026
+     date: 16 July 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-14-16-july-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  30. EMA and EISMEA boost cooperation to accelerate health innovations
+     date: 15 July 2026
+     link: /en/news/ema-eismea-boost-cooperation-accelerate-health-innovations
+     desc: Cooperation will encourage the development of innovative medicines and health solutions for patients
+  31. Executive Director Emer Cooke's speech at the European Parliament's Committee on Public Health
+     date: 15 July 2026
+     link: /en/news/executive-director-emer-cookes-speech-european-parliaments-committee-public-health
+     desc: Emer Cooke's annual exchange of views at the SANT Committee
+  32. Meeting highlights from the Pharmacovigilance Risk Assessment Committee (PRAC) 6-9 July 2026
+     date: 9 July 2026
+     link: /en/news/meeting-highlights-pharmacovigilance-risk-assessment-committee-prac-6-9-july-2026
+     desc: PRAC agrees new safety information on desogestrel- and etonogestrel-containing contraceptives and Litfulo, a medicine to treat alopecia areata
+  33. EMA fast tracks review of a medicine for metastatic pancreatic cancer
+     date: 7 July 2026
+     link: /en/news/ema-fast-tracks-review-medicine-metastatic-pancreatic-cancer
+     desc: Phased review has started to accelerate assessment of medicine with potential to address high unmet medical need
+  34. EMA steps up efforts on medicines for women’s health
+     date: 2 July 2026
+     link: /en/news/ema-steps-efforts-medicines-womens-health
+     desc: Initiatives to map gaps, challenges and prioritise further actions
+  35. EMA recommends revoking marketing authorisation for Tavneos
+     date: 26 June 2026
+     link: /en/news/ema-recommends-revoking-marketing-authorisation-tavneos
+     desc: Benefits no longer proven to outweigh risks of treatment
+  36. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 22-25 June 2026
+     date: 25 June 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-22-25-june-2026
+     desc: Six new medicines recommended for approval; another 12 medicines recommended for extension of their therapeutic indications
+  37. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 16-18 June 2026
+     date: 18 June 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-16-18-june-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  38. EMA Management Board: highlights of June 2026 meeting
+     date: 15 June 2026
+     link: /en/news/ema-management-board-highlights-june-2026-meeting
+     desc: EMA’s support to EU Ebola outbreak response; positive assessment of 2025 annual activity report
+  39. Meeting highlights from the Pharmacovigilance Risk Assessment Committee (PRAC) 8-11 June 2026
+     date: 11 June 2026
+     link: /en/news/meeting-highlights-pharmacovigilance-risk-assessment-committee-prac-8-11-june-2026
+     desc: PRAC concludes evaluation of new data regarding potential risk of neurodevelopmental disorders in children born to men treated with valproate
+  40. EMA’s 2025 annual report shows strong approval numbers for human and veterinary medicines
+     date: 11 June 2026
+     link: /en/news/emas-2025-annual-report-shows-strong-approval-numbers-human-veterinary-medicines
+     desc: Report highlights progress in science, medicines and health in 2025
+  41. EMA, AMA and African regulatory authorities join forces on Ebola outbreak response
+     date: 3 June 2026
+     link: /en/news/ema-ama-african-regulatory-authorities-join-forces-ebola-outbreak-response
+     desc: Experts discuss clinical trials, treatments and vaccines
+  42. United for Health: EMA in WorldPride 2026
+     date: 1 June 2026
+     link: /en/news/united-health-ema-worldpride-2026
+     desc: Science and health belong to everyone
+  43. ETF recommends updating COVID-19 vaccines to target XFG variant
+     date: 29 May 2026
+     link: /en/news/etf-recommends-updating-covid-19-vaccines-target-xfg-variant
+     desc: Updated vaccines will help maintain protection against disease as virus continues to evolve
+  44. EU recommendations for 2026/2027 seasonal flu vaccine composition
+     date: 26 May 2026
+     link: /en/news/eu-recommendations-2026-2027-seasonal-flu-vaccine-composition
+     desc: Annual updates to virus strains ensure vaccines stay effective
+  45. Meeting highlights from the Committee for Veterinary Medicinal Products (CVMP) 19-21 May 2026
+     date: 21 May 2026
+     link: /en/news/meeting-highlights-committee-veterinary-medicinal-products-cvmp-19-21-may-2026
+     desc: Outcomes of the Committee for Veterinary Medicinal Products (CVMP) meeting
+  46. Meeting highlights from the Committee for Medicinal Products for Human Use (CHMP) 18-21 May 2026
+     date: 21 May 2026
+     link: /en/news/meeting-highlights-committee-medicinal-products-human-use-chmp-18-21-may-2026
+     desc: Eight new medicines recommended for approval; another 13 medicines recommended for extension of their therapeutic indications
+  47. First medicine to treat rare uncontrolled growth of body tissues
+     date: 22 May 2026
+     link: /en/news/first-medicine-treat-rare-uncontrolled-growth-body-tissues
+     desc: Vijoice addresses an unmet medical need for patients with severe or life-threatening PIK3CA-related overgrowth spectrum (PROS) disorders
+  48. New medicine for two types of pulmonary fibrosis
+     date: 22 May 2026
+     link: /en/news/new-medicine-two-types-pulmonary-fibrosis
+     desc: Jascayd slowed loss of lung function in patients with idiopathic or progressive pulmonary fibrosis
+  49. First oral GLP-1 treatment for weight management
+     date: 22 May 2026
+     link: /en/news/first-oral-glp-1-treatment-weight-management
+     desc: Wegovy tablets offer an alternative to subcutaneous injections
+  50. EMA closed on Whit Monday, 25 May
+     date: 21 May 2026
+     link: /en/news/ema-closed-whit-monday-25-may
+     desc: The European Medicines Agency's (EMA) office is closed from 18:00 on Friday 22 May until 08:30 on Tuesday 26 May
+
+========================================================================
+core-chain-ssafp for ADDR-008 — EMA - Upcoming Events
+  URL: https://www.ema.europa.eu/en/events/upcoming-events
+SCRAPE   : 113572 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-008/cap-e8a1780c1631/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 37806 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-008/cap-e8a1780c1631/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="?page=1")
+           classification: event [stored]
+           selectors: news=-, events=.bcl-listing article.ema-event.teaser
+           used selector: .bcl-listing article.ema-event.teaser (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://www.ema.europa.eu/en/events/upcoming-events?page={n}; filtering flagged by AI)
+FILTER   : 3 filter field(s) available [ai]
+           note: AI did not yield a valid filter-zone selector
+           - Category (partially visible multi-select, only last option shown): Vaccines (1)
+           - Product type (multi-select): Corporate (6) | Herbal (1) | Human (76) | Veterinary (4)
+           - Committee (multi-select): CAT (1) | CHMP (2) | COMP (1) | CVMP (1) | HMPC (1) | Management Board (5) | PDCO (2) | PRAC (24)
+           page URL pattern: https://www.ema.europa.eu/en/events/upcoming-events?page={n}
+           pagination iteration: 5 page(s) scraped (gated on the PAGINATION flag)
+APPLY    : Category = Human [facets[category]=human]
+           filtered scrape: /home/jllopez/code/neis-cli/core/work/ADDR-008/cap-e8a1780c1631/content/FILTER/scrape-filtered.html
+PRINT(f) : 10 event item(s) in the FILTERED listing (unfiltered: 50)
+  1. Mandatory use of ISO/ICH E2B(R3) individual case safety reporting in the EU: hands-on training course using the EudraVigilance system
+     date: 2026-11-09
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-57
+  2. Committee for Medicinal Products for Human Use (CHMP): 09-12 November 2026
+     date: 2026-11-09
+     link: /en/events/committee-medicinal-products-human-use-chmp-09-12-november-2026
+  3. Paediatric Committee (PDCO): 10-13 November 2026
+     date: 2026-11-10
+     link: /en/events/paediatric-committee-pdco-10-13-november-2026
+  4. Q&A clinic on Substance, Organisation, Referentials Management Services - November 2026
+     date: 2026-11-11
+     link: /en/events/qa-clinic-substance-organisation-referentials-management-services-november-2026
+  5. HMA / EMA multistakeholder AI and Data forum: Build trustworthy AI on strong data foundations
+     date: 2026-11-12
+     link: /en/events/hma-ema-multistakeholder-ai-data-forum-build-trustworthy-ai-strong-data-foundations
+  6. PMS Q&A Clinic on Product User Interface (PUI) and Application Programming Interface (API) – November 2026
+     date: 2026-11-12
+     link: /en/events/pms-qa-clinic-product-user-interface-pui-application-programming-interface-api-november-2026
+  7. Stakeholder Meeting on the transferable data exclusivity voucher (TDEV) for priority antimicrobials
+     date: 2026-11-12
+     link: /en/events/stakeholder-meeting-transferable-data-exclusivity-voucher-tdev-priority-antimicrobials
+  8. Q&A clinic on eXtended EudraVigilance Medicinal Product Dictionary (XEVMPD) service - November 2026
+     date: 2026-11-12
+     link: /en/events/qa-clinic-extended-eudravigilance-medicinal-product-dictionary-xevmpd-service-november-2026-0
+  9. Immunogenicity and efficacy of pneumococcal vaccines
+     date: 2026-11-16
+     link: /en/events/immunogenicity-efficacy-pneumococcal-vaccines
+  10. Training on clinical trials for EU candidate countries under the Instrument for Pre-accession Assistance (IPA) programme
+     date: 2026-11-16
+     link: /en/events/training-clinical-trials-eu-candidate-countries-under-instrument-pre-accession-assistance-ipa-programme
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Inside the event listing view (.bcl-listing .row), each event is a repeating <article class=\
+PRINT    : 50 event item(s) discovered
+  1. Mandatory use of ISO/ICH E2B(R3) individual case safety reporting in the EU: hands-on training course using the EudraVigilance system
+     date: 2026-11-09
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-57
+  2. Committee for Medicinal Products for Human Use (CHMP): 09-12 November 2026
+     date: 2026-11-09
+     link: /en/events/committee-medicinal-products-human-use-chmp-09-12-november-2026
+  3. Paediatric Committee (PDCO): 10-13 November 2026
+     date: 2026-11-10
+     link: /en/events/paediatric-committee-pdco-10-13-november-2026
+  4. Q&A clinic on Substance, Organisation, Referentials Management Services - November 2026
+     date: 2026-11-11
+     link: /en/events/qa-clinic-substance-organisation-referentials-management-services-november-2026
+  5. HMA / EMA multistakeholder AI and Data forum: Build trustworthy AI on strong data foundations
+     date: 2026-11-12
+     link: /en/events/hma-ema-multistakeholder-ai-data-forum-build-trustworthy-ai-strong-data-foundations
+     desc: The European Medicines Regulatory Network is advancing data and artificial intelligence (AI) to drive innovation, improve efficiency, and strengthen health decisions. This workshop brings regulators and stakeholders together to share insights and shape future AI and data use in medicines.
+  6. PMS Q&A Clinic on Product User Interface (PUI) and Application Programming Interface (API) – November 2026
+     date: 2026-11-12
+     link: /en/events/pms-qa-clinic-product-user-interface-pui-application-programming-interface-api-november-2026
+  7. Stakeholder Meeting on the transferable data exclusivity voucher (TDEV) for priority antimicrobials
+     date: 2026-11-12
+     link: /en/events/stakeholder-meeting-transferable-data-exclusivity-voucher-tdev-priority-antimicrobials
+     desc: Information session on implementation aspects of the transferable data exclusivity voucher for priority antimicrobials as laid out in the new pharmaceutical legislation.
+  8. Q&A clinic on eXtended EudraVigilance Medicinal Product Dictionary (XEVMPD) service - November 2026
+     date: 2026-11-12
+     link: /en/events/qa-clinic-extended-eudravigilance-medicinal-product-dictionary-xevmpd-service-november-2026-0
+  9. Committee for Herbal Medicinal Products (HMPC): 16-18 November 2026
+     date: 2026-11-16
+     link: /en/events/committee-herbal-medicinal-products-hmpc-16-18-november-2026
+  10. Immunogenicity and efficacy of pneumococcal vaccines
+     date: 2026-11-16
+     link: /en/events/immunogenicity-efficacy-pneumococcal-vaccines
+     desc: Knowledge building from the past and future regulatory directions
+  11. Training on clinical trials for EU candidate countries under the Instrument for Pre-accession Assistance (IPA) programme
+     date: 2026-11-16
+     link: /en/events/training-clinical-trials-eu-candidate-countries-under-instrument-pre-accession-assistance-ipa-programme
+  12. eXtended EudraVigilance Medicinal Product Dictionary (XEVMPD) training course - November 2026
+     date: 2026-11-17
+     link: /en/events/extended-eudravigilance-medicinal-product-dictionary-xevmpd-training-course-november-2026
+  13. Digitalisation and artificial Intelligence in pharmaceutical manufacturing: Quality Innovation Group (QIG) - Follow-up roundtable meeting
+     date: 2026-11-18
+     link: /en/events/digitalisation-artificial-intelligence-pharmaceutical-manufacturing-quality-innovation-group-qig-follow-roundtable-meeting
+     desc: This meeting aims to provide a forum for the exchange of knowledge and practical experience on the development, implementation, and use of digital and AI-enabled technologies in pharmaceutical manufacturing and quality management.
+  14. Meeting of the Executive Steering Group on Shortages and Safety of Medicinal Products (MSSG) - November 2026
+     date: 2026-11-18
+     link: /en/events/meeting-executive-steering-group-shortages-safety-medicinal-products-mssg-november-2026
+  15. Clinical Trials Information System (CTIS) bitesize talk: CTIS training environment and role management
+     date: 2026-11-18
+     link: /en/events/clinical-trials-information-system-ctis-bitesize-talk-ctis-training-environment-role-management
+     desc: This CTIS Bitesize Talk focuses on the Role Management functionality in CTIS, highlighting the new features and the new Safety user roles introduced with the CTIS Safety Module.
+  16. Seventeenth meeting of the industry stakeholder platform on the operation of the centralised procedure for human medicines
+     date: 2026-11-20
+     link: /en/events/seventeenth-meeting-industry-stakeholder-platform-operation-centralised-procedure-human-medicines
+     desc: This meeting continues the series of regular exchanges between regulators and representatives of industry stakeholder organisations, aiming to foster constructive dialogue on both general updates and focused discussions to support continuous improvement.
+  17. EMA annual call with General Practitioner Organisations' representatives
+     date: 2026-11-20
+     link: /en/events/ema-annual-call-general-practitioner-organisations-representatives
+     desc: Supporting the continued involvement of general practitioners (GPs) in regulatory activities
+  18. Pharmacovigilance Risk Assessment Committee (PRAC): 23 - 26 November 2026
+     date: 2026-11-23
+     link: /en/events/pharmacovigilance-risk-assessment-committee-prac-23-26-november-2026
+  19. PMS Q&A Clinic on Product User Interface (PUI) and Application Programming Interface (API) – November 2026
+     date: 2026-11-26
+     link: /en/events/pms-qa-clinic-product-user-interface-pui-application-programming-interface-api-november-2026-0
+  20. ACT EU workshop on multiplicity in confirmatory clinical trials: From two-arm to platform trials
+     date: 2026-11-27
+     link: /en/events/act-eu-workshop-multiplicity-confirmatory-clinical-trials-two-arm-platform-trials
+     desc: Workshop on the role of multiplicity in regulatory decision-making for two-arm and platform trial designs
+  21. Committee for Orphan Medicinal Products (COMP): 1-3 December 2026
+     date: 2026-12-01
+     link: /en/events/committee-orphan-medicinal-products-comp-1-3-december-2026
+  22. Committee for Medicinal Products for Veterinary Use (CVMP): 1-3 December 2026
+     date: 2026-12-01
+     link: /en/events/committee-medicinal-products-veterinary-use-cvmp-1-3-december-2026
+  23. Second HMA/EMA multi-stakeholder forum on EudraVigilance and signal detection
+     date: 2026-12-01
+     link: /en/events/second-hma-ema-multi-stakeholder-forum-eudravigilance-signal-detection
+     desc: The second HMA/EMA multi-stakeholder forum on EudraVigilance and signal detection marks the 25th anniversary of EudraVigilance and reflects on its critical role in safeguarding public health.
+  24. Committee for Advanced Therapies (CAT): 2-4 December 2026
+     date: 2026-12-02
+     link: /en/events/committee-advanced-therapies-cat-2-4-december-2026
+  25. Mandatory use of ISO/ICH E2B(R3) individual case safety reporting in the EU: hands-on training course using the EudraVigilance system
+     date: 2026-12-07
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-58
+  26. Committee for Medicinal Products for Human Use (CHMP): 07-10 December 2026
+     date: 2026-12-07
+     link: /en/events/committee-medicinal-products-human-use-chmp-07-10-december-2026
+  27. Second ACT EU webinar on contractual agreements
+     date: 2026-12-07
+     link: /en/events/second-act-eu-webinar-contractual-agreements
+  28. Paediatric Committee (PDCO): 8-11 December 2026
+     date: 2026-12-08
+     link: /en/events/paediatric-committee-pdco-8-11-december-2026
+  29. Management Board meeting: 9-10 December 2026
+     date: 2026-12-09
+     link: /en/events/management-board-meeting-9-10-december-2026
+  30. Meeting of the Medicine Shortages Single Point of Contact (SPOC) Working Party
+     date: 2026-12-09
+     link: /en/events/meeting-medicine-shortages-single-point-contact-spoc-working-party-48
+  31. PMS Q&A Clinic on Product User Interface (PUI) and Application Programming Interface (API) – December 2026
+     date: 2026-12-09
+     link: /en/events/pms-qa-clinic-product-user-interface-pui-application-programming-interface-api-december-2026
+  32. EMA workshop on vaccine antigen master files and vaccine platform technology master files
+     date: 2026-12-09
+     link: /en/events/ema-workshop-vaccine-antigen-master-files-vaccine-platform-technology-master-files
+     desc: The European Medicines Agency invites veterinary industry representatives to attend a workshop on vaccine antigen master files (VAMF) and vaccine platform technology master files (vPTMF).
+  33. Q&A clinic on Substance, Organisation, Referentials Management Services - December 2026
+     date: 2026-12-09
+     link: /en/events/qa-clinic-substance-organisation-referentials-management-services-december-2026
+  34. Quarterly System Demo - Q4 2026
+     date: 2026-12-10
+     link: /en/events/quarterly-system-demo-q4-2026
+  35. Q&A clinic on eXtended EudraVigilance Medicinal Product Dictionary (XEVMPD) service - December 2026
+     date: 2026-12-10
+     link: /en/events/qa-clinic-extended-eudravigilance-medicinal-product-dictionary-xevmpd-service-december-2026
+  36. Meeting of the Executive Steering Group on Shortages and Safety of Medicinal Products (MSSG) - December 2026
+     date: 2026-12-16
+     link: /en/events/meeting-executive-steering-group-shortages-safety-medicinal-products-mssg-december-2026
+  37. Pharmacovigilance Risk Assessment Committee (PRAC): 11 - 14 January 2027
+     date: 2027-01-11
+     link: /en/events/pharmacovigilance-risk-assessment-committee-prac-11-14-january-2027
+  38. EudraGMDP Q&A clinic for public users
+     date: 2027-01-14
+     link: /en/events/eudragmdp-qa-clinic-public-users
+  39. Meeting of the Medicine Shortages Single Point of Contact (SPOC) Working Party
+     date: 2027-01-20
+     link: /en/events/meeting-medicine-shortages-single-point-contact-spoc-working-party-49
+  40. SPOR and XEVMPD status update webinar
+     date: 2027-01-20
+     link: /en/events/spor-xevmpd-status-update-webinar-2
+  41. Mandatory use of ISO/ICH E2B(R3) Individual Case Safety Reporting in the EU: Hands-on training course using the EudraVigilance system
+     date: 2027-02-01
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-66
+  42. Pharmacovigilance Risk Assessment Committee (PRAC): 8 - 11 February 2027
+     date: 2027-02-08
+     link: /en/events/pharmacovigilance-risk-assessment-committee-prac-8-11-february-2027
+  43. Meeting of the Medicine Shortages Single Point of Contact (SPOC) Working Party
+     date: 2027-02-17
+     link: /en/events/meeting-medicine-shortages-single-point-contact-spoc-working-party-50
+  44. Mandatory use of ISO/ICH E2B(R3) Individual Case Safety Reporting in the EU: Hands-on training course using the EudraVigilance system
+     date: 2027-03-08
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-67
+  45. Meeting of the Medicine Shortages Single Point of Contact (SPOC) Working Party
+     date: 2027-03-10
+     link: /en/events/meeting-medicine-shortages-single-point-contact-spoc-working-party-51
+  46. Management Board meeting: 11 March 2027
+     date: 2027-03-11
+     link: /en/events/management-board-meeting-11-march-2027
+  47. Pharmacovigilance Risk Assessment Committee (PRAC): 15 - 18 March 2027
+     date: 2027-03-15
+     link: /en/events/pharmacovigilance-risk-assessment-committee-prac-15-18-march-2027
+  48. Pharmacovigilance Risk Assessment Committee (PRAC): 12 - 15 April 2027
+     date: 2027-04-12
+     link: /en/events/pharmacovigilance-risk-assessment-committee-prac-12-15-april-2027
+  49. Mandatory use of ISO/ICH E2B(R3) Individual Case Safety Reporting in the EU: Hands-on training course using the EudraVigilance system
+     date: 2027-04-12
+     link: /en/events/mandatory-use-iso-ich-e2br3-individual-case-safety-reporting-eu-hands-training-course-using-eudravigilance-system-68
+  50. Meeting of the Medicine Shortages Single Point of Contact (SPOC) Working Party
+     date: 2027-04-14
+     link: /en/events/meeting-medicine-shortages-single-point-contact-spoc-working-party-52
+
+========================================================================
+core-chain-ssafp for ADDR-009 — EUDI Wallet Aptitude - Newsfeed
+  URL: https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed
+SCRAPE   : 85504 bytes -> /home/jllopez/code/neis-cli/core/work/ADDR-009/cap-5dbbd424bcc1/content/WEBSCRAPE/scrape.html
+SIMPLIFY : 24304 bytes (cap 102400) -> /home/jllopez/code/neis-cli/core/work/ADDR-009/cap-5dbbd424bcc1/content/SIMPLIFY/simplified.html
+ANALYZE  : pagination DETECTED (Pager markup detected: class="pagination-container mt-4")
+           classification: news [stored]
+           selectors: news=section.newsList article.item, events=-
+           used selector: section.newsList article.item (stored with the source; AI skipped)
+ANALYZE  : capabilities flagged: PAGINATION (pagination flagged by AI: https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed/?pages={n}; filtering not detected by AI)
+FILTER   : skipped — address not flagged with the filtering capability
+           page URL pattern: https://aptitude.digital-identity-wallet.eu/news-corner/newsfeed/?pages={n}
+           pagination iteration: 5 page(s) scraped (gated on the PAGINATION flag)
+           notes: Stored selector (discovered 2026-11-11 by ai); AI skipped. Each news entry is an <article class=\
+PRINT    : 50 news item(s) discovered
+  1. Aptitude at the EUDI Wallets Launchpad 2026
+     date: 04/11/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-the-eudi-wallets-launchpad-2026/
+     desc: 04/11/2026
+  2. Aptitude Newsletter #1: One Year of Progress Towards Europe's Digital Identity Wallet
+     date: 26/10/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-newsletter-1-one-year-of-progress-towards-europes-digital-identity-wallet/
+     desc: 26/10/2026
+  3. Aptitude contributes to Dutch discussions on EUDI Wallet implementation and cross-border services
+     date: 21/10/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-contributes-to-dutch-discussions-on-eudi-wallet-implementation-and-cross-border-services/
+     desc: 21/10/2026
+  4. Aptitude marks one year of progress at the 2nd Board of Beneficiaries in Milan
+     date: 12/10/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-marks-one-year-of-progress-at-the-2nd-board-of-beneficiaries-in-milan/
+     desc: 12/10/2026
+  5. Experience Europe: How EUDI Wallets Are Reshaping Travel and Mobility Across Europe
+     date: 01/10/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/experience-europe-how-eudi-wallets-are-reshaping-travel-and-mobility-across-europe/
+     desc: 01/10/2026
+  6. Latvia presents Aptitude’s role in EUDI Wallet cross-border testing
+     date: 30/09/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/latvia-presents-aptitudes-role-in-eudi-wallet-cross-border-testing/
+     desc: 30/09/2026
+  7. Aptitude shares Digital Travel Credential testing experience at ICAO TRIP 2026 Symposium in Montréal
+     date: 29/09/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-icao-trip-2026-symposium/
+     desc: 29/09/2026
+  8. Aptitude at GDC26: advancing interoperable digital identity across Europe
+     date: 16/09/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-gdc26-advancing-interoperable-digital-identity-across-europe/
+     desc: 16/09/2026
+  9. Poland’s contribution to Aptitude: COI shares insights into the development of EUDI Wallet solutions
+     date: 01/09/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/polands-contribution-to-aptitude-coi/
+     desc: 01/09/2026
+  10. Aptitude at the Global Digital Collaboration Conference 2026
+     date: 27/08/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-gdc-2026/
+     desc: 27/08/2026
+  11. Aptitude invites stakeholders to join the mVRC Observer Board
+     date: 06/08/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/mvrc-observer-board-invitation/
+     desc: 06/08/2026
+  12. Aptitude at EUDIW Unfold #4: From Preparation to Deployment
+     date: 13/07/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-eudiw-unfold-4-from-preparation-to-deployment/
+     desc: 13/07/2026
+  13. Aptitude Joins EUDI ON 2026 - The EUDI Wallet Summit for Digital Innovators
+     date: 07/07/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-joins-eudi-on-2026/
+     desc: 07/07/2026
+  14. Aptitude at DICE 2026: Government Wallet Rollout in Focus
+     date: 01/07/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-dice-2026-government-wallet-rollout-in-focus/
+     desc: 01/07/2026
+  15. Estonia Launches Procurement for EU Digital Identity Wallet Service Provider
+     date: 25/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/estonia-eudi-wallet-procurement/
+     desc: 25/06/2026
+  16. EUDIW Unfold Interop Week Advances Age Verification Testing Across Europe
+     date: 23/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/eudiw-unfold-interop-week-advances-age-verification-testing-across-europe/
+     desc: 23/06/2026
+  17. Aptitude at VivaTech 2026
+     date: 19/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-vivatech-2026/
+     desc: 19/06/2026
+  18. Aptitude at Identity Week Europe 2026
+     date: 11/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-identity-week-europe-2026/
+     desc: 11/06/2026
+  19. Trust and Security at the Heart of BLSP-EDI Meeting in Utrecht
+     date: 10/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/trust-and-security-at-the-heart-of-blsp-edi-meeting-in-utrecht/
+     desc: 10/06/2026
+  20. Aptitude at Moldova Digital Summit 2026: Where Digital Vision Meets European Ambition
+     date: 09/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-moldova-digital-summit-2026-where-digital-vision-meets-european-ambition/
+     desc: 09/06/2026
+  21. Estonia Joins the Aptitude Consortium
+     date: 08/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/estonia-joins-aptitude-consortium/
+     desc: 08/06/2026
+  22. "Connecting the EUDI Wallet with every European citizen": Artemis Psarianou on making digital identity known to everyone
+     date: 05/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-artemis-psarianou/
+     desc: 05/06/2026
+  23. Aptitude at ITU Workshop on Global Digital Identity Interoperability
+     date: 04/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-itu-workshop-on-global-digital-identity-interoperability/
+     desc: 04/06/2026
+  24. Aptitude Contributes to Real-World PhotoID Testing in France
+     date: 03/06/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-contributes-to-real-world-photoid-testing-in-france/
+     desc: 03/06/2026
+  25. Aptitude at the LisbonID Conference 2026
+     date: 29/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-lisbonid-conference-2026/
+     desc: 29/05/2026
+  26. Subscribe to the Newsletter of Aptitude
+     date: 28/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/subscribe-to-the-newsletter-of-aptitude/
+     desc: 28/05/2026
+  27. "Building a digital identity wallet citizens can truly trust": Claire Levallois-Barth on rights, privacy and European values
+     date: 27/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-claire-levallois-barth/
+     desc: 27/05/2026
+  28. Aptitude Featured in High-Level Discussion on the Future of the European Digital Identity Wallet
+     date: 20/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-featured-in-high-level-discussion-on-the-future-of-the-european-digital-identity-wallet/
+     desc: 20/05/2026
+  29. "Simpler, more transparent payments for Europeans": Ludovic Francesconi on the future of digital payments in Europe
+     date: 19/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-ludovic-francesconi/
+     desc: 19/05/2026
+  30. EDI – BLSP Meet Up showcases real-world EUDIW use cases in the Netherlands
+     date: 18/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/edi-blsp-meet-up-showcases-real-world-eudiw-use-cases-in-the-netherlands/
+     desc: 18/05/2026
+  31. Aptitude at ID4Africa 2026: Digital Identity as a Global Conversation
+     date: 15/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-id4africa-2026/
+     desc: 15/05/2026
+  32. "Payments are about to get a lot more secure in Europe": Florian Andreae on how the EUDI Wallet is transforming digital payments
+     date: 13/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-florian-andreae/
+     desc: 13/05/2026
+  33. Portugal advances digital transformation with Digital Business Wallet
+     date: 12/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/portugal-advances-digital-transformation-with-digital-business-wallet/
+     desc: 12/05/2026
+  34. Aptitude Marks Six Months of Progress Toward the European Digital Identity Wallet (EUDIW)
+     date: 11/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-connect-berlin-april-2026/
+     desc: 11/05/2026
+  35. "Your vehicle registration certificate, now in your digital wallet": Elzbieta Wojtowicz on the future of driving across Europe
+     date: 08/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-elzbieta-wojtowicz/
+     desc: 08/05/2026
+  36. "From train tickets to hotel check-ins, your digital wallet does it all": Panos Louridas on the future of travel across Europe
+     date: 06/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-panos-louridas/
+     desc: 06/05/2026
+  37. Aptitude at the BITKOM eIDAS Summit 2026
+     date: 05/05/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-bitkom-eidas-summit-2026/
+     desc: 05/05/2026
+  38. "The way airports work is about to change": Franck Le Gall on the EUDI Wallet and the future of air travel across Europe
+     date: 30/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-franck-le-gall/
+     desc: 30/04/2026
+  39. "Faster boarding, smoother journeys": Pierre Orszag on how Digital Travel Credentials will transform travel across Europe
+     date: 29/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-pierre-orszag/
+     desc: 29/04/2026
+  40. Discover Aptitude on YouTube
+     date: 28/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-on-youtube/
+     desc: 28/04/2026
+  41. “Your wallet, valid wherever you go in Europe": Luca Vallone on building the technical backbone of the EUDI Wallet
+     date: 24/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-luca-vallone/
+     desc: 24/04/2026
+  42. "The wallet is all about trust": Anthony Carmoy on building a digital identity every European citizen can rely on
+     date: 16/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-anthony-carmoy/
+     desc: 16/04/2026
+  43. Aptitude explores cross-border synergies on digital identity with Québec delegation
+     date: 09/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-explores-cross-border-synergies-on-digital-identity-with-quebec-delegation/
+     desc: 09/04/2026
+  44. "We have to act collectively": Mathieu Weill on building digital identity for every European citizen
+     date: 08/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-mathieu-weill-acting-collectively/
+     desc: 08/04/2026
+  45. "Digital identity is the keystone of digital public infrastructure": Henri Verdier on why Europe must own its digital future
+     date: 08/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-henri-verdier/
+     desc: 08/04/2026
+  46. "Every citizen will have a wallet by the end of 2026": Norbert Sagstetter on making digital identity a reality across Europe
+     date: 02/04/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-norbert-sagstetter/
+     desc: 02/04/2026
+  47. Aptitude at the Heart of Digital Identity Conversations This Week
+     date: 31/03/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-id-forum-bank-club-april-2026/
+     desc: 31/03/2026
+  48. Aptitude at EUDIW Unfold #3: from vision to implementation
+     date: 30/03/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/aptitude-at-eudiw-unfold-3-from-vision-to-implementation/
+     desc: 30/03/2026
+  49. European Commission Publishes EUDI Wallet Use Case Manuals
+     date: 27/03/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/eudi-wallet-use-case-manuals-european-commission/
+     desc: 27/03/2026
+  50. “It’s about turning digital identity into real life”: Anne-Gaëlle Baudouin on the European Digital Identity Wallet
+     date: 26/03/2026
+     link: https://aptitude.digital-identity-wallet.eu/news/meet-the-people-of-aptitude-anne-gaelle-baudouin/
+     desc: 26/03/2026

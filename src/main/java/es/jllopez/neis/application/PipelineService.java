@@ -38,10 +38,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Use case: the predefined static MVP chain
- * SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT (issue #90; FILTER added
- * for US-17), executed sequentially for one address of the static
- * catalog (chain slice of US-08.1/US-08.2, issues #33/#34).
+ * Use case: the SSAFP stage pipeline — WEBSCRAPE - SIMPLIFY - ANALYZE -
+ * FILTER - PRINT — behind the executor's task types (US-05/US-08, ex
+ * issue #90 + US-17). The task types are the pipeline's stages as
+ * runnable prefixes ({@code TaskWorkService}); a configured chain
+ * ({@code chain create}, e.g. {@code core-chain-ssafp}) executes them
+ * in order over an address. There is no hard-coded whole-catalog
+ * orchestration any more: batch runs are chain runs submitted per
+ * address through {@code ExecutionService}.
  *
  * <p>ANALYZE selector strategy (owner decision 2026-11-11): a stored,
  * previously validated selector for the address is used directly and the
@@ -70,7 +74,7 @@ import java.util.regex.Pattern;
  * block cannot address pages and is skipped.</p>
  */
 @Service
-public class MvpChainService {
+public class PipelineService {
 
     /** Maximum items extracted per address (US-12.5 spirit). */
     private static final int MAX_ITEMS = 50;
@@ -85,7 +89,7 @@ public class MvpChainService {
             List.of(".event-item", ".event-entry", "article", "ul li", "a[href]");
 
     /** Explicit, decision-level traces of the AI component (US-01.3). */
-    private static final Logger log = LoggerFactory.getLogger(MvpChainService.class);
+    private static final Logger log = LoggerFactory.getLogger(PipelineService.class);
 
     final ContentScrapePort scrapePort;
     final SimplifyPort simplifyPort;
@@ -98,7 +102,7 @@ public class MvpChainService {
     private final UrlSyntaxValidator urlValidator;
     final ContentStoreService contentStore;
 
-    public MvpChainService(ContentScrapePort scrapePort,
+    public PipelineService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
                            SelectorExtractionPort extractionPort,
                            SelectorStorePort selectorStore,
@@ -108,7 +112,7 @@ public class MvpChainService {
                            AddressCatalogService addressCatalog,
                            UrlSyntaxValidator urlValidator,
                            ContentStoreService contentStore,
-                           @Value("${neis.mvp.work-dir:./neis-mvp}") String workDir) {
+                           @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
         this.extractionPort = extractionPort;
@@ -121,18 +125,18 @@ public class MvpChainService {
         this.contentStore = contentStore;
     }
 
-    /** Runs the whole static chain for one address. */
-    public MvpChainResult run(Address address) {
+    /** Runs the whole pipeline for one address. */
+    public PipelineResult run(Address address) {
         return run(address, MAX_ITEMS, MAX_PAGES);
     }
 
     /**
-     * Runs the whole static chain for one address with the chain's
+     * Runs the whole pipeline for one address with the chain's
      * per-task limits (US-08.3, issue #35): {@code maxItems} caps the
      * extracted items (US-12.5 spirit), {@code maxPages} guards the
      * pagination-iteration block.
      */
-    public MvpChainResult run(Address address, int maxItems, int maxPages) {
+    public PipelineResult run(Address address, int maxItems, int maxPages) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -246,7 +250,7 @@ public class MvpChainService {
             application = applyFilter(flagged, selection, filterOutcome);
         }
 
-        return new MvpChainResult(flagged, scrapeArtifact.toString(),
+        return new PipelineResult(flagged, scrapeArtifact.toString(),
                 simplifyArtifact.toString(), scrape.sizeBytes(), simplified.sizeBytes(),
                 pagination, selection.analysis(), selection.selector(),
                 selection.source(), items, capabilities.flags(),
@@ -260,35 +264,6 @@ public class MvpChainService {
                 application == null ? List.of() : application.items(),
                 application == null ? null : application.scrapeArtifact(),
                 application == null ? null : application.note());
-    }
-
-    /** Runs the chain for every address of the static catalog.
-     * Ineligible addresses (US-04.3: invalid URL or not verified) are
-     * skipped and reported in the log. */
-    public List<MvpChainResult> runAll() {
-        List<MvpChainResult> results = new ArrayList<>();
-        for (Address address : addressCatalog.list()) {
-            String ineligible = ineligibilityReason(address);
-            if (ineligible != null) {
-                log.warn("Skipping {} for the batch run: {}", address.id(), ineligible);
-                continue;
-            }
-            results.add(run(address));
-        }
-        return results;
-    }
-
-    /** The reason the address is not eligible for an executor
-     * (US-04.3, issue #23), or null when it is eligible. */
-    private String ineligibilityReason(Address address) {
-        String invalidUrl = urlValidator.validate(address.url()).orElse(null);
-        if (invalidUrl != null) {
-            return "URL is invalid: " + invalidUrl;
-        }
-        if (!address.isVerified()) {
-            return "verification status is " + address.verificationStatus();
-        }
-        return null;
     }
 
     /**

@@ -48,7 +48,7 @@ public class ContentStoreService {
     private final String contentRoot;
 
     public ContentStoreService(ContentStorePort store,
-                               @Value("${neis.mvp.work-dir:./neis-mvp}") String contentRoot) {
+                               @Value("${neis.core.work-dir:./core-work}") String contentRoot) {
         this.store = store;
         this.contentRoot = contentRoot;
     }

@@ -41,10 +41,10 @@ logging:
 neis:
   name: NEIS
   description: News and Events Information System
-  # MVP static chain (issue #90): where the SCRAPE/SIMPLIFY artifacts are
-  # written as real HTML5 files.
-  mvp:
-    work-dir: ./neis-mvp
+  # The SSAFP pipeline's work dir (ex issue #90): the content root where
+  # the SCRAPE/SIMPLIFY artifacts and the selector store live (US-11).
+  core:
+    work-dir: ./core-work
   address:
     verification:
       # Address reachability check (US-04.2): per-request timeout of the

@@ -1,87 +1,30 @@
-package es.jllopez.neis.infrastructure.adapter.shell;
+package es.jllopez.neis.application;
 
-import es.jllopez.neis.application.AddressCatalogService;
-import es.jllopez.neis.application.MvpChainResult;
-import es.jllopez.neis.application.MvpChainService;
-import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.NewsEventItem;
-import org.springframework.shell.core.command.annotation.Argument;
-import org.springframework.shell.core.command.annotation.Command;
-import org.springframework.shell.core.command.annotation.CommandGroup;
-import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 /**
- * Driving adapter: Spring Shell command that invokes the predefined
- * static MVP chain (issue #90) and prints the result
- * (the PRINT step: list of discovered news/events with metadata).
+ * The readable report of one pipeline run (the PRINT step's output):
+ * sizes, analysis, capabilities, filters and the discovered items.
+ * Presentation lives in the application layer so the executor can
+ * persist the report as a PRINT task output (US-11 content tree)
+ * instead of it existing only as shell output of the retired MVP
+ * command.
  */
-@Component
-@CommandGroup(name = "MVP", description = "MVP static chain commands")
-public class MvpCommands {
+final class PipelineReport {
 
-    private final MvpChainService chainService;
-    private final AddressCatalogService addressCatalog;
-
-    public MvpCommands(MvpChainService chainService, AddressCatalogService addressCatalog) {
-        this.chainService = chainService;
-        this.addressCatalog = addressCatalog;
+    private PipelineReport() {
     }
 
-    @Command(name = "mvp-chain", group = "MVP",
-            description = "Run the predefined static chain "
-                    + "SCRAPE -> SIMPLIFY -> ANALYZE -> FILTER -> PRINT for catalog address(es)")
-    public String mvpChain(
-            @Argument(index = 0, description = "Address id (ADDR-001..ADDR-008) or 'all'",
-                    defaultValue = "ADDR-001") String target) {
-        boolean all = "all".equalsIgnoreCase(target);
-        List<MvpChainResult> results = all
-                ? chainService.runAll()
-                : List.of(chainService.run(addressCatalog.byId(target)));
-
+    /**
+     * Renders the report of one full pipeline run. {@code title} names
+     * what produced it — the chain name when the run is a configured
+     * chain's PRINT step, or the task code for a single PRINT task.
+     */
+    static String render(String title, PipelineResult r) {
         StringBuilder out = new StringBuilder();
-        for (MvpChainResult result : results) {
-            if (!out.isEmpty()) {
-                out.append("\n").append("=".repeat(72)).append("\n");
-            }
-            out.append(render(result));
-        }
-        // Batch-run eligibility note (US-04.3): skipped addresses are
-        // named here, not just in the log.
-        if (all) {
-            int total = addressCatalog.list().size();
-            if (results.size() < total) {
-                out.append("\n").append(total - results.size())
-                        .append(" of ").append(total)
-                        .append(" addresses skipped: not eligible (invalid URL or not "
-                                + "verified — see 'address verify')");
-            }
-        }
-        return out.toString();
-    }
-
-    @Command(name = "mvp-addresses", group = "MVP",
-            description = "List the registered address catalog (US-03)")
-    public String mvpAddresses() {
-        StringBuilder out = new StringBuilder("Registered address catalog:\n");
-        for (Address address : addressCatalog.list()) {
-            out.append("  ").append(address.id())
-                    .append("  [").append(address.itemKind()).append("]  ")
-                    .append(address.name()).append("\n")
-                    .append("        ").append(address.url()).append("\n");
-            if (address.description() != null && !address.description().isBlank()) {
-                out.append("        description: ").append(address.description()).append("\n");
-            }
-        }
-        return out.toString();
-    }
-
-    private String render(MvpChainResult r) {
-        StringBuilder out = new StringBuilder();
-        out.append("MVP chain for ").append(r.address().id())
+        out.append(title).append(" for ").append(r.address().id())
                 .append(" — ").append(r.address().name()).append("\n");
         out.append("  URL: ").append(r.address().url()).append("\n");
 
@@ -166,8 +109,8 @@ public class MvpCommands {
                     .append(" item(s) in the FILTERED listing (unfiltered: ")
                     .append(r.items().size()).append(")\n");
             if (r.filteredItems().isEmpty()) {
-                out.append("           (no items matched the selected selector "
-                        + "in the filtered response)\n");
+                out.append("           (no items matched the selected selector ")
+                        .append("in the filtered response)\n");
             }
             int k = 1;
             for (NewsEventItem item : r.filteredItems()) {
@@ -208,7 +151,7 @@ public class MvpCommands {
         return out.toString();
     }
 
-    private String nvl(String s) {
+    private static String nvl(String s) {
         return s == null || s.isBlank() ? "-" : s;
     }
 }

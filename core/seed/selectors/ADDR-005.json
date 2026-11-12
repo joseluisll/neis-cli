@@ -1,0 +1,9 @@
+{
+  "addressId": "ADDR-005",
+  "kind": "event",
+  "selector": "div.ecl-layout-item > div.contextual-region > article.ecl-content-item",
+  "filterSelector": "form#oe-list-pages-facets-form",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each event entry is wrapped in a div.ecl-layout-item (numbered ecl-layout-item--N) containing a contextual-region with an article.ecl-content-item that holds the date block, labels, metadata and title link. This structure repeats for every event in the listing, distinct from the pagination (nav.ecl-pagination) and the overall list container."
+}

@@ -1,0 +1,9 @@
+{
+  "addressId": "ADDR-003",
+  "kind": "news",
+  "selector": "sedia-result-card-news-translation",
+  "filterSelector": "sedia-corporate-search-filters-translation form",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each news entry is wrapped in a <sedia-result-card-news-translation class=\\"
+}

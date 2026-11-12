@@ -1,0 +1,8 @@
+{
+  "addressId": "ADDR-009",
+  "kind": "news",
+  "selector": "section.newsList article.item",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each news entry is an <article class=\\"
+}

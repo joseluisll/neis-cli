@@ -11,8 +11,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Outcome of one MVP chain run (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT)
- * for a single address. The PRINT step renders this for the shell.
+ * Outcome of one full pipeline run (WEBSCRAPE - SIMPLIFY - ANALYZE -
+ * FILTER - PRINT) for a single address. The PRINT step renders it as
+ * the run's report artifact ({@link PipelineReport}).
  *
  * @param selectorSource provenance of the used selector: "stored"
  *                        (persisted from a previous AI run — AI skipped),
@@ -44,7 +45,7 @@ import java.util.Set;
  * @param filterApplicationNote why no criterion was applied (skipped /
  *                        connector cannot apply / AI chose none)
  */
-public record MvpChainResult(
+public record PipelineResult(
         Address address,
         String scrapeArtifact,
         String simplifyArtifact,

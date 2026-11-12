@@ -1,0 +1,9 @@
+{
+  "addressId": "ADDR-007",
+  "kind": "news",
+  "selector": "article.ema-news.teaser",
+  "filterSelector": "#oe-list-pages-facets-form",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each news entry is rendered as an <article class=\\"
+}

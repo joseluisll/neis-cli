@@ -33,3 +33,8 @@ mvp/results/
 
 ### NEIS database (US-02) ###
 neis.db
+
+### NEIS Core v1.0 kit runtime output (core/run.sh) ###
+core/work/
+core/results/
+core-work/

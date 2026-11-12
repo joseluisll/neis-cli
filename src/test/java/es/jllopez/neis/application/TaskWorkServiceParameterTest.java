@@ -2,10 +2,13 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.PageAnalysis;
+import es.jllopez.neis.domain.model.PaginationInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,32 +30,35 @@ class TaskWorkServiceParameterTest {
     private final Address address = new Address("ADDR-001", "Source",
             "https://example.eu/news", AddressType.URL_NEWS);
 
-    private TaskWorkService service(MvpChainService chain) {
-        return new TaskWorkService(chain, mock(AddressCatalogService.class));
+    /** A minimal real result: the PRINT report renders it, so a mock
+     *  record (null everything) would not survive the render. */
+    private PipelineResult result() {
+        return new PipelineResult(address, "scrape", "simplified",
+                1, 1, new PaginationInfo(false, null),
+                PageAnalysis.fallback("news", "test"), "ul li", "fallback",
+                List.of(), Set.of(), "", null, 1, null,
+                null, List.of(), "skipped", "not flagged",
+                null, null, null, List.of(), null, null);
     }
 
-    private MvpChainService chainReturning(MvpChainResult result) {
-        MvpChainService chain = mock(MvpChainService.class);
-        when(chain.run(any(Address.class), anyInt(), anyInt())).thenReturn(result);
-        return chain;
+    private TaskWorkService service(PipelineService pipeline) {
+        return new TaskWorkService(pipeline, mock(AddressCatalogService.class));
+    }
+
+    private PipelineService pipelineReturning(PipelineResult result) {
+        PipelineService pipeline = mock(PipelineService.class);
+        when(pipeline.run(any(Address.class), anyInt(), anyInt())).thenReturn(result);
+        return pipeline;
     }
 
     @Test
     void printAcceptsMaxItemsAndMaxPagesAndPassesThemThrough() {
-        MvpChainResult result = mock(MvpChainResult.class);
-        when(result.items()).thenReturn(List.of());
-        when(result.pagesScraped()).thenReturn(1);
-        when(result.analysis()).thenReturn(null);
-        when(result.capabilities()).thenReturn(java.util.Set.of());
-        when(result.scrapeArtifact()).thenReturn("s");
-        when(result.simplifyArtifact()).thenReturn("s");
-        MvpChainService chain = mock(MvpChainService.class);
-        when(chain.run(any(Address.class), anyInt(), anyInt())).thenReturn(result);
+        PipelineService pipeline = pipelineReturning(result());
 
-        String outcome = service(chain).execute("PRINT", address,
+        String outcome = service(pipeline).execute("PRINT", address,
                 Map.of("max-items", "5", "max-pages", "2"));
 
-        verify(chain).run(address, 5, 2);
+        verify(pipeline).run(address, 5, 2);
         assertTrue(outcome.startsWith("CHAIN:"));
     }
 
@@ -61,7 +67,7 @@ class TaskWorkServiceParameterTest {
         // A typo like 'max-ites' must not become silent dead
         // configuration (US-08 review disqualifier).
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> service(mock(MvpChainService.class)).execute("PRINT", address,
+                () -> service(mock(PipelineService.class)).execute("PRINT", address,
                         Map.of("max-ites", "10")));
         assertTrue(e.getMessage().contains("max-ites"));
         assertTrue(e.getMessage().contains("only"));
@@ -70,7 +76,7 @@ class TaskWorkServiceParameterTest {
     @Test
     void aNonIntegerParameterValueIsRefused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> service(mock(MvpChainService.class)).execute("CHAIN", address,
+                () -> service(mock(PipelineService.class)).execute("CHAIN", address,
                         Map.of("max-items", "abc")));
         assertTrue(e.getMessage().contains("must be an integer"));
     }
@@ -78,33 +84,35 @@ class TaskWorkServiceParameterTest {
     @Test
     void anOutOfRangeParameterValueIsRefused() {
         assertThrows(IllegalArgumentException.class,
-                () -> service(mock(MvpChainService.class)).execute("PRINT", address,
+                () -> service(mock(PipelineService.class)).execute("PRINT", address,
                         Map.of("max-items", "0")));
         assertThrows(IllegalArgumentException.class,
-                () -> service(mock(MvpChainService.class)).execute("PRINT", address,
+                () -> service(mock(PipelineService.class)).execute("PRINT", address,
                         Map.of("max-pages", "101")));
     }
 
     @Test
     void parameterlessPrintUsesTheDefaults() {
-        MvpChainResult result = mock(MvpChainResult.class);
-        when(result.items()).thenReturn(List.of());
-        when(result.pagesScraped()).thenReturn(1);
-        when(result.analysis()).thenReturn(null);
-        when(result.capabilities()).thenReturn(java.util.Set.of());
-        when(result.scrapeArtifact()).thenReturn("s");
-        when(result.simplifyArtifact()).thenReturn("s");
-        MvpChainService chain = mock(MvpChainService.class);
-        when(chain.run(any(Address.class), anyInt(), anyInt())).thenReturn(result);
+        PipelineService pipeline = pipelineReturning(result());
 
-        service(chain).execute("PRINT", address, Map.of());
+        service(pipeline).execute("PRINT", address, Map.of());
 
-        verify(chain).run(address, 50, 10);
+        verify(pipeline).run(address, 50, 10);
+    }
+
+    @Test
+    void theChainStepTitlesTheReportWithTheChainName() {
+        PipelineService pipeline = pipelineReturning(result());
+
+        String outcome = service(pipeline).execute("PRINT", address,
+                Map.of(), "core-chain-ssafp");
+
+        assertTrue(outcome.contains("report="));
     }
 
     @Test
     void otherTaskTypesStillRefuseAnyParameter() {
-        TaskWorkService work = service(mock(MvpChainService.class));
+        TaskWorkService work = service(mock(PipelineService.class));
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "5")));
         assertTrue(e.getMessage().contains("takes no parameters"));

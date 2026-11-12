@@ -1,0 +1,8 @@
+{
+  "addressId": "ADDR-001",
+  "kind": "news",
+  "selector": "ul.content-by-label > li",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "The news listing is the Confluence content-by-label macro: <ul class=\\"
+}

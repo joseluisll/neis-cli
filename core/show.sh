@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Show the results of the last NEIS MVP chain run.
+# Show the results of the last core-chain-ssafp run.
 #
-#   mvp/show.sh                 # results of the last run
-#   mvp/show.sh --raw           # full raw log of the last run (incl. logs)
-#   mvp/show.sh --artifacts     # list the chain artifacts on disk
-#   mvp/show.sh --items         # just the discovered news/event items
-#   mvp/show.sh --list-runs     # all saved runs
+#   core/show.sh                 # results of the last run
+#   core/show.sh --raw           # full raw log of the last run (incl. logs)
+#   core/show.sh --artifacts     # list the content-tree artifacts on disk
+#   core/show.sh --items         # just the discovered news/event items
+#   core/show.sh --list-runs     # all saved runs
 set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,7 +24,7 @@ case "${1:-}" in
     fi
     exit 0 ;;
   --artifacts)
-    find "$WORK_DIR" -type f \( -name '*.html' -o -name '*.json' \) \
+    find "$WORK_DIR" -type f \( -name '*.html' -o -name '*.json' -o -name '*.txt' \) \
       | sed "s|$KIT_DIR/||" | LC_ALL=C sort
     exit 0 ;;
 esac
@@ -32,12 +32,12 @@ esac
 LAST_RAW="$(ls -1t "$RESULTS_DIR"/raw-*.log 2>/dev/null | head -1 || true)"
 
 if [[ "${1:-}" == "--raw" ]]; then
-  if [[ -n "$LAST_RAW" ]]; then cat "$LAST_RAW"; else echo "No runs yet. Run mvp/run.sh first."; exit 1; fi
+  if [[ -n "$LAST_RAW" ]]; then cat "$LAST_RAW"; else echo "No runs yet. Run core/run.sh first."; exit 1; fi
   exit 0
 fi
 
 if [[ ! -s "$RESULTS_DIR/last-run.txt" ]]; then
-  echo "No results yet. Run mvp/run.sh first."
+  echo "No results yet. Run core/run.sh first."
   exit 1
 fi
 

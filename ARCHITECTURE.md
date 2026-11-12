@@ -52,10 +52,18 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
 | `ChainStorePort` | driven | `ChainStoreConnector` (US-08.1: chain definitions over the SQLite `chains`/`chain_tasks` tables) |
 | `ContentStorePort` | driven | `ContentStoreConnector` (US-11: webpage captures + content records over the SQLite `captures`/`content_records` tables) |
+| `SelectorStorePort` | driven | `FileSelectorStoreConnector` (per-address validated selectors as JSON under `<work dir>/selectors`) |
 
-The MVP static chain (SCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
-issue #90; FILTER added for US-17) is orchestrated by `MvpChainService`
-over these ports. Pure-Java domain services (`PaginationDetector`,
+The SSAFP pipeline (WEBSCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
+ex the MVP chain, issue #90 + US-17) lives in `PipelineService` behind
+the executor's task types: the task types are the pipeline's stages as
+runnable prefixes, and the configured chain `core-chain-ssafp`
+(`core/run.sh` creates and runs it) executes them in order over an
+address — the hardcoded MVP orchestration (`MvpChainService`,
+`MvpChainResult`, the `mvp-chain` command and the `mvp/` run kit) was
+retired when the Core Platform took over. The kit's PRINT step
+persists a readable report artifact per address in the content tree.
+Pure-Java domain services (`PaginationDetector`,
 `ExposedFilterDetector`) are the heuristic fallbacks when no AI is
 configured; AI classification, selector identification, capability
 detection (pagination + page URL pattern, filtering) and filter
@@ -127,7 +135,7 @@ cap.
   (VERIFIED/FAILED + ISO checked-at) persists on the address through
   the catalog.
 - Eligibility (US-04.3): executors accept only addresses that are
-  syntactically valid AND VERIFIED. The MVP chain refuses ineligible
+  syntactically valid AND VERIFIED. The executor refuses ineligible
   addresses; batch runs skip them and report the skip count.
 
 ## Execution: async executor, scheduling, records (US-05)
@@ -208,8 +216,8 @@ cap.
   migration, composite PK address+capture), content files
   (`content_records`, V1, UNIQUE path). All writes go through
   `ContentStoreService` behind `ContentStorePort`.
-- The chain work dir IS the content root (`neis.mvp.work-dir`,
-  externalized; the run kit pins it via `NEIS_MVP_WORK_DIR`). The
+- The pipeline work dir IS the content root (`neis.core.work-dir`,
+  externalized; the kit pins it via `NEIS_CORE_WORK_DIR`). The
   selector store stays at `<root>/selectors/` (unchanged this slice).
 - `content list [--address]` and `content tree --address` inspect the
   stored records; the tree view is the filesystem projection of the

@@ -1,0 +1,9 @@
+{
+  "addressId": "ADDR-004",
+  "kind": "event",
+  "selector": "sedia-events-card-translation",
+  "filterSelector": "form.ng-untouched.ng-pristine.ng-valid",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each event entry is rendered as a repeated <sedia-events-card-translation class=\\"
+}

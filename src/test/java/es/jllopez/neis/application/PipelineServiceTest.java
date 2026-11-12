@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
  * selector fast path (no AI), AI identification with persistence, and
  * static heuristic fallback.
  */
-class MvpChainServiceTest {
+class PipelineServiceTest {
 
     @TempDir
     Path workDir;
@@ -139,8 +139,8 @@ class MvpChainServiceTest {
                 .resolve(contentStore().captureId(address.url()));
     }
 
-    private MvpChainService service(ObjectProvider<AiAssistantPort> ai) {
-        return new MvpChainService(scrapePort, simplifyPort, extractionPort,
+    private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
+        return new PipelineService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
                 ai, catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
     }
@@ -151,7 +151,7 @@ class MvpChainServiceTest {
                 AddressType.URL_NEWS);
         AddressCatalogService badCatalog = new AddressCatalogService(
                 new InMemoryAddressCatalogPort(List.of(bad)), new UrlSyntaxValidator());
-        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+        PipelineService chain = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
@@ -170,7 +170,7 @@ class MvpChainServiceTest {
                 "https://example.eu/news", AddressType.URL_NEWS);
         AddressCatalogService catalog2 = new AddressCatalogService(
                 new InMemoryAddressCatalogPort(List.of(unverified)), new UrlSyntaxValidator());
-        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+        PipelineService chain = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
@@ -184,32 +184,12 @@ class MvpChainServiceTest {
     }
 
     @Test
-    void runAllSkipsIneligibleAddresses() {
-        Address good = SeedAddresses.verified().get(0);
-        Address unverified = new Address("ADDR-011", "Unverified",
-                "https://example.eu/news", AddressType.URL_NEWS);
-        AddressCatalogService catalog2 = new AddressCatalogService(
-                new InMemoryAddressCatalogPort(List.of(good, unverified)),
-                new UrlSyntaxValidator());
-        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
-                extractionPort, selectorStore, paginationDetector,
-                new ExposedFilterDetector(), aiProvider(aiAnswering("news",
-                        "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), contentStore(), workDir.toString());
-
-        List<MvpChainResult> results = chain.runAll();
-
-        assertEquals(1, results.size());
-        assertEquals(good.id(), results.get(0).address().id());
-    }
-
-    @Test
     void theChainPersistsTheDetectedCapabilitiesOntoTheAddress() {
         // Deferred slice-3 review finding: the detection used to live
         // only in the run's local `flagged` variable, so no run ever
         // left the flags in the catalog.
         Address good = SeedAddresses.verified().get(0);
-        MvpChainService chain = new MvpChainService(scrapePort, simplifyPort,
+        PipelineService chain = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(),
                 aiProvider(aiAnswering("news", "{\"selector\":\"ul li\",\"reasoning\":\"\"}",
@@ -298,7 +278,7 @@ class MvpChainServiceTest {
     void chainIdentifiesSelectorWithAiAndPersistsIt() {
         AiAssistantPort ai = aiAnswering("news",
                 "{\"selector\":\"sedia-result-card-news-translation\",\"reasoning\":\"repeated news result cards\"}");
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
 
         assertEquals("ai", result.selectorSource());
         assertTrue(result.analysis().aiAssisted(), "classification must come from the AI");
@@ -341,7 +321,7 @@ class MvpChainServiceTest {
             return "news";
         };
 
-        MvpChainResult result = service(aiProvider(selectorAiMustNotCall)).run(catalog.byId("ADDR-003"));
+        PipelineResult result = service(aiProvider(selectorAiMustNotCall)).run(catalog.byId("ADDR-003"));
 
         assertEquals("stored", result.selectorSource());
         assertFalse(result.analysis().aiAssisted());
@@ -356,7 +336,7 @@ class MvpChainServiceTest {
         AiAssistantPort ai = aiAnswering("news",
                 "{\"selector\":\"sedia-result-card-news-translation\",\"reasoning\":\"refreshed\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
 
         assertEquals("ai", result.selectorSource(), "stale selector must trigger AI re-run");
         assertEquals("sedia-result-card-news-translation",
@@ -365,7 +345,7 @@ class MvpChainServiceTest {
 
     @Test
     void chainExtractsRealRenderedNewsFromAddr001() {
-        MvpChainResult result = service(aiProvider(aiAnswering("news",
+        PipelineResult result = service(aiProvider(aiAnswering("news",
                 "{\"selector\":\"li.js-news-item\",\"reasoning\":\"\"}")))
                 .run(catalog.byId("ADDR-001"));
         assertEquals("ai", result.selectorSource(), "li.js-news-item is the real ADDR-001 selector");
@@ -379,7 +359,7 @@ class MvpChainServiceTest {
         ObjectProvider<AiAssistantPort> empty = mock(ObjectProvider.class);
         when(empty.getIfAvailable()).thenReturn(null);
 
-        MvpChainResult result = service(empty).run(catalog.byId("ADDR-003"));
+        PipelineResult result = service(empty).run(catalog.byId("ADDR-003"));
 
         assertEquals("fallback", result.selectorSource());
         assertFalse(result.analysis().aiAssisted(), "no AI configured -> fallback analysis");
@@ -395,24 +375,21 @@ class MvpChainServiceTest {
         AiAssistantPort failing = prompt -> {
             throw new IllegalStateException("provider unreachable");
         };
-        MvpChainResult result = service(aiProvider(failing)).run(catalog.byId("ADDR-003"));
+        PipelineResult result = service(aiProvider(failing)).run(catalog.byId("ADDR-003"));
         assertEquals("fallback", result.selectorSource());
         assertTrue(result.analysis().notes().startsWith("AI call failed"));
         assertFalse(result.items().isEmpty());
     }
 
     @Test
-    void runAllCoversTheStaticCatalog() {
-        List<MvpChainResult> results = service(aiProvider(aiAnswering("other",
+    void aRunCoversOneAddressEndToEnd() {
+        PipelineResult result = service(aiProvider(aiAnswering("other",
                 "{\"selector\":null,\"reasoning\":\"none\"}")))
-                .runAll();
-        assertEquals(catalog.list().size(), results.size());
-        results.forEach(r -> {
-            assertEquals("fallback", r.selectorSource());
-            assertTrue(captureDirOf(r.address())
-                    .resolve("content").resolve("SIMPLIFY").resolve("simplified.html")
-                    .toFile().exists());
-        });
+                .run(catalog.byId("ADDR-003"));
+        assertEquals("fallback", result.selectorSource());
+        assertTrue(captureDirOf(result.address())
+                .resolve("content").resolve("SIMPLIFY").resolve("simplified.html")
+                .toFile().exists());
     }
 
     @Test
@@ -426,7 +403,7 @@ class MvpChainServiceTest {
                 "{\"filters\":[{\"name\":\"Event status\",\"values\":"
                         + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
 
         assertTrue(result.address().hasCapability(AddressCapability.PAGINATION),
                 "AI flagged pagination must be set on the address");
@@ -446,7 +423,7 @@ class MvpChainServiceTest {
     @Test
     void filterBlockIsSkippedWhenAddressNotFlagged() {
         // default aiAnswering: AI reports no capabilities -> nothing flagged
-        MvpChainResult result = service(aiProvider(aiAnswering("event",
+        PipelineResult result = service(aiProvider(aiAnswering("event",
                 "{\"selector\":\"div.exc-event-item\",\"reasoning\":\"\"}")))
                 .run(catalog.byId("ADDR-002"));
 
@@ -462,7 +439,7 @@ class MvpChainServiceTest {
         ObjectProvider<AiAssistantPort> empty = mock(ObjectProvider.class);
         when(empty.getIfAvailable()).thenReturn(null);
 
-        MvpChainResult result = service(empty).run(catalog.byId("ADDR-005"));
+        PipelineResult result = service(empty).run(catalog.byId("ADDR-005"));
 
         assertTrue(result.address().hasCapability(AddressCapability.PAGINATION),
                 "generic pager heuristic must flag pagination (simplified page keeps the pager nav)");
@@ -489,7 +466,7 @@ class MvpChainServiceTest {
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"facet form\"}}",
                 "{\"filters\":[],\"reasoning\":\"\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-006"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-006"));
 
         assertTrue(result.items().size() <= 50, "MAX_ITEMS cap must hold");
         assertFalse(result.items().isEmpty());
@@ -506,7 +483,7 @@ class MvpChainServiceTest {
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"filter form\"}}",
                 "{\"filters\":[],\"reasoning\":\"\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
 
         assertTrue(result.address().hasCapability(AddressCapability.PAGINATION));
         assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
@@ -526,7 +503,7 @@ class MvpChainServiceTest {
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"keyword filter\"}}",
                 "{\"filters\":[],\"reasoning\":\"\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-007"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-007"));
 
         assertTrue(result.address().hasCapability(AddressCapability.PAGINATION));
         assertTrue(result.address().hasCapability(AddressCapability.FILTERING));
@@ -552,7 +529,7 @@ class MvpChainServiceTest {
                         + "\"correctedAddress\":\"https://www.ema.europa.eu/en/events/upcoming-events\"}",
                 "{\"filters\":[],\"reasoning\":\"\"}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(looselyRegistered);
+        PipelineResult result = service(aiProvider(ai)).run(looselyRegistered);
 
         assertTrue(result.correctedAddress() != null,
                 "the AI-proposed correction must surface in the result");
@@ -582,7 +559,7 @@ class MvpChainServiceTest {
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                         + "\"correctedAddress\":null}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
 
         assertEquals("https://www.ema.europa.eu/en/events/upcoming-events?page={n}",
                 result.pageUrlPattern(),
@@ -605,7 +582,7 @@ class MvpChainServiceTest {
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                         + "\"correctedAddress\":null}");
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-008"));
 
         assertTrue(result.pageUrlPattern() == null,
                 "an unrepairable pattern must not be used");
@@ -638,7 +615,7 @@ class MvpChainServiceTest {
             return "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}";
         };
 
-        MvpChainResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-005"));
 
         assertEquals("form.oe-list-pages-facets-form", result.filterZoneSelector(),
                 "the AI-identified zone selector must be validated (exactly one match) and used");
@@ -677,11 +654,11 @@ class MvpChainServiceTest {
                         + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}",
                 "{\"field\":\"Event status\",\"value\":\"Past\","
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
-        MvpChainService service = new MvpChainService(withFilteredResponse, simplifyPort,
+        PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
                 aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
-        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+        PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
         assertEquals("Event status", result.appliedFilterField());
         assertEquals("Past", result.appliedFilterValue());
@@ -700,7 +677,7 @@ class MvpChainServiceTest {
     @Test
     void filterApplicationSkipsWhenAiChoosesNoCriterion() {
         // default aiAnswering: the apply prompt answers field=null
-        MvpChainResult result = service(aiProvider(aiAnswering("event",
+        PipelineResult result = service(aiProvider(aiAnswering("event",
                 "{\"selector\":\"article.ecl-content-item\",\"reasoning\":\"\"}",
                 "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,\"reasoning\":\"\"},"
                         + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"}}",
@@ -729,11 +706,11 @@ class MvpChainServiceTest {
                 "{\"filters\":[{\"name\":\"Event status\",\"values\":[\"Past\"]}],\"reasoning\":\"\"}",
                 "{\"field\":\"Event status\",\"value\":\"Past\","
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
-        MvpChainService service = new MvpChainService(limited, simplifyPort,
+        PipelineService service = new PipelineService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
                 aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
-        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+        PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
         assertTrue(result.appliedFilterField() == null);
         assertTrue(result.filterApplicationNote().contains("cannot apply"),
@@ -771,11 +748,11 @@ class MvpChainServiceTest {
                 "{\"field\":\"Event status\",\"value\":\"Upcoming and ongoing\","
                         + "\"request\":\"oe_event_status=upcoming\","
                         + "\"reasoning\":\"ignored the constraint\"}");
-        MvpChainService service = new MvpChainService(constrained, simplifyPort,
+        PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
                 aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
-        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+        PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
         assertTrue(result.appliedFilterField() == null);
         assertTrue(result.filterApplicationNote().contains("cannot apply"),
@@ -818,11 +795,11 @@ class MvpChainServiceTest {
                         + "[\"Upcoming and ongoing\",\"Past\"]}],\"reasoning\":\"\"}",
                 "{\"field\":\"Event status\",\"value\":\"Past\","
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
-        MvpChainService service = new MvpChainService(constrained, simplifyPort,
+        PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
                 aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
 
-        MvpChainResult result = service.run(catalog.byId("ADDR-005"));
+        PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
         assertEquals("Event status", result.appliedFilterField(),
                 "a supported criterion with different request wording must be applied");

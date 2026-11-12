@@ -1,0 +1,13 @@
+420,421c420,421
+<            - Event date (Date): (free text)
+<            - Event date (End Date): (free text)
+---
+>            - Event date (start date): (free text)
+>            - Event date (end date): (free text)
+889c889
+< FILTER   : 10 filter field(s) available [ai]
+---
+> FILTER   : 8 filter field(s) available [ai]
+893,894d892
+<            - Date (start date): (free text)
+<            - End date: (free text)

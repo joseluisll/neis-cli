@@ -1,0 +1,8 @@
+{
+  "addressId": "ADDR-002",
+  "kind": "event",
+  "selector": "div.exc-event-item",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each event entry in the content-by-label list contains a div.exc-event-item (with exc-ev-dates, exc-ev-title, exc-ev-description, start/end dates, image), repeated for every event. The ar-exc-item variant appears to be for archived/news items, and the surrounding li elements are generic list entries, so div.exc-event-item is the repeating event item container."
+}

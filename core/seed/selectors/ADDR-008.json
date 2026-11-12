@@ -1,0 +1,8 @@
+{
+  "addressId": "ADDR-008",
+  "kind": "event",
+  "selector": ".bcl-listing article.ema-event.teaser",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Inside the event listing view (.bcl-listing .row), each event is a repeating <article class=\\"
+}

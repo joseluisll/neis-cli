@@ -26,7 +26,7 @@ public class FileSelectorStoreConnector implements SelectorStorePort {
     private final Path storeDir;
 
     public FileSelectorStoreConnector(
-            @Value("${neis.mvp.work-dir:./neis-mvp}") String workDir) {
+            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.storeDir = Path.of(workDir, "selectors");
     }
 

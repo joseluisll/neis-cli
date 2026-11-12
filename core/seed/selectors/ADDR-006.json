@@ -1,0 +1,9 @@
+{
+  "addressId": "ADDR-006",
+  "kind": "news",
+  "selector": "article.ecl-content-item",
+  "filterSelector": "form#oe-list-pages-facets-form",
+  "discoveredBy": "ai",
+  "discoveredAt": "2026-11-11",
+  "notes": "Each news entry is rendered as an <article class=\\"
+}

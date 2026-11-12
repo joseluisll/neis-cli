@@ -175,7 +175,7 @@ public class ExecutionService {
             synchronized (addressLocks.computeIfAbsent(address.id(), key -> new Object())) {
                 outcome = record.chainId() != null
                         ? runChain(record.chainId(), address)
-                        : taskWork.execute(record.taskCode(), address, Map.of());
+                        : taskWork.execute(record.taskCode(), address, Map.of(), null);
             }
             finalStatus = ExecutionStatus.SUCCESS;
         } catch (Throwable t) {
@@ -223,7 +223,7 @@ public class ExecutionService {
             ChainTask task = tasks.get(i);
             try {
                 String stepOutcome = taskWork.execute(task.taskCode(), address,
-                        task.parameters());
+                        task.parameters(), chain.name());
                 outcome.append("step ").append(i + 1).append('/').append(tasks.size())
                         .append(' ').append(task.taskCode()).append(": ")
                         .append(stepOutcome);
