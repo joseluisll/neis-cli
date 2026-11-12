@@ -3,6 +3,9 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.FilterDefinition;
+import es.jllopez.neis.domain.model.FilterRequestOption;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
@@ -32,6 +35,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -367,7 +371,16 @@ class PipelineServiceTest {
         assertTrue(result.analysis().notes().contains("not configured"));
         assertFalse(result.items().isEmpty(), "heuristic fallback selector must still extract");
         assertEquals("news", result.items().get(0).kind());
-        assertTrue(!store.containsKey("ADDR-003"), "fallback selectors are never persisted");
+        // The fallback SELECTOR is never persisted; the filter catalogue
+        // IS (owner decision 2026-11-12: the no-AI path also builds the
+        // catalogue), so the entry carries the catalogue but a null
+        // selector.
+        if (store.containsKey("ADDR-003")) {
+            assertNull(store.get("ADDR-003").selector(),
+                    "the fallback selector itself is never persisted");
+            assertFalse(store.get("ADDR-003").filters().isEmpty(),
+                    "the generic parser's filter catalogue is persisted for offline use");
+        }
     }
 
     @Test
@@ -729,8 +742,9 @@ class PipelineServiceTest {
             }
 
             @Override
-            public List<String> supportedFilterRequests(Address address) {
-                return List.of("Event status = Past (request: facets[status]=past)");
+            public java.util.List<es.jllopez.neis.domain.model.FilterRequestOption> supportedFilterRequests(Address address) {
+                return List.of(new es.jllopez.neis.domain.model.FilterRequestOption(
+                        "Event status = Past", "facets[status]=past"));
             }
 
             @Override
@@ -778,8 +792,9 @@ class PipelineServiceTest {
             }
 
             @Override
-            public List<String> supportedFilterRequests(Address address) {
-                return List.of("Event status = Past (request: facets[status]=past)");
+            public java.util.List<es.jllopez.neis.domain.model.FilterRequestOption> supportedFilterRequests(Address address) {
+                return List.of(new es.jllopez.neis.domain.model.FilterRequestOption(
+                        "Event status = Past", "facets[status]=past"));
             }
 
             @Override
@@ -807,6 +822,134 @@ class PipelineServiceTest {
         assertTrue(captureDirOf(catalog.byId("ADDR-005"))
                 .resolve("content").resolve("FILTER").resolve("scrape-filtered.html")
                 .toFile().exists());
+    }
+
+    @Test
+    void storedFilterCatalogueSkipsTheAiEntirely() {
+        // Owner decision 2026-11-12: once a catalogue (fields + ALL
+        // values) is stored with the address, the FILTER step reuses it
+        // directly — like the item selectors, no AI anywhere.
+        store.put("ADDR-005", new StoredSelectors("ADDR-005", "event",
+                "article.ecl-content-item", "form#oe-list-pages-facets-form",
+                List.of(new FilterDefinition("Event status",
+                        List.of("Upcoming and ongoing", "Past"))),
+                "ai", "2026-11-12", ""));
+        // The capability prompt still runs by design (US-17: the union
+        // of AI + heuristics); what must NOT happen is any SELECTOR or
+        // FILTER-EXTRACTION call — those come from the store.
+        AiAssistantPort aiCapabilityOnly = prompt -> {
+            if (prompt.contains("CAPABILITIES")) {
+                return "{\"pagination\":{\"detected\":true,\"pageUrlPattern\":null,"
+                        + "\"reasoning\":\"\"},\"filtering\":{\"detected\":true,"
+                        + "\"reasoning\":\"\"},\"correctedAddress\":null}";
+            }
+            if (prompt.contains("applying ONE filter")) {
+                return "{\"field\":\"Event status\",\"value\":\"Past\","
+                        + "\"request\":\"facets[status]=past\",\"reasoning\":\"\"}";
+            }
+            throw new AssertionError("no selector/filter AI call may happen");
+        };
+        PipelineService service = new PipelineService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(aiCapabilityOnly),
+                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+
+        PipelineResult result = service.run(catalog.byId("ADDR-005"));
+
+        assertEquals("stored", result.filterSource(),
+                "the definitions must come from the stored catalogue");
+        assertEquals(1, result.filters().size());
+        assertEquals("Event status", result.filters().get(0).name());
+        assertEquals(List.of("Upcoming and ongoing", "Past"),
+                result.filters().get(0).values());
+    }
+
+    @Test
+    void chainFilterSpecAppliesTheCriterionFullyOffline() {
+        // The chain's filter spec (owner decision 2026-11-12) replaces
+        // the AI: coherence-matched against the stored catalogue and the
+        // connector's servable request, then applied. No AI configured
+        // at all — heuristics flag the capabilities, the catalogue and
+        // the spec do the rest.
+        store.put("ADDR-005", new StoredSelectors("ADDR-005", "event",
+                "article.ecl-content-item", "form#oe-list-pages-facets-form",
+                List.of(new FilterDefinition("Event status",
+                        List.of("Upcoming and ongoing", "Past"))),
+                "ai", "2026-11-12", ""));
+        ContentScrapePort withFilteredResponse = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+
+            @Override
+            public List<FilterRequestOption> supportedFilterRequests(Address address) {
+                return List.of(new FilterRequestOption(
+                        "Event status = Past", "facets[status]=past"));
+            }
+
+            @Override
+            public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
+                assertEquals("facets[status]=past", filterRequest,
+                        "the spec path must send the connector's own request token");
+                return load("/mvp/samples/addr-005-events-filtered-rendered.html");
+            }
+        };
+        ObjectProvider<AiAssistantPort> empty = mock(ObjectProvider.class);
+        PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), empty,
+                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+
+        PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
+                new FilterSpec("Event status", "Past"));
+
+        assertEquals("Event status", result.appliedFilterField(),
+                "the chain's criterion must be applied without any AI");
+        assertEquals("facets[status]=past", result.filterRequest());
+        assertFalse(result.filteredItems().isEmpty());
+        assertTrue(captureDirOf(catalog.byId("ADDR-005"))
+                .resolve("content").resolve("FILTER").resolve("scrape-filtered.html")
+                .toFile().exists());
+    }
+
+    @Test
+    void chainFilterSpecThatMatchesNoCatalogueFieldIsSkippedNotFatal() {
+        store.put("ADDR-005", new StoredSelectors("ADDR-005", "event",
+                "article.ecl-content-item", "form#oe-list-pages-facets-form",
+                List.of(new FilterDefinition("Event status", List.of("Past"))),
+                "ai", "2026-11-12", ""));
+        ContentScrapePort withFilteredResponse = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                return load("/mvp/samples/addr-005-events-rendered.html");
+            }
+
+            @Override
+            public List<FilterRequestOption> supportedFilterRequests(Address address) {
+                return List.of(new FilterRequestOption(
+                        "Event status = Past", "facets[status]=past"));
+            }
+
+            @Override
+            public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
+                throw new AssertionError("a spec that matches nothing may not be applied");
+            }
+        };
+        ObjectProvider<AiAssistantPort> empty = mock(ObjectProvider.class);
+        PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), empty,
+                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+
+        PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
+                new FilterSpec("Keyword", "plasma"));
+
+        assertTrue(result.appliedFilterField() == null);
+        assertTrue(result.filterApplicationNote().contains("does not match"),
+                "the note must name the mismatch: " + result.filterApplicationNote());
+        assertTrue(result.filterApplicationNote().contains("Event status"),
+                "the note must show the available fields");
     }
 
     private ScrapeResult load(String resource) {

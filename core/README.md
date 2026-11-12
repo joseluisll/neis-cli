@@ -74,7 +74,7 @@ its own stage):
 
 Per-task parameters (US-08.3): `PRINT` and `CHAIN` accept `max-items`
 (1..10000, default 50) and `max-pages` (1..100, default 10); the other
-task types refuse any parameters. core-chain-ssafp's steps carry no
+task types refuse unknown parameters. core-chain-ssafp's steps carry no
 parameters, so it runs with the defaults — the same limits the retired
 MVP chain used. Inspect the chain any time:
 
@@ -84,6 +84,33 @@ core/start.sh -- 'chain show --id <chain id>'
 core/start.sh -- 'execution list'          # one record per chain run
 core/start.sh -- 'content tree --address ADDR-003'
 ```
+
+### Chain filters (offline filtering)
+
+A chain can carry its own filter criterion — chosen by you at chain
+creation, changed by redefining the chain, stored with the chain (not
+the address). The address's filter identification (zone selector +
+catalogue of every field with ALL its possible values, named as the
+site labels them) is extracted once — by the AI or the generic parser —
+and persisted in the selector store; from then on the filter is applied
+FULLY OFFLINE:
+
+```bash
+core/start.sh -- 'chain create --name hadea-past-events \
+  --tasks "WEBSCRAPE,SIMPLIFY,ANALYZE,FILTER,PRINT" \
+  --filter "field=Event status;value=Past"'
+# or, structured:
+#   --filter-spec core/seed/filters/hadea-past-events.json  with
+#   {"filters": [{"field": "Event status", "value": "Past"}]}
+```
+
+At run time the spec is coherence-matched against the address's stored
+catalogue and the connector's servable requests; a match is applied
+before the response (the report shows `APPLY: field = value [request]`
+and the `PRINT(f)` filtered listing), a mismatch is reported and
+skipped — never a chain failure. Without `--filter`, the AI chooses the
+criterion when configured; with no AI and no spec, the catalogue is
+still built and stored, and application is skipped.
 
 ## Commands
 

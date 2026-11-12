@@ -4,6 +4,7 @@ import es.jllopez.neis.application.ChainService;
 import es.jllopez.neis.application.ExecutionService;
 import es.jllopez.neis.domain.model.Chain;
 import es.jllopez.neis.domain.model.ChainTask;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
 import org.springframework.shell.core.command.annotation.Command;
@@ -50,8 +51,24 @@ public class ChainCommands {
             @Option(shortName = 't', longName = "tasks", required = true,
                     description = "Ordered steps, e.g. \"WEBSCRAPE,PRINT:max-items=10\". "
                             + "PRINT/CHAIN steps accept max-items and max-pages")
-            String tasks) {
-        Chain chain = chains.create(name, description, parseSteps(tasks));
+            String tasks,
+            @Option(shortName = 'f', longName = "filter",
+                    description = "Filter criterion the chain applies (owner decision "
+                            + "2026-11-12): 'field=<name>;value=<value>'. The chain's "
+                            + "FILTER step applies it offline against the address's "
+                            + "stored filter catalogue; requires a FILTER step")
+            String filter,
+            @Option(longName = "filter-spec",
+                    description = "Path to a JSON filter spec file "
+                            + "({\"field\":..., \"value\":...} or {\"filters\":[...]}); "
+                            + "same semantics as --filter, resolved at creation")
+            String filterSpecFile) {
+        FilterSpec spec = resolveFilterSpec(filter, filterSpecFile);
+        List<ChainTask> steps = parseSteps(tasks);
+        if (spec != null) {
+            steps = withFilterSpec(steps, spec);
+        }
+        Chain chain = chains.create(name, description, steps);
         StringBuilder out = new StringBuilder("Created ").append(chain.id())
                 .append(" '").append(chain.name()).append("': ")
                 .append(chain.tasks().size()).append(" steps\n");
@@ -62,9 +79,55 @@ public class ChainCommands {
             }
             out.append("\n");
         }
+        if (spec != null) {
+            out.append("  filter: ").append(spec.field()).append(" = ")
+                    .append(spec.value()).append(" (applied offline by the FILTER step)\n");
+        }
         out.append("Run it with: chain run --id ").append(chain.id())
                 .append(" --address <address-id>");
         return out.toString();
+    }
+
+    /** Resolves the --filter / --filter-spec options to one spec (at
+     * most one of them may be given). */
+    private FilterSpec resolveFilterSpec(String filter, String filterSpecFile) {
+        if (filter != null && filterSpecFile != null) {
+            throw new IllegalArgumentException(
+                    "Give either --filter or --filter-spec, not both");
+        }
+        if (filter != null) {
+            return FilterSpec.parseInline(filter);
+        }
+        if (filterSpecFile != null) {
+            try {
+                return FilterSpec.fromJson(
+                        java.nio.file.Files.readString(java.nio.file.Path.of(filterSpecFile)));
+            } catch (java.io.IOException e) {
+                throw new IllegalArgumentException(
+                        "Cannot read the filter spec file " + filterSpecFile + ": "
+                                + e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /** Attaches the resolved spec to the chain's FILTER step. */
+    private List<ChainTask> withFilterSpec(List<ChainTask> steps, FilterSpec spec) {
+        boolean hasFilterStep = steps.stream().anyMatch(t -> "FILTER".equals(t.taskCode()));
+        if (!hasFilterStep) {
+            throw new IllegalArgumentException("A chain with --filter needs a FILTER step");
+        }
+        List<ChainTask> withSpec = new ArrayList<>();
+        for (ChainTask step : steps) {
+            if ("FILTER".equals(step.taskCode()) && step.parameters().isEmpty()) {
+                withSpec.add(new ChainTask(step.position(), step.taskCode(),
+                        Map.of(FilterSpec.FIELD_KEY, spec.field(),
+                                FilterSpec.VALUE_KEY, spec.value())));
+            } else {
+                withSpec.add(step);
+            }
+        }
+        return withSpec;
     }
 
     @Command(name = {"chain", "list"}, group = "Chains",

@@ -104,6 +104,31 @@ the cleanse; duplicated multi-select widget clones (checkbox copies of
 select options) are dropped so the real data stays inside the 100 KB
 cap.
 
+## Filter catalogue and chain filter specs (owner decision 2026-11-12)
+
+- The FILTER step's identification is persisted with the address: the
+  filter-zone selector AND the filter catalogue (every extracted field
+  with ALL its possible values) live in the same selector-store entry.
+  Whatever valid catalogue is extracted — by the AI or the generic
+  HTML5 parser — is stored merged, so later runs (and no-AI runs)
+  reuse it; the generic parser names fields by their VISIBLE labels so
+  AI-named and parser-named catalogues agree.
+- A chain can CARRY a filter criterion (data, not code):
+  `chain create ... --filter "field=<name>;value=<value>"` or
+  `--filter-spec <path.json>` ({"field":..., "value":...} or
+  {"filters":[...]}); the resolved spec is stored as the FILTER step's
+  parameters and belongs to the chain, not the address.
+- At run time the executor threads the chain's spec to every step: the
+  FILTER application applies THAT criterion offline — the spec is
+  coherence-matched (lenient, case-insensitive) against the address's
+  stored catalogue and the SCRAPE connector's servable requests
+  (`FilterRequestOption`: criterion + request token); the matched
+  request is applied before the response. No AI in the loop; the trace
+  logs `filter application from the chain spec - AI bypassed`. A spec
+  that matches nothing degrades to a skipped note, never a chain
+  failure. Without a spec the AI still chooses the criterion (or, with
+  no AI, application is skipped).
+
 ## Persistence (US-02)
 
 - SQLite3 is the database of the first iteration (owner decision

@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.PaginationInfo;
 import org.springframework.stereotype.Service;
 
@@ -69,6 +70,20 @@ public class TaskWorkService {
      */
     public String execute(String taskCode, Address address,
                           Map<String, String> parameters, String chainName) {
+        return execute(taskCode, address, parameters, chainName, null);
+    }
+
+    /**
+     * Same as {@link #execute(String, Address, Map)} with the name of
+     * the chain whose step is being executed (null for single task
+     * runs; the PRINT report artifact is titled with it) and the
+     * chain's filter spec (owner decision 2026-11-12): the criterion
+     * the chain DEFINITION carries, applied offline by the FILTER
+     * application of this run. Null when the chain defines no filter.
+     */
+    public String execute(String taskCode, Address address,
+                          Map<String, String> parameters, String chainName,
+                          FilterSpec chainFilterSpec) {
         return switch (taskCode) {
             case "WEBSCRAPE" -> {
                 requireNoParameters(taskCode, parameters);
@@ -83,20 +98,36 @@ public class TaskWorkService {
                 yield analyze(address);
             }
             case "FILTER" -> {
-                requireNoParameters(taskCode, parameters);
-                yield filter(address);
+                // A chain's FILTER step carries the filter spec as its
+                // parameters ("field"/"value"); the executor threads the
+                // parsed spec to every filter-applying step of the run.
+                FilterSpec spec = chainFilterSpec != null
+                        ? chainFilterSpec : FilterSpec.of(parameters);
+                requireNoParameters(taskCode, parameters,
+                        FilterSpec.FIELD_KEY, FilterSpec.VALUE_KEY);
+                yield filter(address, spec);
             }
-            case "PRINT", "CHAIN" -> fullChain(address, parameters, chainName);
+            case "PRINT", "CHAIN" -> fullChain(address, parameters, chainName,
+                    chainFilterSpec);
             default -> throw new IllegalArgumentException(
                     "Unknown task type: " + taskCode
                             + " (known: WEBSCRAPE, SIMPLIFY, ANALYZE, FILTER, PRINT, CHAIN)");
         };
     }
 
-    private void requireNoParameters(String taskCode, Map<String, String> parameters) {
-        if (!parameters.isEmpty()) {
-            throw new IllegalArgumentException("Task type " + taskCode
-                    + " takes no parameters (got: " + parameters.keySet() + ")");
+    private void requireNoParameters(String taskCode, Map<String, String> parameters,
+                                     String... allowedKeys) {
+        for (String key : parameters.keySet()) {
+            boolean allowed = false;
+            for (String allowedKey : allowedKeys) {
+                allowed |= allowedKey.equals(key);
+            }
+            if (!allowed) {
+                throw new IllegalArgumentException("Task type " + taskCode
+                        + " takes no such parameter (got: " + key + "; allowed: "
+                        + (allowedKeys.length == 0 ? "none" : String.join(", ", allowedKeys))
+                        + ")");
+            }
         }
     }
 
@@ -142,8 +173,10 @@ public class TaskWorkService {
                 + ", capabilities=" + capabilities.flags();
     }
 
-    /** FILTER (US-17/US-06.6 slice): + filter extraction and application. */
-    private String filter(Address address) {
+    /** FILTER (US-17/US-06.6 slice): + filter extraction and application.
+     * The chain's filter spec (owner decision 2026-11-12), when present,
+     * is applied offline instead of an AI-chosen criterion. */
+    private String filter(Address address, FilterSpec spec) {
         var scrape = pipeline.scrapePort.scrape(address);
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
@@ -170,10 +203,14 @@ public class TaskWorkService {
                 .append(outcome.source() == null ? "no zone" : outcome.source()).append(")");
         if (!outcome.filters().isEmpty()) {
             PipelineService.FilterApplication application =
-                    pipeline.applyFilter(flagged, selection, outcome);
-            summary.append("; applied ").append(application.field()).append("=")
-                    .append(application.value())
-                    .append(" -> ").append(application.items().size()).append(" items");
+                    pipeline.applyFilter(flagged, selection, outcome, spec);
+            if (application.field() != null) {
+                summary.append("; applied ").append(application.field()).append("=")
+                        .append(application.value())
+                        .append(" -> ").append(application.items().size()).append(" items");
+            } else {
+                summary.append("; not applied (").append(application.note()).append(")");
+            }
         }
         return summary.toString();
     }
@@ -182,9 +219,11 @@ public class TaskWorkService {
      * ANALYZE - FILTER - PRINT), with the per-task parameters of
      * US-08.3 (issue #35). The readable report is persisted as a
      * PRINT task output in the content tree (US-11) and named after
-     * the chain when the run is a chain's step. */
+     * the chain when the run is a chain's step. The chain's filter
+     * spec, when the chain defines one, governs the run's filter
+     * application. */
     private String fullChain(Address address, Map<String, String> parameters,
-                             String chainName) {
+                             String chainName, FilterSpec chainFilterSpec) {
         // Whitelist, not lookup-and-ignore: an unknown key would
         // otherwise be silently dead configuration — the exact
         // fail-open the US-08 review disqualified (a typo like
@@ -197,7 +236,7 @@ public class TaskWorkService {
         }
         int maxItems = intParameter(parameters, "max-items", 50, 1, 10_000);
         int maxPages = intParameter(parameters, "max-pages", 10, 1, 100);
-        PipelineResult result = pipeline.run(address, maxItems, maxPages);
+        PipelineResult result = pipeline.run(address, maxItems, maxPages, chainFilterSpec);
         String report = PipelineReport.render(
                 chainName != null ? chainName : "PRINT", result);
         Path reportArtifact = pipeline.writeArtifact(address, "PRINT", "report",

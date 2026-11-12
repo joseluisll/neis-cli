@@ -47,7 +47,7 @@ class TaskWorkServiceParameterTest {
 
     private PipelineService pipelineReturning(PipelineResult result) {
         PipelineService pipeline = mock(PipelineService.class);
-        when(pipeline.run(any(Address.class), anyInt(), anyInt())).thenReturn(result);
+        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any())).thenReturn(result);
         return pipeline;
     }
 
@@ -58,7 +58,7 @@ class TaskWorkServiceParameterTest {
         String outcome = service(pipeline).execute("PRINT", address,
                 Map.of("max-items", "5", "max-pages", "2"));
 
-        verify(pipeline).run(address, 5, 2);
+        verify(pipeline).run(address, 5, 2, null);
         assertTrue(outcome.startsWith("CHAIN:"));
     }
 
@@ -97,7 +97,7 @@ class TaskWorkServiceParameterTest {
 
         service(pipeline).execute("PRINT", address, Map.of());
 
-        verify(pipeline).run(address, 50, 10);
+        verify(pipeline).run(address, 50, 10, null);
     }
 
     @Test
@@ -115,6 +115,18 @@ class TaskWorkServiceParameterTest {
         TaskWorkService work = service(mock(PipelineService.class));
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "5")));
-        assertTrue(e.getMessage().contains("takes no parameters"));
+        assertTrue(e.getMessage().contains("takes no such parameter"));
+    }
+
+    @Test
+    void filterRefusesAHalfSpecAndAnUnknownKey() {
+        TaskWorkService work = service(mock(PipelineService.class));
+        // Only one of the two keys is a broken definition, not a half-spec.
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> work.execute("FILTER", address, Map.of("field", "Programme")));
+        assertTrue(e.getMessage().contains("both"));
+        IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+                () -> work.execute("FILTER", address, Map.of("spec-file", "x.json")));
+        assertTrue(e2.getMessage().contains("takes no such parameter"));
     }
 }

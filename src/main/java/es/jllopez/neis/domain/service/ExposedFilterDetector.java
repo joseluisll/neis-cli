@@ -40,6 +40,17 @@ public class ExposedFilterDetector {
     private static final Pattern ARIA_LABEL = Pattern.compile(
             "aria-label=\"([^\"]+)\"");
 
+    /** A {@code <label for="<select id>">} — the control's visible name. */
+    private static final Pattern LABEL_FOR = Pattern.compile(
+            "<label\\b[^>]*for=\"([^\"]+)\"[^>]*>(.*?)</label>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    /** Any {@code <label>} (fallback: the nearest one before the select). */
+    private static final Pattern LABEL = Pattern.compile(
+            "<label\\b[^>]*>(.*?)</label>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    private static final Pattern ID_ATTR = Pattern.compile("\\bid=\"([^\"]*)\"");
+
     /**
      * True when the page shows the standard shape of an exposed filter
      * UI: form(s) containing select dropdowns.
@@ -72,6 +83,14 @@ public class ExposedFilterDetector {
             if (label.find()) {
                 name = label.group(1);
             }
+            // The control's VISIBLE name (the AI names fields by their
+            // labels, so the generic parser must too — a chain's filter
+            // spec is written against these names): the <label for=select
+            // id> when present, else the nearest preceding <label>.
+            String visibleName = labelFor(html, blocks.start(), attrs);
+            if (visibleName != null && !visibleName.isBlank()) {
+                name = visibleName;
+            }
             List<String> values = new ArrayList<>();
             Matcher options = OPTION_TEXT.matcher(blocks.group(2));
             while (options.find()) {
@@ -87,5 +106,38 @@ public class ExposedFilterDetector {
                     values));
         }
         return filters;
+    }
+
+    /**
+     * The visible label of a select: the {@code <label for="<id>">} that
+     * names it, or the nearest {@code <label>} before it (the label
+     * precedes the control in the standard filter-form shapes). Inner
+     * markup (spans) is stripped; null when nothing sensible is found.
+     */
+    private String labelFor(String html, int selectStart, String selectAttrs) {
+        Matcher idAttr = ID_ATTR.matcher(selectAttrs);
+        if (idAttr.find()) {
+            String id = idAttr.group(1);
+            Matcher labels = LABEL_FOR.matcher(html);
+            while (labels.find()) {
+                if (labels.group(1).equals(id)) {
+                    return stripTags(labels.group(2));
+                }
+            }
+        }
+        String before = html.substring(Math.max(0, selectStart - 800), selectStart);
+        Matcher labels = LABEL.matcher(before);
+        String last = null;
+        while (labels.find()) {
+            last = labels.group(1);
+        }
+        return last == null ? null : stripTags(last);
+    }
+
+    private String stripTags(String html) {
+        String text = html.replaceAll("<[^>]+>", " ")
+                .replace("&amp;", "&").trim()
+                .replaceAll("\\s+", " ");
+        return text.isBlank() || text.length() > 60 ? null : text;
     }
 }

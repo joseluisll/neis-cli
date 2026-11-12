@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.FilterDefinition;
+import es.jllopez.neis.domain.model.FilterRequestOption;
 
 import java.util.List;
 
@@ -159,7 +160,7 @@ final class AiPromptCatalog {
      * connector's own capability statement, never hardcoded.
      */
     static String applyFilterPrompt(List<FilterDefinition> filters, Address address,
-                                    List<String> supportedRequests) {
+                                    List<FilterRequestOption> supportedRequests) {
         StringBuilder fields = new StringBuilder();
         for (FilterDefinition filter : filters) {
             fields.append("- ").append(filter.name()).append(": ")
@@ -169,13 +170,18 @@ final class AiPromptCatalog {
         }
         String constraint = "";
         if (supportedRequests != null && !supportedRequests.isEmpty()) {
+            StringBuilder requests = new StringBuilder();
+            for (FilterRequestOption option : supportedRequests) {
+                requests.append("- ").append(option.criterion())
+                        .append(" (request: ").append(option.request()).append(")\n");
+            }
             constraint = """
                 The SCRAPE connector can currently apply EXACTLY these filter requests:
                 %s
                 Choose one of THESE (its field and value above) — the connector serves \
                 the site's response for that request. If none corresponds to an available \
                 field, answer field=null.
-                """.formatted(String.join("\n", supportedRequests));
+                """.formatted(requests);
         }
         return """
                 You are applying ONE filter criterion to narrow the listing at %s \

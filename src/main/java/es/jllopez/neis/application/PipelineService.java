@@ -4,6 +4,8 @@ import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.FilterDefinition;
+import es.jllopez.neis.domain.model.FilterRequestOption;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PageAnalysis;
 import es.jllopez.neis.domain.model.PaginationInfo;
@@ -127,7 +129,7 @@ public class PipelineService {
 
     /** Runs the whole pipeline for one address. */
     public PipelineResult run(Address address) {
-        return run(address, MAX_ITEMS, MAX_PAGES);
+        return run(address, MAX_ITEMS, MAX_PAGES, null);
     }
 
     /**
@@ -137,6 +139,17 @@ public class PipelineService {
      * pagination-iteration block.
      */
     public PipelineResult run(Address address, int maxItems, int maxPages) {
+        return run(address, maxItems, maxPages, null);
+    }
+
+    /**
+     * Same, with the CHAIN's filter spec (owner decision 2026-11-12):
+     * when the chain definition carries a filter, the FILTER
+     * application applies THAT criterion — offline, no AI in the loop —
+     * instead of letting the AI choose one.
+     */
+    public PipelineResult run(Address address, int maxItems, int maxPages,
+                              FilterSpec filterSpec) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -247,7 +260,7 @@ public class PipelineService {
         // addresses; the code encodes no site-specific filter knowledge.
         FilterApplication application = null;
         if (flagged.hasCapability(AddressCapability.FILTERING)) {
-            application = applyFilter(flagged, selection, filterOutcome);
+            application = applyFilter(flagged, selection, filterOutcome, filterSpec);
         }
 
         return new PipelineResult(flagged, scrapeArtifact.toString(),
@@ -462,13 +475,28 @@ public class PipelineService {
             }
         }
 
+        // 1b. Stored filter CATALOGUE (owner decision 2026-11-12): when
+        // the stored zone still matches AND a catalogue was captured for
+        // it, the definitions are reused directly — the FILTER step
+        // works without the AI.
+        if (zoneSource != null && stored.isPresent()
+                && !stored.get().filters().isEmpty()) {
+            log.info("[AI] {}: filter catalogue from store - AI skipped ({} field(s))",
+                    address.id(), stored.get().filters().size());
+            return new FilterOutcome(stored.get().filters(), "stored",
+                    zoneSelector, zoneSource, note);
+        }
+
         String scopeHtml = zoneSelector != null
                 ? scopeHtml(simplifiedHtml, zoneSelector)
                 : simplifiedHtml;
         final String zoneSelectorF = zoneSelector;
         final String zoneSourceF = zoneSource;
 
-        // 3. Filter definitions from within the zone.
+        // 3. Filter definitions from within the zone. Whatever valid
+        //    catalogue is extracted — by the AI or the generic parser —
+        //    is persisted with the address, so later runs (and no-AI
+        //    runs) reuse it.
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
             try {
@@ -478,26 +506,61 @@ public class PipelineService {
                     log.info("[AI] {}: {} filter field(s) extracted: {}",
                             address.id(), filters.size(),
                             filters.stream().map(FilterDefinition::name).toList());
+                    persistCatalogue(address, stored, zoneSelector, filters);
                     return new FilterOutcome(filters, "ai", zoneSelectorF, zoneSourceF, note);
                 }
                 log.warn("[AI] {}: AI found no filter fields - generic select parsing used",
                         address.id());
-                return new FilterOutcome(
-                        exposedFilterDetector.parseSelects(scopeHtml), "fallback",
+                List<FilterDefinition> fallbackFilters =
+                        exposedFilterDetector.parseSelects(scopeHtml);
+                persistCatalogue(address, stored, zoneSelector, fallbackFilters);
+                return new FilterOutcome(fallbackFilters, "fallback",
                         zoneSelectorF, zoneSourceF,
                         note == null ? "AI found no filter fields — generic select parsing used"
                                 : note + "; generic select parsing used");
             } catch (RuntimeException e) {
                 log.warn("[AI] {}: AI filter call failed: {}", address.id(), e.getMessage());
-                return new FilterOutcome(exposedFilterDetector.parseSelects(scopeHtml),
+                List<FilterDefinition> fallbackFilters =
+                        exposedFilterDetector.parseSelects(scopeHtml);
+                persistCatalogue(address, stored, zoneSelector, fallbackFilters);
+                return new FilterOutcome(fallbackFilters,
                         "fallback", zoneSelectorF, zoneSourceF,
                         (note == null ? "" : note + "; ") + "AI filter call failed: "
                                 + e.getMessage());
             }
         }
-        return new FilterOutcome(exposedFilterDetector.parseSelects(scopeHtml),
+        List<FilterDefinition> fallbackFilters =
+                exposedFilterDetector.parseSelects(scopeHtml);
+        persistCatalogue(address, stored, zoneSelector, fallbackFilters);
+        return new FilterOutcome(fallbackFilters,
                 "fallback", zoneSelectorF, zoneSourceF,
                 note == null ? "AI not configured — generic select parsing used" : note);
+    }
+
+    /**
+     * Persists an extracted filter catalogue merged into the stored
+     * selectors (owner decision 2026-11-12): the catalogue lands in the
+     * same store entry as the item selector and the filter-zone
+     * selector, so any later run — with or without the AI — reuses it.
+     * Never overwrites a previous non-empty catalogue with an empty
+     * one; only a non-empty extraction updates the store.
+     */
+    private void persistCatalogue(Address address, Optional<StoredSelectors> stored,
+                                  String zoneSelector, List<FilterDefinition> filters) {
+        if (filters.isEmpty()) {
+            return;
+        }
+        StoredSelectors base = stored.orElse(new StoredSelectors(address.id(),
+                address.itemKind(), null, null, "fallback",
+                java.time.LocalDate.now().toString(), "filter catalogue"));
+        if (!filters.equals(base.filters())) {
+            selectorStore.save(new StoredSelectors(base.addressId(), base.kind(),
+                    base.selector(),
+                    zoneSelector != null ? zoneSelector : base.filterSelector(),
+                    filters, base.discoveredBy(), base.discoveredAt(), base.notes()));
+            log.info("[AI] {}: filter catalogue stored ({} field(s))",
+                    address.id(), filters.size());
+        }
     }
 
     /** Outer HTML of the single element a validated selector matches. */
@@ -515,12 +578,24 @@ public class PipelineService {
      * narrowed listing from the filtered response. Every failure degrades
      * to an explanatory note, never to a chain failure. Called only on
      * FILTERING-flagged addresses.
+     *
+     * <p>When the CHAIN carries a filter spec (owner decision
+     * 2026-11-12), the spec replaces the AI entirely: the criterion is
+     * coherence-matched against the address's extracted catalogue and
+     * the connector's servable requests, fully offline.</p>
      */
     FilterApplication applyFilter(Address address, SelectorSelection selection,
-                                          FilterOutcome outcome) {
+                                          FilterOutcome outcome, FilterSpec spec) {
         if (outcome.filters().isEmpty()) {
             return FilterApplication.skipped(
                     "no filter definitions extracted — nothing to apply");
+        }
+        // The connector's supported requests serve the AI prompt, the
+        // coherence guard and the offline spec match — fetched once.
+        final List<FilterRequestOption> supported =
+                scrapePort.supportedFilterRequests(address);
+        if (spec != null) {
+            return applySpecifiedFilter(address, selection, outcome, spec, supported);
         }
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai == null) {
@@ -529,10 +604,6 @@ public class PipelineService {
             return FilterApplication.skipped(
                     "AI not configured — no criterion can be chosen to apply");
         }
-        // The connector's supported requests serve both the AI prompt
-        // (the choice must be servable) and the coherence guard below —
-        // fetched once.
-        final List<String> supported = scrapePort.supportedFilterRequests(address);
         String answer;
         try {
             answer = ai.complete(
@@ -555,16 +626,84 @@ public class PipelineService {
         // supported requests (matched leniently on the request text or
         // the chosen value).
         if (!supported.isEmpty()) {
-            boolean coherent = supported.stream().anyMatch(s ->
-                    lower(s).contains(lower(request))
-                            || (value != null && lower(s).contains(lower(value))));
+            boolean coherent = supported.stream().anyMatch(o ->
+                    lower(o.request()).contains(lower(request))
+                            || (value != null && lower(o.criterion()).contains(lower(value))));
             if (!coherent) {
                 log.warn("[AI] {}: coherence guard rejected '{} = {}' (supported: {})",
-                        address.id(), field, value, String.join("; ", supported));
+                        address.id(), field, value,
+                        supported.stream().map(FilterRequestOption::criterion).toList());
                 return FilterApplication.skipped("AI chose a criterion the connector "
-                        + "cannot apply (supported: " + String.join("; ", supported) + ")");
+                        + "cannot apply (supported: " + String.join("; ",
+                        supported.stream().map(FilterRequestOption::criterion).toList()) + ")");
             }
         }
+        return applyAndExtract(address, selection, field, value, request, "ai");
+    }
+
+    /**
+     * Offline application of the CHAIN's filter spec (owner decision
+     * 2026-11-12): the spec's field/value are coherence-matched against
+     * the extracted catalogue and the connector's servable requests;
+     * the matched request token goes to the connector. No AI is
+     * consulted. A mismatch degrades to a skipped note — the chain
+     * definition and the address's real filter controls must agree.
+     */
+    private FilterApplication applySpecifiedFilter(Address address,
+                                                   SelectorSelection selection,
+                                                   FilterOutcome outcome, FilterSpec spec,
+                                                   List<FilterRequestOption> supported) {
+        log.info("[AI] {}: filter application from the chain spec - AI bypassed: "
+                + "field={} value={}", address.id(), spec.field(), spec.value());
+        // The spec's field must exist in the address's filter catalogue.
+        FilterDefinition definition = outcome.filters().stream()
+                .filter(f -> spec.matches(f.name()))
+                .findFirst()
+                .orElse(null);
+        if (definition == null) {
+            log.warn("[AI] {}: chain filter spec '{}' does not match the address's "
+                            + "filter catalogue ({}) - not applied", address.id(),
+                    spec.field(),
+                    outcome.filters().stream().map(FilterDefinition::name).toList());
+            return FilterApplication.skipped("the chain's filter spec '"
+                    + spec.field() + "' does not match the address's filter "
+                    + "catalogue (fields: " + outcome.filters().stream()
+                    .map(FilterDefinition::name).toList() + ")");
+        }
+        // The spec's value must be one the source's field actually offers.
+        if (!definition.values().isEmpty()
+                && definition.values().stream().noneMatch(spec::matches)) {
+            log.warn("[AI] {}: chain filter spec value '{}' is not offered by field "
+                    + "'{}' (values: {}) - not applied", address.id(), spec.value(),
+                    definition.name(), definition.values());
+            return FilterApplication.skipped("the chain's filter spec value '"
+                    + spec.value() + "' is not offered by the address's filter "
+                    + "field '" + definition.name() + "'");
+        }
+        // The request the connector can serve for the matched criterion.
+        FilterRequestOption option = supported.stream()
+                .filter(o -> spec.matches(o.criterion()) || spec.matches(o.request()))
+                .findFirst()
+                .orElse(null);
+        if (option == null) {
+            log.warn("[AI] {}: no servable request for the chain filter spec "
+                    + "'{} = {}' (supported: {}) - not applied", address.id(),
+                    spec.field(), spec.value(),
+                    supported.stream().map(FilterRequestOption::criterion).toList());
+            return FilterApplication.skipped("the connector does not declare a servable "
+                    + "request for the chain's filter spec '" + spec.field() + " = "
+                    + spec.value() + "'");
+        }
+        return applyAndExtract(address, selection, definition.name(), spec.value(),
+                option.request(), "chain spec");
+    }
+
+    /** Shared tail of both application paths: filter the response and
+     * extract with the SAME validated selector. */
+    private FilterApplication applyAndExtract(Address address,
+                                              SelectorSelection selection,
+                                              String field, String value,
+                                              String request, String source) {
         ScrapeResult filteredScrape;
         try {
             filteredScrape = scrapePort.scrapeFiltered(address, request);
@@ -581,7 +720,7 @@ public class PipelineService {
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
                 address.id(), MAX_ITEMS));
         return new FilterApplication(field, value, request,
-                filteredArtifact.toString(), filteredItems, "ai", null);
+                filteredArtifact.toString(), filteredItems, source, null);
     }
 
     /** Case-insensitive containment helper for the coherence guard. */

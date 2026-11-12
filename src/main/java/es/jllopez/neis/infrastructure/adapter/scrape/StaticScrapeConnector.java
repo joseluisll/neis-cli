@@ -1,6 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.FilterRequestOption;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.port.ContentScrapePort;
 import org.springframework.stereotype.Component;
@@ -74,16 +75,23 @@ public class StaticScrapeConnector implements ContentScrapePort {
      * The criterion each captured filtered response embodies (one per
      * FILTERING-flagged address; see the registry above and
      * mvp/samples/README.md). The apply prompt constrains the AI's
-     * choice to these requests, so the reported criterion always
+     * choice to these requests and the chain's offline filter-spec
+     * application matches against them, so an applied criterion always
      * corresponds to the captured response the connector serves.
      */
-    private static final Map<String, String> FILTER_CRITERIA = Map.of(
-            "ADDR-003", "Programme = Horizon Europe (HORIZON) (request: programme=HORIZON)",
-            "ADDR-004", "Status = Past (request: status=PAST)",
-            "ADDR-005", "Event status = Past (request: facets[status]=past)",
-            "ADDR-006", "Programme = EU4Health (request: programme=EU4Health)",
-            "ADDR-007", "Responsible body = CHMP (request: responsible_body=CHMP)",
-            "ADDR-008", "Category = Human (request: facets[category]=human)");
+    private static final Map<String, FilterRequestOption> FILTER_CRITERIA = Map.of(
+            "ADDR-003", new FilterRequestOption(
+                    "Programme = Horizon Europe (HORIZON)", "programme=HORIZON"),
+            "ADDR-004", new FilterRequestOption(
+                    "Status = Past", "status=PAST"),
+            "ADDR-005", new FilterRequestOption(
+                    "Event status = Past", "facets[status]=past"),
+            "ADDR-006", new FilterRequestOption(
+                    "Programme = EU4Health", "programme=EU4Health"),
+            "ADDR-007", new FilterRequestOption(
+                    "Responsible body = CHMP", "responsible_body=CHMP"),
+            "ADDR-008", new FilterRequestOption(
+                    "Category = Human", "facets[category]=human"));
 
     @Override
     public ScrapeResult scrape(Address address) {
@@ -91,9 +99,9 @@ public class StaticScrapeConnector implements ContentScrapePort {
     }
 
     @Override
-    public List<String> supportedFilterRequests(Address address) {
-        String criterion = FILTER_CRITERIA.get(address.id());
-        return criterion == null ? List.of() : List.of(criterion);
+    public List<FilterRequestOption> supportedFilterRequests(Address address) {
+        FilterRequestOption option = FILTER_CRITERIA.get(address.id());
+        return option == null ? List.of() : List.of(option);
     }
 
     @Override

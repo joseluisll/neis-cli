@@ -5,6 +5,7 @@ import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.Chain;
 import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.model.ExecutionStatus;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
 import es.jllopez.neis.domain.model.VerificationStatus;
@@ -65,7 +66,7 @@ class ExecutionServiceTest {
     @SuppressWarnings("unchecked")
     private TaskWorkService workReturning(String outcome) {
         TaskWorkService work = mock(TaskWorkService.class);
-        when(work.execute(anyString(), any(Address.class), anyMap(), any())).thenReturn(outcome);
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenReturn(outcome);
         return work;
     }
 
@@ -95,7 +96,7 @@ class ExecutionServiceTest {
         InMemoryExecutionStorePort store =
                 new InMemoryExecutionStorePort(List.of("WEBSCRAPE"));
         TaskWorkService failing = mock(TaskWorkService.class);
-        when(failing.execute(anyString(), any(Address.class), anyMap(), any()))
+        when(failing.execute(anyString(), any(Address.class), anyMap(), any(), any()))
                 .thenThrow(new IllegalStateException("scrape boom"));
         ExecutionService service = service(failing, DIRECT, store);
 
@@ -233,7 +234,7 @@ class ExecutionServiceTest {
         List<long[]> intervals =
                 java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         TaskWorkService slowWork = mock(TaskWorkService.class);
-        when(slowWork.execute(anyString(), any(Address.class), anyMap(), any())).thenAnswer(inv -> {
+        when(slowWork.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
             long start = System.nanoTime();
             intervals.add(new long[]{start, 0}); // enter
             Thread.sleep(250);
@@ -301,6 +302,36 @@ class ExecutionServiceTest {
     }
 
     @Test
+    void aChainFilterSpecIsThreadedToEveryStepOfTheRun() {
+        // Owner decision 2026-11-12: the filter belongs to the chain
+        // definition (the FILTER step's parameters); the executor parses
+        // it once and hands it to every filter-applying step of the run.
+        InMemoryChainStorePort chainStore = new InMemoryChainStorePort();
+        chainStore.save(chain("CHAIN-FLT", "filtered pipeline",
+                ChainTask.at(1, "WEBSCRAPE"),
+                new ChainTask(2, "FILTER", Map.of("field", "Programme", "value", "EU4Health")),
+                ChainTask.at(3, "PRINT")));
+        TaskWorkService work = mock(TaskWorkService.class);
+        Map<String, Object> specByCode = new java.util.HashMap<>();
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any()))
+                .thenAnswer(inv -> {
+                    specByCode.put(inv.getArgument(0), inv.getArgument(4));
+                    return "ok";
+                });
+        InMemoryExecutionStorePort store = new InMemoryExecutionStorePort(List.of("CHAIN"));
+        ExecutionService service = service(work, DIRECT, store, chainStore);
+
+        TaskExecution finished = service.await(
+                service.submitChain("CHAIN-FLT", "ADDR-001", TriggerType.MANUAL).id());
+
+        assertEquals(ExecutionStatus.SUCCESS, finished.status());
+        Object expected = new FilterSpec("Programme", "EU4Health");
+        assertEquals(expected, specByCode.get("WEBSCRAPE"));
+        assertEquals(expected, specByCode.get("FILTER"));
+        assertEquals(expected, specByCode.get("PRINT"));
+    }
+
+    @Test
     void aChainRunsItsStepsSequentiallyInPositionOrder() {
         InMemoryChainStorePort chainStore = new InMemoryChainStorePort();
         chainStore.save(chain("CHAIN-SEQ", "pipeline",
@@ -309,7 +340,7 @@ class ExecutionServiceTest {
         TaskWorkService work = mock(TaskWorkService.class);
         List<String> invoked = new java.util.ArrayList<>();
         Map<String, Map<String, String>> paramsByCode = new java.util.HashMap<>();
-        when(work.execute(anyString(), any(Address.class), anyMap(), any())).thenAnswer(inv -> {
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
             String code = inv.getArgument(0);
             invoked.add(code);
             paramsByCode.put(code, inv.getArgument(2));
@@ -347,7 +378,7 @@ class ExecutionServiceTest {
                 ChainTask.at(3, "PRINT")));
         TaskWorkService work = mock(TaskWorkService.class);
         List<String> invoked = new java.util.ArrayList<>();
-        when(work.execute(anyString(), any(Address.class), anyMap(), any())).thenAnswer(inv -> {
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
             String code = inv.getArgument(0);
             invoked.add(code);
             if ("SIMPLIFY".equals(code)) {

@@ -4,6 +4,7 @@ import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.Chain;
 import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.model.ExecutionStatus;
+import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
 import es.jllopez.neis.domain.port.ChainStorePort;
@@ -175,7 +176,7 @@ public class ExecutionService {
             synchronized (addressLocks.computeIfAbsent(address.id(), key -> new Object())) {
                 outcome = record.chainId() != null
                         ? runChain(record.chainId(), address)
-                        : taskWork.execute(record.taskCode(), address, Map.of(), null);
+                        : taskWork.execute(record.taskCode(), address, Map.of(), null, null);
             }
             finalStatus = ExecutionStatus.SUCCESS;
         } catch (Throwable t) {
@@ -218,12 +219,20 @@ public class ExecutionService {
         Chain chain = chains.findById(chainId).orElseThrow(
                 () -> new IllegalStateException("Chain vanished mid-run: " + chainId));
         List<ChainTask> tasks = chain.tasks();
+        // The chain's filter (owner decision 2026-11-12): carried by the
+        // chain's FILTER step, applied by every filter-applying step of
+        // this run. Parsed once, up front.
+        FilterSpec chainFilterSpec = tasks.stream()
+                .filter(t -> "FILTER".equals(t.taskCode()))
+                .findFirst()
+                .map(t -> FilterSpec.of(t.parameters()))
+                .orElse(null);
         StringBuilder outcome = new StringBuilder();
         for (int i = 0; i < tasks.size(); i++) {
             ChainTask task = tasks.get(i);
             try {
                 String stepOutcome = taskWork.execute(task.taskCode(), address,
-                        task.parameters(), chain.name());
+                        task.parameters(), chain.name(), chainFilterSpec);
                 outcome.append("step ").append(i + 1).append('/').append(tasks.size())
                         .append(' ').append(task.taskCode()).append(": ")
                         .append(stepOutcome);

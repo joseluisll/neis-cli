@@ -1,6 +1,7 @@
 package es.jllopez.neis.domain.port;
 
 import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.FilterRequestOption;
 import es.jllopez.neis.domain.model.ScrapeResult;
 
 import java.util.List;
@@ -52,13 +53,14 @@ public interface ContentScrapePort {
      * The filter requests this connector can currently APPLY for the
      * address (US-06.6): a rendering/scraping connector knows which
      * interactions it can serve. Empty means unconstrained — the
-     * connector applies any AI-derived request. The static MVP connector
+     * connector applies any derived request. The static MVP connector
      * reports the criteria its captured filtered responses embody, so
-     * the apply prompt chooses among the criteria the connector can
-     * actually serve and the applied criterion always matches the
-     * captured response.
+     * an applied criterion always matches the captured response. The
+     * structured form is what lets the FILTER step apply a chain-defined
+     * {@code FilterSpec} offline: match the spec against the criteria,
+     * take the request token, no AI in the loop.
      */
-    default List<String> supportedFilterRequests(Address address) {
+    default List<FilterRequestOption> supportedFilterRequests(Address address) {
         return List.of();
     }
 }
