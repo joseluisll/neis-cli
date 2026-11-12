@@ -886,10 +886,12 @@ ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="?page=1")
            selectors: news=article.ema-news.teaser, events=-
            used selector: article.ema-news.teaser (stored with the source; AI skipped)
 ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://www.ema.europa.eu/en/news?page={n}; filtering flagged by AI)
-FILTER   : 8 filter field(s) available [ai]
+FILTER   : 10 filter field(s) available [ai]
            filter zone: #oe-list-pages-facets-form (identified by ai, persisted with the address)
            - Keyword: (free text)
            - Last updated date: Show all | After | Before | From - To
+           - Date (start date): (free text)
+           - End date: (free text)
            - Date range: This week | This month | Last week | Last month
            - Category: (free text)
            - Topic: (free text)
@@ -1146,12 +1148,12 @@ ANALYZE  : pagination DETECTED (Paginated URL pattern detected: href="?page=1")
 ANALYZE  : capabilities flagged: FILTERING, PAGINATION (pagination flagged by AI: https://www.ema.europa.eu/en/events/upcoming-events?page={n}; filtering flagged by AI)
 FILTER   : 3 filter field(s) available [ai]
            note: AI did not yield a valid filter-zone selector
-           - Category (partially visible multi-select, only last option shown): Vaccines (1)
-           - Product type (multi-select): Corporate (6) | Herbal (1) | Human (76) | Veterinary (4)
+           - Category / Product type (multi-select): Corporate (6) | Herbal (1) | Human (76) | Veterinary (4)
            - Committee (multi-select): CAT (1) | CHMP (2) | COMP (1) | CVMP (1) | HMPC (1) | Management Board (5) | PDCO (2) | PRAC (24)
+           - Topic / Therapeutic area (partially visible multi-select): Vaccines (1)
            page URL pattern: https://www.ema.europa.eu/en/events/upcoming-events?page={n}
            pagination iteration: 5 page(s) scraped (gated on the PAGINATION flag)
-APPLY    : Category = Human [facets[category]=human]
+APPLY    : Category / Product type = Human [facets[category]=human]
            filtered scrape: <WORK>/ADDR-008/cap-e8a1780c1631/content/FILTER/scrape-filtered.html
 PRINT(f) : 10 event item(s) in the FILTERED listing (unfiltered: 50)
   1. Mandatory use of ISO/ICH E2B(R3) individual case safety reporting in the EU: hands-on training course using the EudraVigilance system
