@@ -2,6 +2,7 @@ package es.jllopez.neis.testsupport;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 /** In-memory news/events store for unit tests: the same deterministic
  * (address, url — or title) upsert semantics as the real connector,
@@ -28,6 +30,12 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     /** One provenance pair per saveAll call (US-14.2, exact-field assertions). */
     public record ProvenanceCall(String executionId, String contentId) {}
     public final List<ProvenanceCall> provenanceCalls = new ArrayList<>();
+    /** In-memory sighting history (US-14.5): keyed by canonical id —
+     * the double's rows have no row ids, so its {@link #sightings}
+     * lookup is by canonical id (a faithful stand-in: the real store's
+     * sightings hang off the row whose canonical id is the same). */
+    private final Map<String, List<NewsEventSighting>> sightingHistory =
+            new HashMap<>();
 
     @Override
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
@@ -43,15 +51,24 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
             String url = item.url() == null || item.url().isBlank()
                     ? null : item.url();
             List<String> missing = item.missingMandatory();
-            store.put(key,
-                    new NewsEventItem(addressId,
-                            kind == null ? item.kind() : kind,
-                            item.title() == null ? "" : item.title(),
-                            item.description(), url,
-                            item.date(), item.picture(), item.location(),
-                            executionId, contentId,
-                            !missing.isEmpty(),
-                            missing.isEmpty() ? null : String.join(", ", missing)));
+            NewsEventItem row = new NewsEventItem(addressId,
+                    kind == null ? item.kind() : kind,
+                    item.title() == null ? "" : item.title(),
+                    item.description(), url,
+                    item.date(), item.picture(), item.location(),
+                    executionId, contentId,
+                    !missing.isEmpty(),
+                    missing.isEmpty() ? null : String.join(", ", missing),
+                    item.canonicalId());
+            store.put(key, row);
+            // US-14.5 sighting: one per saveAll that produced the item,
+            // carrying the same provenance (the real connector stores a
+            // row per (item, execution, content) — the double's list
+            // keeps them in order).
+            sightingHistory.computeIfAbsent(row.canonicalId(),
+                            k -> new ArrayList<>())
+                    .add(new NewsEventSighting(row.canonicalId(), addressId,
+                            contentId, executionId, Instant.now()));
             sequence.put(key, stamp);
             stored++;
         }
@@ -87,6 +104,11 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     @Override
     public long count() {
         return store.size();
+    }
+
+    @Override
+    public List<NewsEventSighting> sightings(String itemId) {
+        return List.copyOf(sightingHistory.getOrDefault(itemId, List.of()));
     }
 
     private List<NewsEventItem> newestFirst(

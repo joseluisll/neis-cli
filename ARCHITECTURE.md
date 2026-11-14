@@ -281,6 +281,19 @@ cap.
   clears the flag. `news list` marks such rows
   `INCOMPLETE(missing: ...)` so selector or source problems are visible
   in the listing itself.
+- Deduplication across captures (US-14.5, schema V6): every row carries
+  a DETERMINISTIC `canonical_id` — hashed from the item's stable
+  identifier (its detail URL, fragment/trailing-slash normalized) or,
+  for link-less items, from the similarity baseline (normalized title +
+  leniently parsed date, kind-agnostic) — so the same story seen again
+  (later capture, paginated page, other address) lands on the same
+  canonical id without any lookup, while each address keeps its own
+  row. Every capture that produced an item also records a SIGHTING
+  (`news_event_sightings`, one row per item × execution/content pair)
+  with its US-14.2 provenance — re-encounters add sightings, never
+  records. `news sightings [--address] [--limit]` shows the appearance
+  history grouped by canonical id (one logical record, with the
+  addresses it was seen on).
 
 ## Enforced rules (ArchUnit)
 

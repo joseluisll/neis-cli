@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.ExecutionStorePort;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import org.springframework.stereotype.Service;
@@ -70,5 +71,15 @@ public class NewsEventService {
     /** The total number of stored items. */
     public long count() {
         return newsEventStore.count();
+    }
+
+    /**
+     * The appearance history of one logical record (US-14.5), looked
+     * up by its canonical id: one entry per capture in which any row
+     * of the record appeared, newest first. Re-encounters add
+     * sightings, never records.
+     */
+    public List<NewsEventSighting> sightings(String canonicalId) {
+        return newsEventStore.sightings(canonicalId);
     }
 }

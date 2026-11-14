@@ -70,6 +70,11 @@ public class NewsEventEntity {
     @Column(name = "missing_fields")
     private String missingFields;
 
+    /** The deterministic dedup id (US-14.5): rows sharing it are one
+     * logical record. Nullable (rows persisted before V6). */
+    @Column(name = "canonical_id")
+    private String canonicalId;
+
     public String getId() {
         return id;
     }
@@ -188,5 +193,13 @@ public class NewsEventEntity {
 
     public void setMissingFields(String missingFields) {
         this.missingFields = missingFields;
+    }
+
+    public String getCanonicalId() {
+        return canonicalId;
+    }
+
+    public void setCanonicalId(String canonicalId) {
+        this.canonicalId = canonicalId;
     }
 }

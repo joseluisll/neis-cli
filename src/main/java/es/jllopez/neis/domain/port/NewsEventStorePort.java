@@ -2,6 +2,7 @@ package es.jllopez.neis.domain.port;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 
 import java.util.List;
 
@@ -64,4 +65,13 @@ public interface NewsEventStorePort {
 
     /** The total number of stored items (all addresses). */
     long count();
+
+    /**
+     * The appearance history of one logical record (US-14.5), looked
+     * up by its canonical id: one entry per capture in which any row
+     * of the record appeared, newest first, each with its US-14.2
+     * provenance. Re-encounters (later captures, paginated pages,
+     * other addresses) add sightings — never records.
+     */
+    List<NewsEventSighting> sightings(String canonicalId);
 }

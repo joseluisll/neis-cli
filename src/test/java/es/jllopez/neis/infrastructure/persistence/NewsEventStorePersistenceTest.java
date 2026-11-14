@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.persistence;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -319,5 +320,58 @@ class NewsEventStorePersistenceTest {
                 .filter(item -> "Healthy item".equals(item.title()))
                 .findFirst().orElseThrow();
         assertTrue(!healthyRow.incomplete());
+    }
+
+    @Test
+    void reEncounterAddsSightingNotRecord() {
+        // US-14.5: re-running the extraction over the same address
+        // updates the existing row and records a sighting per capture —
+        // no duplicate records.
+        seedAddress("ADDR-NF");
+        var item = new NewsEventItem("ADDR-NF", "news", "Seen again",
+                "Description", "https://example.eu/again", "2026-11-14");
+
+        assertEquals(1, store.saveAll("ADDR-NF", "news",
+                List.of(item), "exec-1", "CONT-1"));
+        assertEquals(1, store.saveAll("ADDR-NF", "news",
+                List.of(item), "exec-2", "CONT-2"));
+
+        assertEquals(1, store.byAddress("ADDR-NF").size(),
+                "still one record");
+        var canonicalId = store.byAddress("ADDR-NF").get(0).canonicalId();
+        var sightings = store.sightings(canonicalId);
+        assertEquals(2, sightings.size(), "two captures, two sightings");
+        assertTrue(sightings.stream().anyMatch(s ->
+                "exec-1".equals(s.executionId()) && "CONT-1".equals(s.contentId())));
+        assertTrue(sightings.stream().anyMatch(s ->
+                "exec-2".equals(s.executionId()) && "CONT-2".equals(s.contentId())));
+    }
+
+    @Test
+    void sameStoryOnAnotherAddressJoinsTheCanonicalRecord() {
+        // US-14.5 cross-address dedup: the same story (same URL, or
+        // same title+date when there is no link) seen from another
+        // address shares the canonical id — one logical record — while
+        // each address keeps its own row.
+        seedAddress("ADDR-NG");
+        seedAddress("ADDR-NH");
+        store.saveAll("ADDR-NG", "news", List.of(new NewsEventItem(
+                "ADDR-NG", "news", "Shared story", "d",
+                "https://example.eu/shared", "2026-11-14")), null, null);
+        store.saveAll("ADDR-NH", "news", List.of(new NewsEventItem(
+                "ADDR-NH", "news", "SHARED   story", null,
+                "https://example.eu/shared", "2026-11-14")), null, null);
+
+        assertEquals(1, store.byAddress("ADDR-NG").size());
+        assertEquals(1, store.byAddress("ADDR-NH").size());
+        assertEquals(store.byAddress("ADDR-NG").get(0).canonicalId(),
+                store.byAddress("ADDR-NH").get(0).canonicalId(),
+                "the two rows are one logical record");
+
+        // The sightings of the logical record span both addresses.
+        var canonicalId = store.byAddress("ADDR-NG").get(0).canonicalId();
+        assertEquals(2, store.sightings(canonicalId).size());
+        assertEquals(2, store.sightings(canonicalId).stream()
+                .map(NewsEventSighting::addressId).distinct().count());
     }
 }

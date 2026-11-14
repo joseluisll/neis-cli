@@ -4,6 +4,7 @@ import es.jllopez.neis.application.NewsEventService;
 import es.jllopez.neis.application.NewsEventService.ProvenanceGap;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.CommandGroup;
 import org.springframework.shell.core.command.annotation.Option;
@@ -126,6 +127,48 @@ public class NewsCommands {
         }
         if (gaps.isEmpty()) {
             out.append("  all provenance references resolve\n");
+        }
+        return out.toString();
+    }
+
+    @Command(name = {"news", "sightings"}, group = "News",
+            description = "The appearance history of the stored news/events (US-14.5): "
+                    + "grouped by canonical id (one logical record), every capture that "
+                    + "produced each item with its provenance; re-encounters add sightings, "
+                    + "never records. Filter by address.")
+    public String sightings(
+            @Option(shortName = 'a', longName = "address",
+                    description = "Address id (omit for every address)") String addressId,
+            @Option(longName = "limit", defaultValue = "20",
+                    description = "Maximum number of items (logical records) to show") int limit) {
+        List<NewsEventItem> items = newsEvents.search(new NewsEventQuery(
+                addressId == null ? null : addressId.trim(), null, null, null, limit));
+        StringBuilder out = new StringBuilder("Sighting history (")
+                .append(items.size()).append(items.size() == 1 ? " item" : " items")
+                .append("):\n");
+        for (NewsEventItem item : items) {
+            List<NewsEventSighting> sightings = newsEvents.sightings(item.canonicalId());
+            long addresses = sightings.stream().map(NewsEventSighting::addressId)
+                    .distinct().count();
+            out.append("  ").append(item.canonicalId())
+                    .append("  [").append(item.addressId()).append("]  ")
+                    .append(item.title() == null ? "<no title>" : item.title())
+                    .append("  ").append(sightings.size())
+                    .append(" sighting(s) across ").append(addresses)
+                    .append(" address(es)\n");
+            for (NewsEventSighting sighting : sightings) {
+                out.append("    seen in [").append(sighting.addressId()).append("]  ")
+                        .append(sighting.seenAt())
+                        .append("  {").append(sighting.executionId() == null
+                                ? "-" : sighting.executionId())
+                        .append(" | ").append(sighting.contentId() == null
+                                ? "-" : sighting.contentId()).append("}\n");
+            }
+        }
+        if (items.isEmpty()) {
+            out.append("  <no stored news/events")
+                    .append(addressId == null ? "" : " for address " + addressId)
+                    .append(">\n");
         }
         return out.toString();
     }

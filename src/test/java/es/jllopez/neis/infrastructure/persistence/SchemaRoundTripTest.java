@@ -56,9 +56,10 @@ class SchemaRoundTripTest {
         // V1 = the base schema; V2 = the captures table (US-11.4); V3 =
         // the news/events repository table (US-14.1); V4 = its
         // provenance columns (US-14.2); V5 = the mandatory-metadata
-        // columns (US-14.4).
-        assertEquals(5, applied.size(),
-                "the V1..V5 migrations should be applied");
+        // columns (US-14.4); V6 = the dedup canonical id + sightings
+        // (US-14.5).
+        assertEquals(6, applied.size(),
+                "the V1..V6 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.

@@ -2,15 +2,19 @@ package es.jllopez.neis.infrastructure.adapter.persistence;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import es.jllopez.neis.infrastructure.persistence.NewsEventEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventJpaRepository;
+import es.jllopez.neis.infrastructure.persistence.NewsEventSightingEntity;
+import es.jllopez.neis.infrastructure.persistence.NewsEventSightingJpaRepository;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Connector (driven adapter) implementing the news/events repository
@@ -26,9 +30,12 @@ import java.util.List;
 public class NewsEventStoreConnector implements NewsEventStorePort {
 
     private final NewsEventJpaRepository jpa;
+    private final NewsEventSightingJpaRepository sightingJpa;
 
-    public NewsEventStoreConnector(NewsEventJpaRepository jpa) {
+    public NewsEventStoreConnector(NewsEventJpaRepository jpa,
+                                   NewsEventSightingJpaRepository sightingJpa) {
         this.jpa = jpa;
+        this.sightingJpa = sightingJpa;
     }
 
     @Override
@@ -70,12 +77,19 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             entity.setIncomplete(!missing.isEmpty());
             entity.setMissingFields(missing.isEmpty()
                     ? null : String.join(", ", missing));
+            // US-14.5 dedup: the deterministic canonical id — the same
+            // story seen again (later capture, paginated page, other
+            // address) lands on the same id without any lookup.
+            entity.setCanonicalId(item.canonicalId());
             if (isNew) {
                 entity.setCreatedAt(now);
             }
             entity.setUpdatedAt(now);
             jpa.save(entity);
             stored++;
+            // US-14.5: every capture that produced the item adds a
+            // sighting — the appearance history, never a new record.
+            sightingJpa.save(sighting(id, addressId, executionId, contentId, now));
         }
         return stored;
     }
@@ -123,7 +137,52 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
                 e.getTitle(), e.getDescription(), e.getUrl(), e.getDate(),
                 e.getPicture(), e.getLocation(),
                 e.getExecutionId(), e.getContentId(),
-                e.isIncomplete(), e.getMissingFields());
+                e.isIncomplete(), e.getMissingFields(),
+                e.getCanonicalId());
+    }
+
+    @Override
+    public List<NewsEventSighting> sightings(String canonicalId) {
+        // The logical record (canonical id) may span several rows (one
+        // per address that saw it): every row's sightings belong to it.
+        return jpa.findByCanonicalId(canonicalId).stream()
+                .flatMap(e -> sightingJpa
+                        .findByItemIdOrderBySeenAtDesc(e.getId()).stream())
+                .sorted(java.util.Comparator.comparing(
+                        NewsEventSightingEntity::getSeenAt).reversed())
+                .map(s -> new NewsEventSighting(s.getItemId(), s.getAddressId(),
+                        s.getContentId(), s.getExecutionId(),
+                        Instant.parse(s.getSeenAt())))
+                .toList();
+    }
+
+    /** One sighting row: a deterministic id keeps an identical
+     * (item, execution, content) sighting idempotent, while a new
+     * capture (new execution/content pair) adds a new sighting. */
+    private static NewsEventSightingEntity sighting(String itemId,
+                                                    String addressId,
+                                                    String executionId,
+                                                    String contentId,
+                                                    String now) {
+        NewsEventSightingEntity s = new NewsEventSightingEntity();
+        String naturalKey = itemId + "|" + executionId + "|" + contentId;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(naturalKey.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder("ne-s-");
+            for (int i = 0; i < 8; i++) {
+                sb.append(String.format("%02x", hash[i]));
+            }
+            s.setId(sb.toString());
+        } catch (java.security.NoSuchAlgorithmException e) {
+            s.setId("ne-s-" + UUID.randomUUID());
+        }
+        s.setItemId(itemId);
+        s.setAddressId(addressId);
+        s.setExecutionId(executionId);
+        s.setContentId(contentId);
+        s.setSeenAt(now);
+        return s;
     }
 
     /**

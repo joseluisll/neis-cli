@@ -55,4 +55,63 @@ class NewsEventItemTest {
         assertEquals(null, item.location());
         assertTrue(item.missingMandatory().isEmpty());
     }
+
+    // --- US-14.5 dedup identity (issue #83) ---
+
+    @Test
+    void sameUrlIsTheSameCanonicalRecordAcrossAddresses() {
+        var a = new NewsEventItem("ADDR-1", "news", "Title A", "d",
+                "https://example.eu/story", "2026-11-14");
+        var b = new NewsEventItem("ADDR-2", "news", "Title B (different wording)", null,
+                "https://example.eu/story", "2026-11-01");
+        assertEquals(a.canonicalId(), b.canonicalId(),
+                "the stable identifier (URL) groups the rows");
+    }
+
+    @Test
+    void urlFragmentsAndTrailingSlashesDoNotSplitTheRecord() {
+        var plain = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story", "2026-11-14");
+        var fragment = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story#section", "2026-11-14");
+        var slash = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story/", "2026-11-14");
+        assertEquals(plain.canonicalId(), fragment.canonicalId());
+        assertEquals(plain.canonicalId(), slash.canonicalId());
+    }
+
+    @Test
+    void linkLessItemsMatchOnTitlePlusDateBaseline() {
+        var human = new NewsEventItem("ADDR-1", "event", "Annual Cybersecurity Day",
+                null, null, "Dec 3, 2026");
+        var iso = new NewsEventItem("ADDR-2", "news", "annual   cybersecurity day",
+                "other description", null, "2026-12-03");
+        assertEquals(human.canonicalId(), iso.canonicalId(),
+                "title+date baseline: case/whitespace-insensitive title, "
+                        + "leniently parsed date, kind-agnostic");
+    }
+
+    @Test
+    void differentTitlesOrDatesAreDifferentRecords() {
+        var base = new NewsEventItem("ADDR-1", "news", "Story", "d",
+                null, "2026-11-14");
+        var otherTitle = new NewsEventItem("ADDR-2", "news", "Another story", "d",
+                null, "2026-11-14");
+        var otherDate = new NewsEventItem("ADDR-2", "news", "Story", "d",
+                null, "2026-11-15");
+        var undated = new NewsEventItem("ADDR-2", "news", "Story", "d",
+                null, null);
+        assertTrue(!base.canonicalId().equals(otherTitle.canonicalId()));
+        assertTrue(!base.canonicalId().equals(otherDate.canonicalId()));
+        assertTrue(!base.canonicalId().equals(undated.canonicalId()),
+                "an undated item does not match a dated one");
+    }
+
+    @Test
+    void canonicalIdIsStableAcrossRecomputation() {
+        var item = new NewsEventItem("ADDR-1", "news", "Story", "d",
+                "https://example.eu/s", "2026-11-14");
+        assertEquals(item.canonicalId(), item.canonicalId());
+        assertTrue(item.canonicalId().startsWith("cn-"));
+    }
 }
