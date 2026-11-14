@@ -7,7 +7,8 @@ import java.util.List;
 /**
  * Port for selector-based extraction of news/events items from HTML5
  * content (requirement US-12.2, issue #47; selectors come from the
- * ANALYZE step, US-13.3/US-13.4).
+ * ANALYZE step — stored, preconfigured (US-12.1) or AI-identified,
+ * US-13.3/US-13.4).
  */
 public interface SelectorExtractionPort {
 
@@ -19,9 +20,12 @@ public interface SelectorExtractionPort {
      * @param kind       "news" or "event"
      * @param addressId  owning address id
      * @param maxItems   extraction limit (US-12.5 spirit)
+     * @param baseUrl    base URI for resolving the items' relative detail
+     *                   links to absolute URLs (the address's own URL);
+     *                   nullable — without it relative hrefs stay relative
      */
     List<NewsEventItem> extract(String html, String cssSelector, String kind,
-                                String addressId, int maxItems);
+                                String addressId, int maxItems, String baseUrl);
 
     /**
      * Number of elements the CSS selector matches in the given HTML.

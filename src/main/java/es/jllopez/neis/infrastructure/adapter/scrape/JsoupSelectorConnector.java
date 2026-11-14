@@ -36,16 +36,19 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
 
     @Override
     public List<NewsEventItem> extract(String html, String cssSelector, String kind,
-                                       String addressId, int maxItems) {
+                                       String addressId, int maxItems, String baseUrl) {
         List<NewsEventItem> items = new ArrayList<>();
         if (cssSelector == null || cssSelector.isBlank()) {
             return items;
         }
-        Document doc = Jsoup.parse(html);
+        // The address's URL as base URI: the item detail links resolve to
+        // absolute URLs when the page carries relative hrefs (US-12.2,
+        // extracted item data).
+        Document doc = Jsoup.parse(html, baseUrl == null ? "" : baseUrl);
         Elements matched;
         try {
             matched = doc.select(cssSelector);
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) { // jsoup: SelectorParseException, IAE
             return items; // invalid selector -> no items (validation by extraction)
         }
         for (Element el : matched) {
@@ -70,7 +73,7 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         }
         try {
             return Jsoup.parse(html).select(cssSelector).size();
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) { // jsoup: SelectorParseException, IAE
             return 0; // invalid selector -> no matches
         }
     }
@@ -83,7 +86,7 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         try {
             Element zone = Jsoup.parse(html).selectFirst(cssSelector);
             return zone != null ? zone.outerHtml() : null;
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) { // jsoup: SelectorParseException, IAE
             return null; // invalid selector
         }
     }

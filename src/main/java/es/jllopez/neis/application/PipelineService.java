@@ -209,7 +209,8 @@ public class PipelineService {
 
         // PRINT input: selector-based extraction of the discovered items.
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
-                selection.selector(), flagged.itemKind(), flagged.id(), maxItems));
+                selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
+                flagged.url()));
 
         // Pagination-iteration block (US-12.4 slice): ONLY on addresses
         // flagged PAGINATION, and only when the AI derived a page URL
@@ -234,7 +235,8 @@ public class PipelineService {
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html());
                 int before = items.size();
                 for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
-                        selection.selector(), flagged.itemKind(), flagged.id(), maxItems)) {
+                        selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
+                        flagged.url())) {
                     if (isNew(items, item)) {
                         items.add(item);
                     }
@@ -723,7 +725,7 @@ public class PipelineService {
                 "simplified-filtered.html", filteredSimplified.html());
         List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
-                address.id(), MAX_ITEMS));
+                address.id(), MAX_ITEMS, address.url()));
         return new FilterApplication(field, value, request,
                 filteredArtifact.toString(), filteredItems, source, null);
     }
@@ -870,7 +872,7 @@ public class PipelineService {
                           Address address) {
         return selector != null && !selector.isBlank()
                 && !extractionPort.extract(simplifiedHtml, selector, kind,
-                        address.id(), 1).isEmpty();
+                        address.id(), 1, address.url()).isEmpty();
     }
 
     private List<String> fallbackSelectors(Address address) {
