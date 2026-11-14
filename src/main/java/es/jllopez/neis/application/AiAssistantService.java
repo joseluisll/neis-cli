@@ -31,7 +31,8 @@ public class AiAssistantService {
         if (port == null) {
             throw new IllegalStateException(
                     "AI integration point is not configured"
-                    + " (enable neis.ai.enabled and provide neis.ai.api-key)");
+                    + " (enable neis.ai.enabled and set the environment variable"
+                    + " named by neis.ai.api-key-ref, default MELIOUS_API_KEY)");
         }
         return port.complete(prompt);
     }

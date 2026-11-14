@@ -39,7 +39,7 @@ public class SpringAiConnector implements AiAssistantPort {
             @Value("${neis.ai.base-url}") String baseUrl,
             @Value("${neis.ai.model:}") String model,
             @Value("${neis.ai.api-key-ref:MELIOUS_API_KEY}") String apiKeyRef,
-            @Value("${neis.ai.api-key:}") String legacyApiKey) {
+            org.springframework.core.env.Environment environment) {
         // US-15.3 (issue #66): exactly one provider is accepted in this
         // iteration — MeliousAI; configuring any other name is refused
         // until a new owner decision adds it.
@@ -48,28 +48,42 @@ public class SpringAiConnector implements AiAssistantPort {
                     "AI provider '" + provider + "' is not accepted (US-15.3): "
                             + "the only configured provider in this iteration is 'melious'");
         }
+        String effectiveRef = apiKeyRef == null || apiKeyRef.isBlank()
+                ? "MELIOUS_API_KEY" : apiKeyRef.trim();
         // The key comes from the environment variable named by
-        // api-key-ref — never from configuration. A neis.ai.api-key
-        // value that does not match the environment key is a plain-text
-        // key in configuration: rejected (US-15.3).
-        String envKey = System.getenv(apiKeyRef == null || apiKeyRef.isBlank()
-                ? "MELIOUS_API_KEY" : apiKeyRef.trim());
+        // api-key-ref — never from configuration. The legacy
+        // neis.ai.api-key property is read through the Environment (NOT
+        // via a @Value placeholder: a credential-sanitizer mangled the
+        // "${...:}" literal into an unbootable default — blocker of the
+        // US-15.3 review, 2026-11-14). A legacy value that does not
+        // match the environment key is a plain-text key in
+        // configuration: rejected; the old masked '***' placeholder
+        // gets its own migration message.
+        String legacyApiKey = environment.getProperty("neis.ai.api-key", "");
+        String envKey = System.getenv(effectiveRef);
         if (legacyApiKey != null && !legacyApiKey.isBlank()
                 && !legacyApiKey.equals(envKey)) {
+            if ("***".equals(legacyApiKey.trim())) {
+                throw new IllegalArgumentException(
+                        "neis.ai.api-key holds the old masked placeholder '***' "
+                                + "(US-15.3): remove it from configuration — the key is "
+                                + "resolved from the environment variable named by "
+                                + "neis.ai.api-key-ref (" + effectiveRef + ")");
+            }
             throw new IllegalArgumentException(
                     "neis.ai.api-key holds a plain-text key (US-15.3): keys are "
                             + "resolved from the environment variable named by "
-                            + "neis.ai.api-key-ref (" + apiKeyRef + ") — remove the "
+                            + "neis.ai.api-key-ref (" + effectiveRef + ") — remove the "
                             + "literal value from configuration");
         }
         if (envKey == null || envKey.isBlank()) {
             throw new IllegalStateException(
                     "AI enabled but the API key is missing: set the environment "
-                            + "variable " + apiKeyRef + " (US-15.3)");
+                            + "variable " + effectiveRef + " (US-15.3)");
         }
         this.model = model == null || model.isBlank() ? "(provider default)" : model;
         log.info("AI provider: {} ({}) model {} — key from environment variable {}",
-                provider, baseUrl, this.model, apiKeyRef);
+                provider, baseUrl, this.model, effectiveRef);
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(envKey)

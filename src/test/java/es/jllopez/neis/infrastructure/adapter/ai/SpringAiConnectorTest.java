@@ -15,11 +15,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SpringAiConnectorTest {
 
+    /** Environment stub: neis.ai.api-key resolves to the given legacy
+     * value (absent when null). */
+    private org.springframework.core.env.Environment envWith(String legacy) {
+        org.springframework.core.env.Environment env =
+                org.mockito.Mockito.mock(org.springframework.core.env.Environment.class);
+        org.mockito.Mockito.when(env.getProperty("neis.ai.api-key", ""))
+                .thenReturn(legacy == null ? "" : legacy);
+        return env;
+    }
+
     @Test
     void otherProvidersAreRefused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SpringAiConnector("openai", "https://api.openai.com/v1",
-                        "gpt-4o", "NO_SUCH_VAR_XYZ", ""));
+                        "gpt-4o", "NO_SUCH_VAR_XYZ", envWith(null)));
         assertTrue(e.getMessage().contains("not accepted"), e.getMessage());
         assertTrue(e.getMessage().contains("melious"), e.getMessage());
     }
@@ -30,15 +40,25 @@ class SpringAiConnectorTest {
         // key is a plain-text key in configuration: rejected.
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
-                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", "sk-hardcoded-key"));
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("sk-hardcoded-key")));
         assertTrue(e.getMessage().contains("plain-text"), e.getMessage());
+    }
+
+    @Test
+    void oldMaskedPlaceholderGetsItsOwnMigrationMessage() {
+        // The committed yml historically carried the masked '***'; the
+        // message must point at the migration, not call it a key.
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("***")));
+        assertTrue(e.getMessage().contains("masked placeholder"), e.getMessage());
     }
 
     @Test
     void missingEnvironmentKeyFailsTheConstruction() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
-                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", ""));
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith(null)));
         assertTrue(e.getMessage().contains("API key is missing"), e.getMessage());
         assertTrue(e.getMessage().contains("NO_SUCH_VAR_XYZ"), e.getMessage());
     }
