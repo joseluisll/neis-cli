@@ -159,12 +159,11 @@ class HttpScrapeConnectorTest {
     }
 
     @Test
-    void headerCharsetIsNotHonoredYet() {
-        // PINNED current behavior until US-06.2 (Tika, issue #28): a
-        // server-declared ISO-8859-1 body WITHOUT a meta declaration is
-        // decoded as UTF-8 — 0xE9 ('é' in ISO-8859-1) is not valid
-        // UTF-8, so jsoup replaces it with U+FFFD. When Tika lands this
-        // test changes to assert 'caf\u00e9'.
+    void headerCharsetIsHonored() {
+        // US-06.2: the response header's charset parameter wins — an
+        // ISO-8859-1 body WITHOUT a meta declaration is decoded
+        // correctly (this behavior was pinned as 'not honored yet'
+        // before the Tika slice landed).
         byte[] body = "<html><body>caf\351 menu</body></html>"
                 .getBytes(StandardCharsets.ISO_8859_1);
         server.createContext("/header-charset", exchange -> {
@@ -180,8 +179,48 @@ class HttpScrapeConnectorTest {
 
         assertTrue(result.contentType().contains("ISO-8859-1"),
                 "response content type is recorded verbatim");
-        assertTrue(result.html().contains("\uFFFD"),
-                "pinned: header charset ignored, body decoded as UTF-8");
+        assertTrue(result.html().contains("café menu"),
+                "ISO-8859-1 body decoded via the header charset: " + result.html());
+    }
+
+    @Test
+    void bomCharsetIsDetectedByTika() {
+        // No charset in the header and no meta declaration: the UTF-16LE
+        // BOM is the only signal — Tika's encoding chain resolves it
+        // (US-06.2).
+        byte[] body = "\ufeff<html><body>caf\u00e9 menu</body></html>"
+                .getBytes(StandardCharsets.UTF_16LE);
+        server.createContext("/bom", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        ScrapeResult result = connector.scrape(addressAt("/bom"));
+
+        assertTrue(result.html().contains("café menu"),
+                "UTF-16LE body decoded via the BOM: " + result.html());
+    }
+
+    @Test
+    void nonTextContentIsRejected() {
+        // A listing is a text page: a PDF (declared AND magic-matched)
+        // fails the scrape with an explicit reason (US-06.2).
+        byte[] body = new byte[]{'%', 'P', 'D', 'F', '-', '1', '.', '4'};
+        server.createContext("/pdf", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/pdf");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> connector.scrape(addressAt("/pdf")));
+        assertTrue(e.getMessage().contains("application/pdf"), e.getMessage());
+        assertTrue(e.getMessage().contains("text/HTML"), e.getMessage());
     }
 
     @Test

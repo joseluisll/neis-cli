@@ -23,6 +23,7 @@
         <spring-ai.version>2.0.2</spring-ai.version>
         <archunit.version>1.5.1</archunit.version>
         <jsoup.version>1.24.1</jsoup.version>
+        <tika.version>4.2.0</tika.version>
     </properties>
 
     <dependencies>
@@ -44,6 +45,13 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>${jsoup.version}</version>
+        </dependency>
+        <!-- US-06.2 (issue #28): content-type/charset detection of the
+             fetched pages (owner technology choice, 2026-11-11). -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
         </dependency>
 
         <!-- Persistence layer (US-02, epic #2): ORM over SQLite3. All DB
