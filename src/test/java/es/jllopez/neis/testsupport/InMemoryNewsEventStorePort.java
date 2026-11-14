@@ -1,6 +1,7 @@
 package es.jllopez.neis.testsupport;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 
 import java.util.ArrayList;
@@ -52,6 +53,19 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     @Override
     public List<NewsEventItem> all() {
         return newestFirst(store.entrySet().stream());
+    }
+
+    @Override
+    public List<NewsEventItem> search(NewsEventQuery query) {
+        return newestFirst(store.entrySet().stream()
+                .filter(e -> query.addressId() == null || query.addressId().isBlank()
+                        || e.getKey().startsWith(query.addressId().trim() + "|")))
+                .stream()
+                .filter(item -> query.kind() == null || query.kind().isBlank()
+                        || query.kind().trim().equalsIgnoreCase(item.kind()))
+                .filter(item -> query.dateInRange(item.date()))
+                .limit(query.limit())
+                .toList();
     }
 
     @Override

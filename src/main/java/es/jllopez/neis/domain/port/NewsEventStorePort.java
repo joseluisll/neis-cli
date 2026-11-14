@@ -1,6 +1,7 @@
 package es.jllopez.neis.domain.port;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 
 import java.util.List;
 
@@ -42,6 +43,17 @@ public interface NewsEventStorePort {
     /** Every stored item of every address, newest first, provenance
      * included (repository browsing / the provenance check). */
     List<NewsEventItem> all();
+
+    /**
+     * The items matching the query, newest first (US-14.3): optional
+     * filters by address and kind ("news"/"event") plus the item's own
+     * publication date — parsed leniently by
+     * {@link NewsEventQuery#dateInRange} (ISO and the extractor's human
+     * form both work; missing or unparseable dates are excluded while a
+     * range is active) — capped at the query's limit. Provenance is
+     * included.
+     */
+    List<NewsEventItem> search(NewsEventQuery query);
 
     /** The total number of stored items (all addresses). */
     long count();

@@ -2,6 +2,7 @@ package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
 import es.jllopez.neis.testsupport.InMemoryContentStorePort;
@@ -90,6 +91,25 @@ class NewsEventServiceTest {
         List<NewsEventService.ProvenanceGap> gaps = service.provenanceGaps();
         assertEquals(1, gaps.size());
         assertEquals("content", gaps.get(0).refType());
+    }
+
+    @Test
+    void searchDelegatesAndNormalizesTheLimit() {
+        // US-14.3: the query use case passes through to the store; a
+        // non-positive limit falls back to the default (pinned in the
+        // query model itself).
+        assertEquals(NewsEventQuery.DEFAULT_LIMIT,
+                new NewsEventQuery(null, null, null, null, 0).limit());
+        assertEquals(NewsEventQuery.DEFAULT_LIMIT,
+                new NewsEventQuery(null, null, null, null, -5).limit());
+
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "Listed", null, "https://x.eu/5", null)),
+                null, null);
+        assertEquals(1, service.search(
+                new NewsEventQuery("ADDR-001", "news", null, null, 20)).size());
+        assertEquals(0, service.search(
+                new NewsEventQuery("ADDR-XXX", null, null, null, 20)).size());
     }
 
     @Test

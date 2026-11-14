@@ -1,6 +1,7 @@
 package es.jllopez.neis.infrastructure.persistence;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The news/events repository persists over a real SQLite file (US-14.1,
@@ -164,6 +166,60 @@ class NewsEventStorePersistenceTest {
                 "the whole-repository read reaches this address's row");
         assertEquals("exec-42", all.get(0).executionId());
         assertEquals("CONT-42", all.get(0).contentId());
+    }
+
+    @Test
+    void searchFiltersByKindAddressAndDateRange() {
+        // US-14.3: the repository is queryable — every criterion
+        // optional, date range lexical on the ISO TEXT item date, rows
+        // without a date excluded while a range is active.
+        seedAddress("ADDR-N9");
+        seedAddress("ADDR-NA");
+        store.saveAll("ADDR-N9", "news", List.of(new NewsEventItem(
+                "ADDR-N9", "news", "Nov 1 news", null,
+                "https://example.eu/s1", "2026-11-01")), null, null);
+        store.saveAll("ADDR-N9", "news", List.of(new NewsEventItem(
+                "ADDR-N9", "news", "Nov 20 news", null,
+                "https://example.eu/s2", "2026-11-20")), null, null);
+        store.saveAll("ADDR-NA", "event", List.of(new NewsEventItem(
+                "ADDR-NA", "event", "Nov 10 event", null,
+                "https://example.eu/s3", "2026-11-10")), null, null);
+        // The real extracted dates are human-formatted (verified live
+        // during US-14.3) — the range must understand them too.
+        store.saveAll("ADDR-NA", "event", List.of(new NewsEventItem(
+                "ADDR-NA", "event", "Human-dated event", null,
+                "https://example.eu/s5", "Nov 12, 2026")), null, null);
+        store.saveAll("ADDR-NA", "event", List.of(new NewsEventItem(
+                "ADDR-NA", "event", "Undated event", null,
+                "https://example.eu/s4", null)), null, null);
+
+        // By kind, scoped to this test's addresses (the suite shares
+        // one SQLite file — sibling tests seed other rows).
+        assertEquals(2, store.search(new NewsEventQuery(
+                "ADDR-N9", "news", null, null, 20)).size());
+        assertEquals(3, store.search(new NewsEventQuery(
+                "ADDR-NA", "event", null, null, 20)).size());
+        assertEquals(0, store.search(new NewsEventQuery(
+                "ADDR-N9", "event", null, null, 20)).size(),
+                "kind filters within the address");
+
+        // By date range: the undated row is excluded; the ISO and the
+        // human-formatted rows both parse.
+        var window = store.search(new NewsEventQuery(
+                "ADDR-NA", null, "2026-11-05", "2026-11-15", 20));
+        assertEquals(2, window.size());
+        assertTrue(window.stream().anyMatch(i -> "Nov 10 event".equals(i.title())));
+        assertTrue(window.stream().anyMatch(i -> "Human-dated event".equals(i.title())));
+
+        // Combined: address + kind + range.
+        var combined = store.search(new NewsEventQuery(
+                "ADDR-N9", "news", "2026-11-15", null, 20));
+        assertEquals(1, combined.size());
+        assertEquals("Nov 20 news", combined.get(0).title());
+
+        // Limit caps the result (newest first is the ordering contract).
+        var limited = store.search(new NewsEventQuery(null, null, null, null, 2));
+        assertEquals(2, limited.size());
     }
 
     @Test

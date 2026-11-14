@@ -52,6 +52,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
 | `ChainStorePort` | driven | `ChainStoreConnector` (US-08.1: chain definitions over the SQLite `chains`/`chain_tasks` tables) |
 | `ContentStorePort` | driven | `ContentStoreConnector` (US-11: webpage captures + content records over the SQLite `captures`/`content_records` tables) |
+| `NewsEventStorePort` | driven | `NewsEventStoreConnector` (US-14: the news/events repository over the SQLite `news_events` table — upsert on a deterministic id, US-14.2 provenance columns, US-14.3 filtered search) |
 | `SelectorStorePort` | driven | `FileSelectorStoreConnector` (per-address validated selectors as JSON under `<work dir>/selectors`) |
 
 The SSAFP pipeline (WEBSCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
@@ -252,6 +253,24 @@ cap.
 - `content list [--address]` and `content tree --address` inspect the
   stored records; the tree view is the filesystem projection of the
   database rows.
+
+## News/events repository (US-14)
+
+- Every extracted item is persisted as an entity (schema V3
+  `news_events`, provenance columns V4) through `NewsEventService`
+  behind `NewsEventStorePort`: upsert on a deterministic
+  (address, detail URL — or title) id, so re-extraction relinks the
+  same row instead of duplicating it. Each row carries its US-14.2
+  provenance — the extracting execution and the scrape.html content
+  record — refreshed on every upsert; `news_events` cannot carry FK
+  columns on those fields (SQLite ALTER TABLE limitation), so
+  `NewsEventService.provenanceGaps()` verifies the references instead
+  (`news provenance` command).
+- Querying (US-14.3): `news list [--address] [--kind] [--from] [--to]
+  [--limit]` lists items newest first with their provenance; dates are
+  parsed leniently (ISO and the extractor's human form) by
+  `NewsEventQuery.dateInRange`. The same commands inside the
+  interactive shell are the repository's TUI view.
 
 ## Enforced rules (ArchUnit)
 

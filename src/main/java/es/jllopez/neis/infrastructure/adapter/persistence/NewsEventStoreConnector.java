@@ -1,6 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.persistence;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import es.jllopez.neis.infrastructure.persistence.NewsEventEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventJpaRepository;
@@ -77,6 +78,25 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         return jpa.findAllByOrderByUpdatedAtDesc().stream()
                 .map(NewsEventStoreConnector::toItem)
                 .toList();
+    }
+
+    @Override
+    public List<NewsEventItem> search(NewsEventQuery query) {
+        // Address and kind in SQL; the date range in Java through the
+        // query's lenient parser (stored dates are ISO or human-formatted
+        // — SQL cannot compare those), then the limit. The unbounded
+        // fetch is fine at the repository's local scale (US-14.3).
+        return jpa.search(
+                        blankToNull(query.addressId()),
+                        blankToNull(query.kind())).stream()
+                .map(NewsEventStoreConnector::toItem)
+                .filter(item -> query.dateInRange(item.date()))
+                .limit(query.limit())
+                .toList();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     @Override

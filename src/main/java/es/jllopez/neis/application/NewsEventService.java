@@ -1,6 +1,7 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.port.ExecutionStorePort;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import org.springframework.stereotype.Service;
@@ -59,6 +60,11 @@ public class NewsEventService {
     /** Every stored item of every address, newest first. */
     public List<NewsEventItem> all() {
         return newsEventStore.all();
+    }
+
+    /** The items matching the query, newest first (US-14.3). */
+    public List<NewsEventItem> search(NewsEventQuery query) {
+        return newsEventStore.search(query);
     }
 
     /** The total number of stored items. */
