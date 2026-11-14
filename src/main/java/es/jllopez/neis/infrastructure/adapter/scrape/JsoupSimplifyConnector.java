@@ -38,7 +38,9 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             "data-image", "background",
             // presentation attributes (US-07.2: drop presentation
             // attributes and inline styles — the result carries data,
-            // not looks)
+            // not looks). First batch: legacy attributes beyond these
+            // (body text/link/vlink/alink, nowrap, char/charoff,
+            // bordercolor) may be added as real pages require.
             "align", "valign", "bgcolor", "border", "cellpadding",
             "cellspacing", "width", "height", "frame", "rules", "clear",
             "hspace", "vspace"};

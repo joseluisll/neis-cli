@@ -67,8 +67,8 @@ class JsoupSimplifyConnectorTest {
         // not (pinned per the acceptance criteria).
         String raw = """
                 <html><body>
-                <nav class="main-menu"><a href="/menu">Menu</a></nav>
-                <form action="/filter"><select name="year"><option>2026</option></select>
+                <nav class="site-nav"><a href="/menu">Menu</a></nav>
+                <form action="/filter"><select name="year"><option value="2026">2026</option></select>
                 <input type="checkbox" name="flag"><button type="submit">Go</button></form>
                 <table><tr><td>Cell data</td></tr></table>
                 <ul><li>List item</li></ul>
@@ -87,7 +87,19 @@ class JsoupSimplifyConnectorTest {
         assertTrue(simplified.contains("<li>List item</li>"), "lists are data elements");
         assertTrue(simplified.contains("<h2>Section heading</h2>"), "headings are kept");
         assertTrue(simplified.contains("Paragraph text"));
-        assertFalse(simplified.contains("main-menu"), "chrome navs are stripped");
+        // Functional attributes must survive with their elements: the
+        // downstream readers depend on them (href/datetime by extraction,
+        // rel=next/aria-label by pagination detection) — a future edit
+        // wrongly stripping 'action' or 'name' must fail here
+        // (US-07 review finding, 2026-11-14).
+        assertTrue(simplified.contains("action=\"/filter\""), "form targets survive");
+        assertTrue(simplified.contains("name=\"year\""), "select/input names survive");
+        assertTrue(simplified.contains("value=\"2026\""), "option values survive");
+        // The class fragment 'site-nav' matches no STRIPPED_CLASS_FRAGMENTS
+        // entry, so this pins the nav-ELEMENT handling in isolation
+        // (US-07 review finding, 2026-11-14).
+        assertFalse(simplified.contains("<nav"), "chrome navs are stripped");
+        assertFalse(simplified.contains("/menu"), "the nav's links go with it");
     }
 
     @Test
