@@ -224,6 +224,98 @@ class HttpScrapeConnectorTest {
     }
 
     @Test
+    void imageContentIsRejected() {
+        // PNG magic bytes under an image/png header: not a listing page
+        // (US-06.2 decision matrix, review finding 2026-11-14).
+        byte[] body = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+        server.createContext("/png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> connector.scrape(addressAt("/png")));
+        assertTrue(e.getMessage().contains("image/png"), e.getMessage());
+    }
+
+    @Test
+    void genericHeaderIsReDetectedFromTheBytes() {
+        // application/octet-stream says nothing: Tika re-detects from
+        // the bytes — text content is accepted and parsed (US-06.2,
+        // review finding 2026-11-14).
+        byte[] body = "<html><body>hello listing</body></html>"
+                .getBytes(StandardCharsets.UTF_8);
+        server.createContext("/generic", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type",
+                    "application/octet-stream");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        ScrapeResult result = connector.scrape(addressAt("/generic"));
+
+        assertTrue(result.html().contains("hello listing"));
+    }
+
+    @Test
+    void xhtmlAndXmlSuffixTypesAreAccepted() {
+        byte[] xhtml = ("<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\">"
+                + "<body>.xhtml listing</body></html>").getBytes(StandardCharsets.UTF_8);
+        server.createContext("/xhtml", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type",
+                    "application/xhtml+xml; charset=UTF-8");
+            exchange.sendResponseHeaders(200, xhtml.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(xhtml);
+            }
+        });
+        byte[] feed = "<?xml version=\"1.0\"?><feed><entry>t</entry></feed>"
+                .getBytes(StandardCharsets.UTF_8);
+        server.createContext("/atom", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/atom+xml");
+            exchange.sendResponseHeaders(200, feed.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(feed);
+            }
+        });
+
+        assertTrue(connector.scrape(addressAt("/xhtml")).html()
+                .contains(".xhtml listing"));
+        assertTrue(connector.scrape(addressAt("/atom")).html()
+                .contains("entry"));
+    }
+
+    @Test
+    void invalidHeaderCharsetFallsThroughToMetaDetection() {
+        // A junk charset parameter cannot crash the scrape: it falls
+        // through to Tika and then to jsoup's meta detection (US-06.2,
+        // review finding 2026-11-14).
+        byte[] body = ("<html><head>"
+                + "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=ISO-8859-1\">"
+                + "<title>ok</title></head><body>caf\351 menu</body></html>")
+                .getBytes(StandardCharsets.ISO_8859_1);
+        server.createContext("/bad-charset", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type",
+                    "text/html; charset=NOT-A-CHARSET");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        ScrapeResult result = connector.scrape(addressAt("/bad-charset"));
+
+        assertTrue(result.html().contains("café menu"),
+                "junk header charset ignored, meta declaration applied: "
+                        + result.html());
+    }
+
+    @Test
     void unreachableServerFailsTheScrape() throws IOException {
         // Bind an ephemeral port, CLOSE it, then target it: nothing
         // listens there, so the fetch hits a real connection-refused

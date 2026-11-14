@@ -28,6 +28,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Connector (driven adapter) implementing the SCRAPE port with a REAL
@@ -168,11 +169,17 @@ public class HttpScrapeConnector implements ContentScrapePort {
             // decides; a missing or generic one is re-detected by Tika's
             // MIME registry from the bytes. Only text pages are
             // listings; anything else fails with an explicit reason.
-            MediaType mediaType = contentType == null
+            MediaType headerType = contentType == null
                     ? null : MediaType.parse(contentType);
-            if (mediaType == null || isGenericBinary(mediaType)) {
-                mediaType = detectMediaType(body);
-            }
+            // The header's own charset parameter is read from the
+            // ORIGINAL header type, so a charset on a generic bucket
+            // (octet-stream; charset=...) is not lost to the
+            // re-detection (review finding, 2026-11-14).
+            Map<String, String> headerParams = headerType == null
+                    ? Map.of() : headerType.getParameters();
+            MediaType mediaType =
+                    (headerType == null || isGenericBinary(headerType))
+                            ? detectMediaType(body) : headerType;
             if (!isListable(mediaType)) {
                 throw failure(address, start, " returned " + mediaType
                         + " — WEBSCRAPE fetches text/HTML listing pages");
@@ -180,12 +187,14 @@ public class HttpScrapeConnector implements ContentScrapePort {
             // Charset, in order: the header's charset parameter
             // (validated), Tika's encoding detectors (BOM, metadata),
             // then jsoup's own detection (HTML meta + UTF-8 default).
+            // Note: a body BOM always overrides any supplied charset —
+            // jsoup's documented contract, and the right one (BOMs are
+            // authoritative); the order below decides only when NO BOM
+            // is present.
             Charset charset = null;
-            if (contentType != null) {
-                String param = mediaType.getParameters().get("charset");
-                if (param != null) {
-                    charset = safeCharset(param);
-                }
+            String param = headerParams.get("charset");
+            if (param != null) {
+                charset = safeCharset(param);
             }
             if (charset == null) {
                 charset = detectCharset(body);
@@ -198,9 +207,11 @@ public class HttpScrapeConnector implements ContentScrapePort {
             // byte size of the content actually stored (the normalized
             // HTML5), not the raw wire size (review finding, 2026-11-14).
             int storedBytes = html.getBytes(StandardCharsets.UTF_8).length;
-            // The record keeps the response's content type when present,
-            // otherwise the one Tika detected (US-06.2).
-            String recordedType = contentType != null
+            // The record keeps the PARSEABLE response header verbatim;
+            // when the header was missing or junk (the accept decision
+            // was made on the Tika-detected type), the detected type is
+            // the truthful record (review finding, 2026-11-14).
+            String recordedType = headerType != null
                     ? contentType : mediaType.toString();
             log.info("WEBSCRAPE fetch {} -> HTTP {} {} wire {} bytes, stored {} bytes ({} ms)",
                     url, status, recordedType, body.length, storedBytes, elapsedMs(start));
@@ -232,7 +243,10 @@ public class HttpScrapeConnector implements ContentScrapePort {
     /**
      * Re-detects the media type from the bytes (US-06.2): no name hint,
      * so only magic bytes and the text detector decide — a PDF or an
-     * image is identified as such, not waved through as HTML.
+     * image is identified as such, not waved through as HTML. Any Tika
+     * runtime failure degrades to the generic bucket (which the
+     * isListable gate then rejects) — every failure stays on the
+     * documented fail-closed path (review finding, 2026-11-14).
      */
     private MediaType detectMediaType(byte[] body) {
         try (var tin = org.apache.tika.io.TikaInputStream.get(body)) {
@@ -240,7 +254,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     tin, new Metadata(), new org.apache.tika.parser.ParseContext());
             return detected == null
                     ? MediaType.application("octet-stream") : detected;
-        } catch (IOException e) {
+        } catch (Exception e) { // IOException + any Tika runtime failure
             return MediaType.application("octet-stream");
         }
     }
@@ -267,7 +281,8 @@ public class HttpScrapeConnector implements ContentScrapePort {
     /**
      * Tika's encoding detection (BOM, metadata) — best-effort. Tika 4.x
      * returns a ranked list of results; the highest-confidence charset
-     * wins, an empty list means "no opinion" (jsoup decides next).
+     * wins, an empty list means "no opinion" (jsoup decides next). Any
+     * Tika runtime failure also means "no opinion".
      */
     private static Charset detectCharset(byte[] body) {
         try (var tin = org.apache.tika.io.TikaInputStream.get(body)) {
@@ -280,7 +295,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     .filter(java.util.Objects::nonNull)
                     .findFirst()
                     .orElse(null);
-        } catch (IOException e) {
+        } catch (Exception e) { // IOException + any Tika runtime failure
             return null; // jsoup decides next
         }
     }
