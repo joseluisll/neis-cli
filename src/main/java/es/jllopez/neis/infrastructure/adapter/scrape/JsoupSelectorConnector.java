@@ -149,8 +149,9 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
 
     /** Optional metadata (US-14.4): the item's location/venue when the
      * listing marks one — word-boundary class matches (so a
-     * "relocation" or "blog-location-tag" class is not mistaken for a
-     * venue), microdata, or an address element. */
+     * "relocation policy" class is not mistaken for a venue; hyphenated
+     * forms like ecl-location-block still match, by design),
+     * microdata, or an address element. */
     private String extractLocation(Element el) {
         Element location = el.selectFirst(
                 "[class~=(?i).*\\b(location|venue)\\b.*], [itemprop=location], address");
