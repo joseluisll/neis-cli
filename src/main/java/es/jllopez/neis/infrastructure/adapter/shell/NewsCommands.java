@@ -40,7 +40,8 @@ public class NewsCommands {
                     .append(gap.refId()).append(" on ")
                     .append(gap.item().addressId()).append(" | ")
                     .append(gap.item().url() == null
-                            ? "title:" + gap.item().title()
+                            ? "title:" + (gap.item().title() == null
+                                    ? "<no title, no url>" : gap.item().title())
                             : gap.item().url())
                     .append("\n");
         }

@@ -91,4 +91,25 @@ class NewsEventServiceTest {
         assertEquals(1, gaps.size());
         assertEquals("content", gaps.get(0).refType());
     }
+
+    @Test
+    void readsAreNewestFirstWithUpsertedRowsFirst() {
+        // Port contract (fae3556 review finding): newest first, and a
+        // re-upserted row counts as the newest.
+        NewsEventItem first = new NewsEventItem("ADDR-001", "news",
+                "First", null, "https://x.eu/a", null);
+        NewsEventItem second = new NewsEventItem("ADDR-001", "news",
+                "Second", null, "https://x.eu/b", null);
+        store.saveAll("ADDR-001", "news", List.of(first), null, null);
+        store.saveAll("ADDR-001", "news", List.of(second), null, null);
+
+        assertEquals("Second", store.all().get(0).title());
+
+        // Re-extraction refreshes the first row: it becomes the newest.
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "First (updated)", null,
+                "https://x.eu/a", null)), null, null);
+        assertEquals("First (updated)", store.all().get(0).title());
+        assertEquals("Second", store.all().get(1).title());
+    }
 }
