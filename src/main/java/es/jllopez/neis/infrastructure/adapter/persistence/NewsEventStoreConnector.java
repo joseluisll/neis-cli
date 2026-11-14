@@ -44,7 +44,12 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             entity.setTitle(item.title());
             entity.setDescription(item.description());
             entity.setDate(item.date());
-            entity.setUrl(item.url());
+            // A blank-but-non-null url (raw href fallback in the
+            // extractor) would break the unique index's COALESCE key:
+            // normalize to null so the title-based key applies
+            // (US-14.1 review finding, 2026-11-14).
+            entity.setUrl(item.url() == null || item.url().isBlank()
+                    ? null : item.url());
             if (isNew) {
                 entity.setCreatedAt(now);
             }

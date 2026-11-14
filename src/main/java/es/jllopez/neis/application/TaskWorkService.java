@@ -321,7 +321,7 @@ public class TaskWorkService {
         // US-14.1 (issue #55): the extracted items are persisted as
         // repository entities, not only as content files — idempotent
         // upsert per (address, detail URL).
-        int stored = newsEventStore.saveAll(address.id(), address.itemKind(), items);
+        newsEventStore.saveAll(address.id(), address.itemKind(), items);
         // 'cap M' states that extraction stopped at the cap — the count
         // is the recorded truth; whether MORE elements existed beyond the
         // cap is not observable through the extraction contract (review

@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * The news/events repository persists over a real SQLite file (US-14.1,
@@ -78,6 +79,68 @@ class NewsEventStorePersistenceTest {
         assertEquals(1, store.byAddress("ADDR-N2").size(),
                 "no duplicate rows for link-less items");
         assertEquals("event", store.byAddress("ADDR-N2").get(0).kind());
+    }
+
+    @Test
+    void createdAtIsPreservedAndUpdatedAtRefreshedOnUpsert() {
+        // US-14.1 review finding: the documented upsert semantics —
+        // created_at kept, updated_at refreshed — pinned against
+        // regression.
+        seedAddress("ADDR-N5");
+        var item = new NewsEventItem("ADDR-N5", "news", "Timestamped item",
+                null, "https://example.eu/news/9", null);
+        store.saveAll("ADDR-N5", "news", List.of(item));
+        String createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM news_events WHERE address_id = 'ADDR-N5'",
+                String.class);
+        String updatedAt = jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM news_events WHERE address_id = 'ADDR-N5'",
+                String.class);
+
+        store.saveAll("ADDR-N5", "news", List.of(item));
+
+        assertEquals(createdAt, jdbcTemplate.queryForObject(
+                "SELECT created_at FROM news_events WHERE address_id = 'ADDR-N5'",
+                String.class), "created_at is preserved on upsert");
+        assertNotEquals(updatedAt, jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM news_events WHERE address_id = 'ADDR-N5'",
+                String.class), "updated_at is refreshed on upsert");
+    }
+
+    @Test
+    void sameAddressCrossKindUpsertsOneRow() {
+        // US-14.1 review finding: the deterministic id excludes kind —
+        // the same url under news and event on one address is ONE row
+        // whose kind is overwritten by the last save (documented in the
+        // V3 header).
+        seedAddress("ADDR-N6");
+        store.saveAll("ADDR-N6", "news", List.of(new NewsEventItem(
+                "ADDR-N6", "news", "Dual-kind item", null,
+                "https://example.eu/dual", null)));
+        store.saveAll("ADDR-N6", "event", List.of(new NewsEventItem(
+                "ADDR-N6", "event", "Dual-kind item", null,
+                "https://example.eu/dual", null)));
+
+        assertEquals(1, store.byAddress("ADDR-N6").size());
+        assertEquals("event", store.byAddress("ADDR-N6").get(0).kind());
+    }
+
+    @Test
+    void blankUrlsAreNormalizedSoTheUniqueIndexHolds() {
+        // US-14.1 review finding: a blank-but-non-null url (raw href
+        // fallback) would put two title-keyed items on the same empty
+        // index key and violate the unique index — normalized to null.
+        seedAddress("ADDR-N7");
+        var first = new NewsEventItem("ADDR-N7", "news", "Link-less item",
+                null, "  ", null);
+        var second = new NewsEventItem("ADDR-N7", "news", "Link-less item",
+                null, "", null);
+
+        store.saveAll("ADDR-N7", "news", List.of(first));
+        store.saveAll("ADDR-N7", "news", List.of(second));
+
+        assertEquals(1, store.byAddress("ADDR-N7").size(),
+                "both blank-url variants key on the title: one row");
     }
 
     @Test
