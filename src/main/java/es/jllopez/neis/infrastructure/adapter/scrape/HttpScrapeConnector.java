@@ -295,12 +295,23 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     .filter(java.util.Objects::nonNull)
                     .findFirst()
                     .orElse(null);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null; // jsoup decides next
         } catch (Exception e) { // IOException + any Tika runtime failure
+            if (carriesInterrupt(e)) {
+                Thread.currentThread().interrupt();
+            }
             return null; // jsoup decides next
         }
+    }
+
+    /** Tika may wrap an interrupt in a runtime exception: unwrapped. */
+    private static boolean carriesInterrupt(Throwable t) {
+        while (t != null) {
+            if (t instanceof InterruptedException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     /**
