@@ -263,6 +263,27 @@ class HttpScrapeConnectorTest {
     }
 
     @Test
+    void binaryMagicUnderAGenericHeaderIsRejected() {
+        // The complement of the re-detection path: PNG magic bytes under
+        // an octet-stream header are re-detected as image/png and
+        // rejected (US-06.2, e059311 review finding 2026-11-14).
+        byte[] body = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+        server.createContext("/generic-png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type",
+                    "application/octet-stream");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> connector.scrape(addressAt("/generic-png")));
+        assertTrue(e.getMessage().contains("image/png"), e.getMessage());
+        assertTrue(e.getMessage().contains("text/HTML"), e.getMessage());
+    }
+
+    @Test
     void xhtmlAndXmlSuffixTypesAreAccepted() {
         byte[] xhtml = ("<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\">"
                 + "<body>.xhtml listing</body></html>").getBytes(StandardCharsets.UTF_8);
