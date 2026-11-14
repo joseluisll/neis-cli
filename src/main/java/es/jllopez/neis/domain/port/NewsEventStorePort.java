@@ -34,8 +34,14 @@ public interface NewsEventStorePort {
     int saveAll(String addressId, String kind, List<NewsEventItem> items,
                 String executionId, String contentId);
 
-    /** The stored items of one address, newest first. */
+    /** The stored items of one address, newest first. Items carry
+     * their US-14.2 provenance (executionId/contentId; null on rows
+     * persisted before the linking landed). */
     List<NewsEventItem> byAddress(String addressId);
+
+    /** Every stored item of every address, newest first, provenance
+     * included (repository browsing / the provenance check). */
+    List<NewsEventItem> all();
 
     /** The total number of stored items (all addresses). */
     long count();

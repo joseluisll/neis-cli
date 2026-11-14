@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Use case: the content tree (US-11, epic #11). Storage is a
@@ -129,6 +130,12 @@ public class ContentStoreService {
     /** Every content record of one address, newest first. */
     public List<ContentRecord> listByAddress(String addressId) {
         return store.findByAddress(addressId);
+    }
+
+    /** One content record by its deterministic id (provenance lookups,
+     * US-14.2/US-14.3). */
+    public Optional<ContentRecord> byId(String id) {
+        return store.findById(id);
     }
 
     /** The content root (the tree's top; also the chain work dir). */

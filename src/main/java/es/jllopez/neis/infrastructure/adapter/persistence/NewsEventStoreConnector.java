@@ -68,14 +68,26 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     @Override
     public List<NewsEventItem> byAddress(String addressId) {
         return jpa.findByAddressIdOrderByUpdatedAtDesc(addressId).stream()
-                .map(e -> new NewsEventItem(e.getAddressId(), e.getKind(),
-                        e.getTitle(), e.getDescription(), e.getUrl(), e.getDate()))
+                .map(NewsEventStoreConnector::toItem)
+                .toList();
+    }
+
+    @Override
+    public List<NewsEventItem> all() {
+        return jpa.findAllByOrderByUpdatedAtDesc().stream()
+                .map(NewsEventStoreConnector::toItem)
                 .toList();
     }
 
     @Override
     public long count() {
         return jpa.count();
+    }
+
+    private static NewsEventItem toItem(NewsEventEntity e) {
+        return new NewsEventItem(e.getAddressId(), e.getKind(),
+                e.getTitle(), e.getDescription(), e.getUrl(), e.getDate(),
+                e.getExecutionId(), e.getContentId());
     }
 
     /**

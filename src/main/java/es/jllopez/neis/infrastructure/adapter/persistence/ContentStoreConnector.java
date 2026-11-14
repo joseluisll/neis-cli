@@ -90,4 +90,12 @@ public class ContentStoreConnector implements ContentStorePort {
                         e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant()))
                 .toList();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ContentRecord> findById(String id) {
+        return records.findById(id)
+                .map(e -> new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
+                        e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant()));
+    }
 }

@@ -144,6 +144,29 @@ class NewsEventStorePersistenceTest {
     }
 
     @Test
+    void provenanceSurvivesTheReadPath() {
+        // US-14.2 read path (re-review deferred finding): execution_id /
+        // content_id round-trip through byAddress() and all().
+        seedAddress("ADDR-N8");
+        store.saveAll("ADDR-N8", "news", List.of(new NewsEventItem(
+                "ADDR-N8", "news", "Traced item", null,
+                "https://example.eu/traced", null)), "exec-42", "CONT-42");
+
+        var byAddress = store.byAddress("ADDR-N8");
+        assertEquals(1, byAddress.size());
+        assertEquals("exec-42", byAddress.get(0).executionId());
+        assertEquals("CONT-42", byAddress.get(0).contentId());
+
+        var all = store.all().stream()
+                .filter(item -> "ADDR-N8".equals(item.addressId()))
+                .toList();
+        assertEquals(1, all.size(),
+                "the whole-repository read reaches this address's row");
+        assertEquals("exec-42", all.get(0).executionId());
+        assertEquals("CONT-42", all.get(0).contentId());
+    }
+
+    @Test
     void newsAndEventsAreDistinctRecords() {
         seedAddress("ADDR-N3");
         seedAddress("ADDR-N4");

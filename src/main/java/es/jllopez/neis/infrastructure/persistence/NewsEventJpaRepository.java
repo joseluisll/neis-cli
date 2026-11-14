@@ -8,4 +8,6 @@ import java.util.List;
 public interface NewsEventJpaRepository extends JpaRepository<NewsEventEntity, String> {
 
     List<NewsEventEntity> findByAddressIdOrderByUpdatedAtDesc(String addressId);
+
+    List<NewsEventEntity> findAllByOrderByUpdatedAtDesc();
 }

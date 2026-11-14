@@ -57,4 +57,9 @@ public class InMemoryContentStorePort implements ContentStorePort {
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
     }
+
+    @Override
+    public Optional<ContentRecord> findById(String id) {
+        return Optional.ofNullable(records.get(id));
+    }
 }

@@ -27,4 +27,7 @@ public interface ContentStorePort {
 
     /** Every content record of one address, newest first. */
     List<ContentRecord> findByAddress(String addressId);
+
+    /** One content record by its deterministic id. */
+    Optional<ContentRecord> findById(String id);
 }

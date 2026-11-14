@@ -25,7 +25,8 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         for (NewsEventItem item : items) {
             store.put(key(addressId, item),
                     new NewsEventItem(addressId, kind, item.title(),
-                            item.description(), item.url(), item.date()));
+                            item.description(), item.url(), item.date(),
+                            executionId, contentId));
             stored++;
         }
         return stored;
@@ -40,6 +41,11 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     }
 
     @Override
+    public List<NewsEventItem> all() {
+        return new ArrayList<>(store.values());
+    }
+
+    @Override
     public long count() {
         return store.size();
     }
@@ -49,10 +55,5 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                 + (item.url() != null && !item.url().isBlank()
                         ? item.url().trim()
                         : "title:" + (item.title() == null ? "" : item.title().trim()));
-    }
-
-    /** All stored items (test inspection). */
-    public List<NewsEventItem> all() {
-        return new ArrayList<>(store.values());
     }
 }
