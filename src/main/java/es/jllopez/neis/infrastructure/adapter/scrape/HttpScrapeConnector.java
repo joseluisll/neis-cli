@@ -107,10 +107,27 @@ public class HttpScrapeConnector implements ContentScrapePort {
 
     @Override
     public ScrapeResult scrape(Address address) {
-        String url = address.url().trim();
+        return scrapeUrl(address.url().trim());
+    }
+
+    /**
+     * Fetches any URL (US-12.4 pagination iteration) with the same
+     * guarantees as {@link #scrape(Address)}: redirects followed,
+     * non-2xx fails, streaming under the byte cap and the fetch
+     * deadline, Tika content-type/charset handling, jsoup
+     * normalization.
+     */
+    @Override
+    public ScrapeResult scrapeUrl(String url) {
         long start = System.nanoTime();
+        String trimmed = url == null ? "" : url.trim();
+        // The failure/trace helpers take an Address for its URL; the
+        // pagination iteration fetches URLs that are not registered
+        // addresses (US-12.4).
+        Address page = new Address("URL", null, null, trimmed,
+                es.jllopez.neis.domain.model.AddressType.URL_NEWS);
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+            HttpRequest request = HttpRequest.newBuilder(URI.create(trimmed))
                     .timeout(timeout)
                     .header("User-Agent", "NEIS-web-scrape/0.1")
                     .header("Accept", "text/html, application/xhtml+xml, */*")
@@ -127,7 +144,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
                 closeQuietly(response.body());
-                throw failure(address, start, " returned HTTP " + status);
+                throw failure(page, start, " returned HTTP " + status);
             }
             String contentType = response.headers().firstValue("Content-Type")
                     .orElse(null);
@@ -136,7 +153,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     .orElse(-1);
             if (declared > maxBytes) {
                 closeQuietly(response.body());
-                throw failure(address, start, " Content-Length " + declared
+                throw failure(page, start, " Content-Length " + declared
                         + " exceeds the " + maxBytes + " byte cap"
                         + " (neis.scrape.max-bytes)");
             }
@@ -161,7 +178,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     java.util.concurrent.TimeUnit.NANOSECONDS);
             byte[] body;
             try {
-                body = readBody(address, stream, start, deadlineNanos);
+                body = readBody(page, stream, start, deadlineNanos);
             } finally {
                 alarm.cancel(false);
             }
@@ -181,7 +198,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     (headerType == null || isGenericBinary(headerType))
                             ? detectMediaType(body) : headerType;
             if (!isListable(mediaType)) {
-                throw failure(address, start, " returned " + mediaType
+                throw failure(page, start, " returned " + mediaType
                         + " — WEBSCRAPE fetches text/HTML listing pages");
             }
             // Charset, in order: the header's charset parameter
@@ -201,7 +218,7 @@ public class HttpScrapeConnector implements ContentScrapePort {
             }
             // jsoup normalizes the markup to HTML5.
             Document doc = DataUtil.load(new ByteArrayInputStream(body),
-                    charset == null ? null : charset.name(), url);
+                    charset == null ? null : charset.name(), trimmed);
             String html = doc.html();
             // sizeBytes follows the static connector's convention: the
             // byte size of the content actually stored (the normalized
@@ -214,13 +231,13 @@ public class HttpScrapeConnector implements ContentScrapePort {
             String recordedType = headerType != null
                     ? contentType : mediaType.toString();
             log.info("WEBSCRAPE fetch {} -> HTTP {} {} wire {} bytes, stored {} bytes ({} ms)",
-                    url, status, recordedType, body.length, storedBytes, elapsedMs(start));
+                    trimmed, status, recordedType, body.length, storedBytes, elapsedMs(start));
             return new ScrapeResult(html, recordedType, storedBytes);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw failure(address, start, " interrupted", e);
+            throw failure(page, start, " interrupted", e);
         } catch (IOException e) {
-            throw failure(address, start, " failed: " + e, e);
+            throw failure(page, start, " failed: " + e, e);
         }
     }
 

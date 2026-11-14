@@ -92,4 +92,36 @@ class JsoupSelectorConnectorTest {
 
         assertEquals("https://cdn.example.eu/items/one.html", item.url());
     }
+
+    @Test
+    void nextPageUrlFollowsRelNext() {
+        // US-12.4: the rel=next link relation is the primary next-page
+        // control; resolved to an absolute URL against the base.
+        String html = "<html><body><ul class='news-list'><li>item</li></ul>"
+                + "<nav class='pagination'><a rel='next' href='/news?page=2'>Next</a></nav>"
+                + "</body></html>";
+
+        assertEquals("https://example.eu/news?page=2",
+                connector.nextPageUrl(html, "https://example.eu/news"));
+    }
+
+    @Test
+    void nextPageUrlFollowsANextLabelledPagerLink() {
+        String html = "<html><body><ul class='news-list'><li>item</li></ul>"
+                + "<div class='paginator'><a href='/news/page/2'>siguiente</a></div>"
+                + "</body></html>";
+
+        assertEquals("https://example.eu/news/page/2",
+                connector.nextPageUrl(html, "https://example.eu/news"));
+    }
+
+    @Test
+    void nextPageUrlIsNullWithoutAControl() {
+        String html = "<html><body><ul class='news-list'><li>item</li></ul>"
+                + "<div class='paginator'><a href='/news/page/1'>1</a></div>"
+                + "</body></html>";
+
+        assertEquals(null, connector.nextPageUrl(html, "https://example.eu/news"));
+        assertEquals(null, connector.nextPageUrl(null, "https://example.eu/news"));
+    }
 }

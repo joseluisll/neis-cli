@@ -42,4 +42,16 @@ public interface SelectorExtractionPort {
      * identified filter zone) without its own HTML-stack dependency.
      */
     String zoneHtml(String html, String cssSelector);
+
+    /**
+     * The URL of the next page of a paginated listing (US-12.4, issue
+     * #67), or null when the page exposes no next-page control: the
+     * rel=next link relation first, then a next-labelled anchor inside
+     * a pager container. Resolved to an absolute URL against
+     * {@code baseUrl} (nullable — relative hrefs stay relative).
+     * Deterministic element inspection, no AI.
+     */
+    default String nextPageUrl(String html, String baseUrl) {
+        return null;
+    }
 }

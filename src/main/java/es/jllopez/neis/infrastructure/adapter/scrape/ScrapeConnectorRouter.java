@@ -74,6 +74,11 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
     }
 
     @Override
+    public ScrapeResult scrapeUrl(String url) {
+        return delegate.scrapeUrl(url);
+    }
+
+    @Override
     public ScrapeResult scrapeFiltered(Address address, String filterRequest) {
         return delegate.scrapeFiltered(address, filterRequest);
     }

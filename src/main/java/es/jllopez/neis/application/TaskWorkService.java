@@ -5,10 +5,12 @@ import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PaginationInfo;
+import es.jllopez.neis.domain.model.ScrapeResult;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +35,9 @@ import java.util.Optional;
  */
 @Service
 public class TaskWorkService {
+
+    /** Safety guard for the pagination iteration (US-12.4). */
+    private static final int MAX_PAGES = 10;
 
     private final PipelineService pipeline;
     private final AddressCatalogService addressCatalog;
@@ -172,23 +177,79 @@ public class TaskWorkService {
      * WEBSCRAPE (US-06 slice): obtain and store the listing HTML5; with
      * a preconfigured selector (US-12.1), also extract the news/events
      * list with metadata — deterministic element iteration, no AI
-     * (US-06.4, issue #44). Without one, extraction is skipped here:
-     * identifying a selector is ANALYZE's job (AI or fallbacks).
+     * (US-06.4, issue #44) — iterating page by page when the listing is
+     * paginated (US-12.4, issue #67): the next page is followed through
+     * the page's own controls (rel=next or a pager link) while it
+     * yields new items and the US-12.5 cap allows. The detection result
+     * and the page count are recorded in the outcome. Without a
+     * selector, extraction is skipped here: identifying a selector is
+     * ANALYZE's job (AI or fallbacks).
      */
     private String scrape(Address address, int maxItems) {
         var scrape = pipeline.scrapePort.scrape(address);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
+        PaginationInfo pagination = pipeline.paginationDetector.detect(scrape.html());
+
         Optional<String> selector =
                 pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
         if (selector.isEmpty()) {
             return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
                     + "; no preconfigured selector for " + address.id()
-                    + " — item extraction skipped (US-06.4)";
+                    + " — item extraction skipped (US-06.4); paginated: "
+                    + pagination.paginated() + " (" + pagination.evidence() + ")";
         }
-        List<NewsEventItem> items = pipeline.extractionPort.extract(scrape.html(),
-                selector.get(), address.itemKind(), address.id(),
-                maxItems, address.url());
+
+        List<NewsEventItem> items = new ArrayList<>(pipeline.extractionPort.extract(
+                scrape.html(), selector.get(), address.itemKind(), address.id(),
+                maxItems, address.url()));
+        int pages = 1;
+        List<String> notes = new ArrayList<>();
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        String currentUrl = address.url().trim();
+        visited.add(currentUrl);
+        String nextUrl = items.size() < maxItems
+                ? pipeline.extractionPort.nextPageUrl(scrape.html(), currentUrl)
+                : null;
+        while (nextUrl != null && items.size() < maxItems && pages < MAX_PAGES) {
+            if (!visited.add(nextUrl)) {
+                notes.add("pagination loop at " + nextUrl);
+                break;
+            }
+            if (nextUrl.equals(currentUrl)) {
+                // A next control pointing at the page itself is not
+                // pagination (site quirk, e.g. a self-referencing
+                // ?page=1 link) — treat as end of pagination.
+                notes.add("next control points at the current page");
+                break;
+            }
+            ScrapeResult page;
+            try {
+                page = pipeline.scrapePort.scrapeUrl(nextUrl);
+            } catch (UnsupportedOperationException e) {
+                notes.add("page fetch unsupported: " + e.getMessage());
+                break;
+            }
+            pages++;
+            pipeline.writeArtifact(address, "WEBSCRAPE", "page-html",
+                    "scrape-page" + pages + ".html", page.html());
+            int before = items.size();
+            for (NewsEventItem item : pipeline.extractionPort.extract(page.html(),
+                    selector.get(), address.itemKind(), address.id(),
+                    maxItems - items.size(), nextUrl)) {
+                if (isNew(items, item)) {
+                    items.add(item);
+                }
+            }
+            if (items.size() == before) {
+                notes.add("page " + pages + " yielded no new items");
+                break;
+            }
+            nextUrl = items.size() < maxItems
+                    ? pipeline.extractionPort.nextPageUrl(page.html(), nextUrl)
+                    : null;
+        }
+
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
                 "items-json", "items.json", itemsJson(items));
         // 'cap M' states that extraction stopped at the cap — the count
@@ -198,9 +259,22 @@ public class TaskWorkService {
         // listing of exactly maxItems items cannot prove).
         String capNote = maxItems == Integer.MAX_VALUE ? "no cap"
                 : "cap " + maxItems;
+        String iterationNote = notes.isEmpty() ? "" : "; " + String.join("; ", notes);
         return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
                 + "; items extracted: " + items.size() + " (" + capNote
-                + "; selector '" + selector.get() + "') -> " + itemsArtifact;
+                + "; selector '" + selector.get() + "') -> " + itemsArtifact
+                + "; pages: " + pages + "; paginated: " + pagination.paginated()
+                + " (" + pagination.evidence() + ")" + iterationNote;
+    }
+
+    /** Duplicate check across pages: title + detail URL (US-12.4). */
+    private static boolean isNew(List<NewsEventItem> items, NewsEventItem candidate) {
+        String key = (candidate.title() == null ? "" : candidate.title().trim())
+                + "|" + (candidate.url() == null ? "" : candidate.url().trim());
+        return items.stream().noneMatch(existing ->
+                ((existing.title() == null ? "" : existing.title().trim())
+                        + "|" + (existing.url() == null ? "" : existing.url().trim()))
+                        .equalsIgnoreCase(key));
     }
 
     /** The extracted items as JSON (US-06.4 artifact), hand-rolled like

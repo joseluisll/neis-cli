@@ -34,6 +34,18 @@ public interface ContentScrapePort {
     }
 
     /**
+     * Fetches an arbitrary URL (US-12.4 pagination iteration: the
+     * next-page URL discovered from the page's own controls).
+     * Connectors that cannot fetch arbitrary URLs throw
+     * {@link UnsupportedOperationException}; the iteration reports
+     * that and stops.
+     */
+    default ScrapeResult scrapeUrl(String url) {
+        throw new UnsupportedOperationException(
+                "This SCRAPE connector cannot fetch arbitrary URLs: " + url);
+    }
+
+    /**
      * Scrapes the listing narrowed by an applied filter criterion
      * (US-06.6 slice): the connector applies the filter BEFORE returning
      * the content — URL query parameters for static pages, operating the

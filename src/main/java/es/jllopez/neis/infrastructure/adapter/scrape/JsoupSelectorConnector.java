@@ -127,6 +127,46 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
                 ? link.attr("href") : link.attr("abs:href") : null;
     }
 
+    /**
+     * The next page's URL (US-12.4, issue #67): the rel=next link
+     * relation first, then a next-labelled anchor inside a pager
+     * container (pagination/pager/paginator class or a nav element).
+     * Absolute against the page's base URI; null when no control
+     * exists. Deterministic element inspection, no AI.
+     */
+    @Override
+    public String nextPageUrl(String html, String baseUrl) {
+        if (html == null || html.isBlank()) {
+            return null;
+        }
+        Document doc = Jsoup.parse(html, baseUrl == null ? "" : baseUrl);
+        Element next = doc.selectFirst("a[rel=next]");
+        if (next == null) {
+            for (Element container : doc.select(
+                    "[class*=pagination], [class*=pager], [class*=paginator], nav")) {
+                next = container.select("a[href]").stream()
+                        .filter(a -> isNextLabel(a.text()))
+                        .findFirst().orElse(null);
+                if (next != null) {
+                    break;
+                }
+            }
+        }
+        if (next == null) {
+            return null;
+        }
+        String href = next.attr("abs:href");
+        return href.isBlank() ? null : href;
+    }
+
+    /** Next-page labels seen in the wild (text comparison, no regex). */
+    private static boolean isNextLabel(String text) {
+        String lower = text == null ? "" : text.trim().toLowerCase();
+        return lower.contains("next") || lower.contains("siguiente")
+                || lower.contains("»") || lower.contains("›")
+                || lower.equals(">");
+    }
+
     private String extractDate(Element el) {
         // ECL/EUREF date blocks (portal event cards): day + month + year spans.
         Element day = el.selectFirst(".ecl-date-block__day");
