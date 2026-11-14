@@ -277,8 +277,10 @@ public class TaskWorkService {
                         .equalsIgnoreCase(key));
     }
 
-    /** The extracted items as JSON (US-06.4 artifact), hand-rolled like
-     * the pipeline's other JSON handling — no new stack dependency. */
+    /** The extracted items as JSON (US-06.4 artifact) — escaping comes
+     * from the shared {@link ContentStoreService#jsonEscape} so the
+     * application's JSON emitters stay identical (US-06.4/12.5 review
+     * finding: a third hand-rolled emitter was drifting). */
     private static String itemsJson(List<NewsEventItem> items) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < items.size(); i++) {
@@ -286,8 +288,8 @@ public class TaskWorkService {
             if (i > 0) {
                 sb.append(",");
             }
-            sb.append("{\"title\":\"").append(jsonEscape(item.title()))
-                    .append("\",\"kind\":\"").append(jsonEscape(item.kind()))
+            sb.append("{\"title\":\"").append(ContentStoreService.jsonEscape(item.title()))
+                    .append("\",\"kind\":\"").append(ContentStoreService.jsonEscape(item.kind()))
                     .append("\",\"description\":")
                     .append(jsonValue(item.description()))
                     .append(",\"date\":").append(jsonValue(item.date()))
@@ -299,31 +301,7 @@ public class TaskWorkService {
 
     /** A JSON string literal, or the JSON null for a null/absent value. */
     private static String jsonValue(String s) {
-        return s == null ? "null" : "\"" + jsonEscape(s) + "\"";
-    }
-
-    private static String jsonEscape(String s) {
-        if (s == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(s.length());
-        for (char c : s.toCharArray()) {
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
-        }
-        return sb.toString();
+        return s == null ? "null" : "\"" + ContentStoreService.jsonEscape(s) + "\"";
     }
 
     /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */
@@ -460,7 +438,9 @@ public class TaskWorkService {
     /**
      * US-12.5 (issue #68): the effective extraction cap — the task's
      * max-items parameter, else the externalized default
-     * (neis.extraction.max-items), else no limit.
+     * (neis.extraction.max-items), else no limit. Note the asymmetry
+     * (documented, intentional): the task parameter is bounded
+     * 1..10000 while the config default accepts any positive integer.
      */
     private int maxItemsCap(Map<String, String> parameters) {
         if (parameters.containsKey("max-items")) {

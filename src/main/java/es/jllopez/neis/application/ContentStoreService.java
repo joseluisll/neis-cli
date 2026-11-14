@@ -156,8 +156,10 @@ public class ContentStoreService {
         }
     }
 
-    /** Minimal correct JSON string escaping (quotes, backslash, controls). */
-    private static String jsonEscape(String value) {
+    /** Shared, minimal correct JSON string escaping (quotes, backslash,
+     * controls) — the application's JSON emitters (capture.json,
+     * items.json) must not drift apart. */
+    static String jsonEscape(String value) {
         StringBuilder out = new StringBuilder(value.length() + 8);
         for (char c : value.toCharArray()) {
             switch (c) {
