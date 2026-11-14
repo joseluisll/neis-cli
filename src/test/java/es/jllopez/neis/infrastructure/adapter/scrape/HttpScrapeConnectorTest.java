@@ -178,14 +178,46 @@ class HttpScrapeConnectorTest {
 
     @Test
     void unreachableServerFailsTheScrape() throws IOException {
-        // Bind an ephemeral port, close it, and target it: nothing
-        // listens there, without hard-coding a port (review finding,
-        // 2026-11-14).
+        // Bind an ephemeral port, CLOSE it, then target it: nothing
+        // listens there, so the fetch hits a real connection-refused
+        // (binding and scraping inside the try-with-resources would
+        // leave the socket accepting and turn the test into a silent
+        // black hole — review finding, 2026-11-14).
+        int port;
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
-            Address dead = new Address("ADDR-DEAD", "Dead", null,
-                    "http://127.0.0.1:" + socket.getLocalPort() + "/page",
-                    AddressType.URL_NEWS);
-            assertThrows(IllegalStateException.class, () -> connector.scrape(dead));
+            port = socket.getLocalPort();
         }
+        Address dead = new Address("ADDR-DEAD", "Dead", null,
+                "http://127.0.0.1:" + port + "/page", AddressType.URL_NEWS);
+        assertThrows(IllegalStateException.class, () -> connector.scrape(dead));
+    }
+
+    @Test
+    void oversizedChunkedBodyFailsDuringStreaming() {
+        // No Content-Length (chunked transfer): the cap must abort
+        // MID-STREAM, not after the whole body is buffered (review
+        // blocking finding, 2026-11-14).
+        byte[] chunk = new byte[4096];
+        server.createContext("/chunked", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, 0); // chunked: no length
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(chunk);
+                out.write(chunk);
+            }
+        });
+        HttpScrapeConnector capped = new HttpScrapeConnector(5, 1024);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> capped.scrape(addressAt("/chunked")));
+        assertTrue(e.getMessage().contains("exceeds the cap"), e.getMessage());
+    }
+
+    @Test
+    void nonPositiveMaxBytesIsRejectedAtStartup() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new HttpScrapeConnector(5, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new HttpScrapeConnector(5, -1));
     }
 }

@@ -12,7 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -53,6 +55,10 @@ public class HttpScrapeConnector implements ContentScrapePort {
     public HttpScrapeConnector(
             @Value("${neis.scrape.timeout-seconds:20}") long timeoutSeconds,
             @Value("${neis.scrape.max-bytes:10485760}") int maxBytes) {
+        if (maxBytes <= 0) {
+            throw new IllegalArgumentException(
+                    "neis.scrape.max-bytes must be positive, got " + maxBytes);
+        }
         this.timeout = Duration.ofSeconds(timeoutSeconds);
         this.maxBytes = maxBytes;
         this.client = HttpClient.newBuilder()
@@ -72,20 +78,29 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     .header("Accept", "text/html, application/xhtml+xml, */*")
                     .GET()
                     .build();
-            HttpResponse<byte[]> response =
-                    client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            // Streaming body handler: send() returns with the HEADERS,
+            // the body is only materialized by readBody() — a misbehaving
+            // registered address cannot buffer unbounded bytes into
+            // memory (review blocking finding, 2026-11-14).
+            HttpResponse<InputStream> response =
+                    client.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
+                response.body().close();
                 throw failure(address, start, " returned HTTP " + status);
-            }
-            byte[] body = response.body();
-            if (body.length > maxBytes) {
-                throw failure(address, start, " body of " + body.length
-                        + " bytes exceeds the " + maxBytes + " byte cap"
-                        + " (neis.scrape.max-bytes)");
             }
             String contentType = response.headers().firstValue("Content-Type")
                     .orElse("unknown");
+            // Content-Length pre-flight: refuse before reading a byte.
+            long declared = response.headers().firstValueAsLong("Content-Length")
+                    .orElse(-1);
+            if (declared > maxBytes) {
+                response.body().close();
+                throw failure(address, start, " Content-Length " + declared
+                        + " exceeds the " + maxBytes + " byte cap"
+                        + " (neis.scrape.max-bytes)");
+            }
+            byte[] body = readBody(address, response.body(), start);
             // jsoup detects the charset (BOM / meta declaration / UTF-8
             // default) and normalizes the markup to HTML5. The response
             // header's charset is NOT honored yet — Tika content-type/
@@ -108,6 +123,32 @@ public class HttpScrapeConnector implements ContentScrapePort {
     }
 
     /**
+     * Reads the response body under the byte cap, aborting the transfer
+     * as soon as it is exceeded — the memory bound is the cap, not the
+     * server's goodwill (review blocking finding, 2026-11-14).
+     */
+    private byte[] readBody(Address address, InputStream body, long start)
+            throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        long total = 0;
+        try (body) {
+            int n;
+            while ((n = body.read(buffer)) != -1) {
+                total += n;
+                if (total > maxBytes) {
+                    // Closing mid-transfer cancels it; nothing beyond
+                    // the cap is ever buffered.
+                    throw failure(address, start, " body of more than " + maxBytes
+                            + " bytes exceeds the cap (neis.scrape.max-bytes)");
+                }
+                out.write(buffer, 0, n);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
      * Every failed fetch logs ONE operational line (url, reason,
      * elapsed) before failing the scrape — the promise of the class
      * javadoc; success and failure are both observable (review
@@ -115,8 +156,10 @@ public class HttpScrapeConnector implements ContentScrapePort {
      */
     private IllegalStateException failure(Address address, long start,
                                           String reason, Throwable cause) {
+        // SLF4J logs the trailing throwable (if any) with its stack
+        // trace, so the failure line keeps the full cause chain.
         log.warn("WEBSCRAPE fetch {} FAILED{} ({} ms)",
-                address.url().trim(), reason, elapsedMs(start));
+                address.url().trim(), reason, elapsedMs(start), cause);
         return new IllegalStateException("WEBSCRAPE fetch of "
                 + address.url().trim() + reason, cause);
     }
