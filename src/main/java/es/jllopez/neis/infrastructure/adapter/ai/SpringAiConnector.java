@@ -31,6 +31,11 @@ public class SpringAiConnector implements AiAssistantPort {
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(SpringAiConnector.class);
 
+    /** The default environment variable holding the API key (shared by
+     * the @Value default and the effective-ref fallback so they cannot
+     * drift — US-15.3 review note, 2026-11-14). */
+    static final String DEFAULT_API_KEY_REF = "MELIOUS_API_KEY";
+
     private final ChatModel chatModel;
     private final String model;
 
@@ -38,7 +43,7 @@ public class SpringAiConnector implements AiAssistantPort {
             @Value("${neis.ai.provider:melious}") String provider,
             @Value("${neis.ai.base-url}") String baseUrl,
             @Value("${neis.ai.model:}") String model,
-            @Value("${neis.ai.api-key-ref:MELIOUS_API_KEY}") String apiKeyRef,
+            @Value("${neis.ai.api-key-ref:" + DEFAULT_API_KEY_REF + "}") String apiKeyRef,
             org.springframework.core.env.Environment environment) {
         // US-15.3 (issue #66): exactly one provider is accepted in this
         // iteration — MeliousAI; configuring any other name is refused
@@ -49,7 +54,7 @@ public class SpringAiConnector implements AiAssistantPort {
                             + "the only configured provider in this iteration is 'melious'");
         }
         String effectiveRef = apiKeyRef == null || apiKeyRef.isBlank()
-                ? "MELIOUS_API_KEY" : apiKeyRef.trim();
+                ? DEFAULT_API_KEY_REF : apiKeyRef.trim();
         // The key comes from the environment variable named by
         // api-key-ref — never from configuration. The legacy
         // neis.ai.api-key property is read through the Environment (NOT
