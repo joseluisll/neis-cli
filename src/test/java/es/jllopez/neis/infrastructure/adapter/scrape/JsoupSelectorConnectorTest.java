@@ -75,4 +75,21 @@ class JsoupSelectorConnectorTest {
         assertTrue(connector.extract(
                 LISTING, null, "news", "ADDR-T", 50, null).isEmpty());
     }
+
+    @Test
+    void documentBaseTagOverridesThePassedBaseUri() {
+        // jsoup resolves a document-level <base href> against the passed
+        // baseUri and lets it win — standard HTML semantics; the address
+        // URL is silently not-the-base for such pages (US-12.2 review
+        // note, 2026-11-14). Pinned so the behavior stays explicit.
+        String html = "<html><head><base href='https://cdn.example.eu/items/'></head>"
+                + "<body><ul class='news-list'>"
+                + "<li><a href='one.html'>Item one</a></li></ul></body></html>";
+
+        NewsEventItem item = connector.extract(
+                html, "ul.news-list li", "news", "ADDR-T", 50,
+                "https://example.eu/news/").get(0);
+
+        assertEquals("https://cdn.example.eu/items/one.html", item.url());
+    }
 }

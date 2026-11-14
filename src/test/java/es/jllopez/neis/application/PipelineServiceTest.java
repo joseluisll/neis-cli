@@ -415,6 +415,32 @@ class PipelineServiceTest {
     }
 
     @Test
+    void aiReidentificationCarriesOverTheStoredFilterData() {
+        // US-12.1 review finding (2026-11-14): a stale stored selector
+        // that falls through to the AI must NOT wipe the stored filter
+        // zone and catalogue on re-persistence — the same carry-over
+        // invariant the preconfigured branch established.
+        store.put("ADDR-003", new StoredSelectors("ADDR-003", "news",
+                ".does-not-match-anymore",
+                ".filter-zone", List.of(new FilterDefinition("year", List.of("2026"))),
+                "ai", "2026-11-01", "stale selector, valid filter data"));
+        AiAssistantPort ai = aiAnswering("news",
+                "{\"selector\":\"sedia-result-card-news-translation\",\"reasoning\":\"refreshed\"}");
+
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
+
+        assertEquals("ai", result.selectorSource());
+        StoredSelectors saved = store.get("ADDR-003");
+        assertEquals("sedia-result-card-news-translation", saved.selector());
+        assertEquals(".filter-zone", saved.filterSelector(),
+                "the stored filter-zone selector survives re-identification");
+        assertFalse(saved.filters().isEmpty(),
+                "the filter catalogue is never wiped by re-identification: it is "
+                        + "either carried over or re-derived in the same run, got "
+                        + saved.filters());
+    }
+
+    @Test
     void staleStoredSelectorTriggersReIdentification() {
         store.put("ADDR-003", new StoredSelectors("ADDR-003", "news",
                 ".does-not-match-anymore", "ai", "2026-11-01", "stale"));

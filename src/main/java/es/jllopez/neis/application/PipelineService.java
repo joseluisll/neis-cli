@@ -783,7 +783,7 @@ public class PipelineService {
                 log.info("[AI] {}: preconfigured selector valid - AI skipped ({})",
                         address.id(), configured);
                 StoredSelectors persisted = stored
-                        .map(s -> new StoredSelectors(s.addressId(), s.kind(), configured,
+                        .map(s -> new StoredSelectors(s.addressId(), kind, configured,
                                 s.filterSelector(), s.filters(), "preconfigured",
                                 LocalDate.now().toString(),
                                 "preconfigured in neis.selectors (US-12.1)"))
@@ -828,9 +828,20 @@ public class PipelineService {
                         && valid(simplifiedHtml, selector, kind, address)) {
                     log.info("[AI] {}: selector identified and validated - stored for reuse: {}",
                             address.id(), selector);
-                    selectorStore.save(new StoredSelectors(address.id(), kind,
-                            selector, "ai", LocalDate.now().toString(),
-                            reasoning == null ? "" : reasoning));
+                    // Same carry-over invariant as the preconfigured
+                    // branch: a stale stored record's filter-zone
+                    // selector and catalogue survive the re-identification
+                    // (US-12.1 review finding, 2026-11-14); the record's
+                    // kind is the CURRENT run's kind, not the stale one.
+                    StoredSelectors persisted = stored
+                            .map(s -> new StoredSelectors(s.addressId(), kind, selector,
+                                    s.filterSelector(), s.filters(), "ai",
+                                    LocalDate.now().toString(),
+                                    reasoning == null ? "" : reasoning))
+                            .orElse(new StoredSelectors(address.id(), kind,
+                                    selector, "ai", LocalDate.now().toString(),
+                                    reasoning == null ? "" : reasoning));
+                    selectorStore.save(persisted);
                     return new SelectorSelection(selector, "ai",
                             new PageAnalysis(classification,
                                     kind.equals("news") ? selector : null,

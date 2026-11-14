@@ -70,6 +70,10 @@ neis:
     # listing kind, consulted by ANALYZE before the AI; a validated one
     # is persisted to the selector store with discoveredBy=preconfigured.
     # A specific (address + kind) entry wins over a kind-wide default.
+    # Note: once persisted, the stored fast path keeps winning while the
+    # stored selector still extracts items — a config change only takes
+    # effect after the stored selector goes stale (US-12.1 review
+    # finding 2026-11-14).
     preconfigured: []
 #      - address: ADDR-005
 #        kind: event
