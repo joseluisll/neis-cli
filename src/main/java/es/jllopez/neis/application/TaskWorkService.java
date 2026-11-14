@@ -216,10 +216,11 @@ public class TaskWorkService {
                 notes.add("pagination loop at " + nextUrl);
                 break;
             }
-            if (nextUrl.equals(currentUrl)) {
+            if (isCurrentPageAgain(nextUrl, currentUrl)) {
                 // A next control pointing at the page itself is not
-                // pagination (site quirk, e.g. a self-referencing
-                // ?page=1 link) — treat as end of pagination.
+                // pagination: either the same URL or (1-indexed sites)
+                // the same path with only page=1 added — the site's
+                // static pager quirk observed live on europa.eu.
                 notes.add("next control points at the current page");
                 break;
             }
@@ -275,6 +276,38 @@ public class TaskWorkService {
                 ((existing.title() == null ? "" : existing.title().trim())
                         + "|" + (existing.url() == null ? "" : existing.url().trim()))
                         .equalsIgnoreCase(key));
+    }
+
+    /**
+     * True when the discovered next URL is the current page again:
+     * identical, or the same host+path with only a page=1 parameter —
+     * the implicit first page of a 1-indexed site (observed live on
+     * europa.eu, US-12.4).
+     */
+    private static boolean isCurrentPageAgain(String nextUrl, String currentUrl) {
+        if (nextUrl.equals(currentUrl)) {
+            return true;
+        }
+        try {
+            java.net.URI next = java.net.URI.create(nextUrl);
+            java.net.URI cur = java.net.URI.create(currentUrl);
+            if (!java.util.Objects.equals(next.getHost(), cur.getHost())
+                    || !next.getPath().equals(cur.getPath())) {
+                return false;
+            }
+            String query = next.getQuery();
+            if (query == null) {
+                return false;
+            }
+            for (String param : query.split("&")) {
+                if (param.equalsIgnoreCase("page=1")) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /** The extracted items as JSON (US-06.4 artifact) — escaping comes
