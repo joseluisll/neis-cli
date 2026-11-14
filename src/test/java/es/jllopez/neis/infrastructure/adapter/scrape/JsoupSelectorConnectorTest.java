@@ -124,4 +124,18 @@ class JsoupSelectorConnectorTest {
         assertEquals(null, connector.nextPageUrl(html, "https://example.eu/news"));
         assertEquals(null, connector.nextPageUrl(null, "https://example.eu/news"));
     }
+
+    @Test
+    void nextPageUrlIgnoresNonWebSchemes() {
+        // javascript:/mailto: pager anchors are common in the wild and
+        // would crash the fetch — they are not next-page controls
+        // (US-12.4 review finding, 2026-11-14).
+        String html = "<html><body><ul class='news-list'><li>item</li></ul>"
+                + "<nav class='pagination'>"
+                + "<a rel='next' href='javascript:void(0)'>Next</a>"
+                + "<a href='mailto:webmaster@example.eu'>Next</a></nav>"
+                + "</body></html>";
+
+        assertEquals(null, connector.nextPageUrl(html, "https://example.eu/news"));
+    }
 }

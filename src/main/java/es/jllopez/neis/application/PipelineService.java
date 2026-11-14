@@ -742,7 +742,7 @@ public class PipelineService {
         return items.stream().noneMatch(existing ->
                 ((existing.title() == null ? "" : existing.title().trim())
                         + "|" + (existing.url() == null ? "" : existing.url().trim()))
-                        .equalsIgnoreCase(key));
+                        .equals(key));
     }
 
     /**

@@ -156,7 +156,17 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
             return null;
         }
         String href = next.attr("abs:href");
-        return href.isBlank() ? null : href;
+        if (href.isBlank()) {
+            return null;
+        }
+        // Only fetchable web URLs: javascript:/mailto:/data: pager
+        // anchors are common in the wild and would crash the fetch
+        // (review finding, 2026-11-14).
+        String lower = href.toLowerCase();
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            return null;
+        }
+        return href;
     }
 
     /** Next-page labels seen in the wild (text comparison, no regex). */

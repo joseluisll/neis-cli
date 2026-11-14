@@ -211,11 +211,11 @@ public class TaskWorkService {
         String nextUrl = items.size() < maxItems
                 ? pipeline.extractionPort.nextPageUrl(scrape.html(), currentUrl)
                 : null;
+        boolean truncatedByGuard = false;
         while (nextUrl != null && items.size() < maxItems && pages < MAX_PAGES) {
-            if (!visited.add(nextUrl)) {
-                notes.add("pagination loop at " + nextUrl);
-                break;
-            }
+            // The self-page check FIRST: the visited guard would
+            // mislabel a self-referencing pager as a loop (review
+            // finding, 2026-11-14).
             if (isCurrentPageAgain(nextUrl, currentUrl)) {
                 // A next control pointing at the page itself is not
                 // pagination: either the same URL or (1-indexed sites)
@@ -224,11 +224,23 @@ public class TaskWorkService {
                 notes.add("next control points at the current page");
                 break;
             }
+            if (!visited.add(nextUrl)) {
+                notes.add("pagination loop at " + nextUrl);
+                break;
+            }
             ScrapeResult page;
             try {
                 page = pipeline.scrapePort.scrapeUrl(nextUrl);
             } catch (UnsupportedOperationException e) {
                 notes.add("page fetch unsupported: " + e.getMessage());
+                break;
+            } catch (RuntimeException e) {
+                // Fetch errors (HTTP 429, timeout, malformed href) stop
+                // the iteration but KEEP the pages already extracted —
+                // the partial result is stored and the reason recorded,
+                // never silently dropped (review finding, 2026-11-14).
+                notes.add("page " + (pages + 1) + " fetch failed: "
+                        + e.getMessage());
                 break;
             }
             pages++;
@@ -249,6 +261,15 @@ public class TaskWorkService {
             nextUrl = items.size() < maxItems
                     ? pipeline.extractionPort.nextPageUrl(page.html(), nextUrl)
                     : null;
+            if (nextUrl != null && pages >= MAX_PAGES - 1 && items.size() < maxItems) {
+                // The loop condition is about to end on the page guard:
+                // record the truncation instead of exiting silently
+                // (review finding, 2026-11-14).
+                truncatedByGuard = true;
+            }
+        }
+        if (truncatedByGuard) {
+            notes.add("iteration stopped at the " + MAX_PAGES + "-page safety guard");
         }
 
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
@@ -268,14 +289,18 @@ public class TaskWorkService {
                 + " (" + pagination.evidence() + ")" + iterationNote;
     }
 
-    /** Duplicate check across pages: title + detail URL (US-12.4). */
+    /**
+     * Duplicate check across pages: title + detail URL, case-sensitive
+     * (case-insensitive matching merged genuinely distinct items —
+     * review finding, 2026-11-14).
+     */
     private static boolean isNew(List<NewsEventItem> items, NewsEventItem candidate) {
         String key = (candidate.title() == null ? "" : candidate.title().trim())
                 + "|" + (candidate.url() == null ? "" : candidate.url().trim());
         return items.stream().noneMatch(existing ->
                 ((existing.title() == null ? "" : existing.title().trim())
                         + "|" + (existing.url() == null ? "" : existing.url().trim()))
-                        .equalsIgnoreCase(key));
+                        .equals(key));
     }
 
     /**
