@@ -151,7 +151,7 @@ class TaskWorkServiceWebScrapeTest {
                 catalog.byId("ADDR-001"), java.util.Map.of("max-items", "3"));
 
         assertTrue(outcome.contains("items extracted: 3"), outcome);
-        assertTrue(outcome.contains("cap 3, reached"), outcome);
+        assertTrue(outcome.contains("cap 3"), outcome);
     }
 
     @Test
@@ -167,7 +167,7 @@ class TaskWorkServiceWebScrapeTest {
                 catalog.byId("ADDR-001"));
 
         assertTrue(outcome.contains("items extracted: 5"), outcome);
-        assertTrue(outcome.contains("cap 5, reached"), outcome);
+        assertTrue(outcome.contains("cap 5"), outcome);
     }
 
     @Test

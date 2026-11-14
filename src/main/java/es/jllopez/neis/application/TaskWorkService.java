@@ -191,8 +191,13 @@ public class TaskWorkService {
                 maxItems, address.url());
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
                 "items-json", "items.json", itemsJson(items));
+        // 'cap M' states that extraction stopped at the cap — the count
+        // is the recorded truth; whether MORE elements existed beyond the
+        // cap is not observable through the extraction contract (review
+        // finding 2026-11-14: 'reached' implied truncation, which a
+        // listing of exactly maxItems items cannot prove).
         String capNote = maxItems == Integer.MAX_VALUE ? "no cap"
-                : "cap " + maxItems + (items.size() >= maxItems ? ", reached" : "");
+                : "cap " + maxItems;
         return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
                 + "; items extracted: " + items.size() + " (" + capNote
                 + "; selector '" + selector.get() + "') -> " + itemsArtifact;
