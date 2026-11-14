@@ -48,7 +48,7 @@ class TaskWorkServiceParameterTest {
 
     private PipelineService pipelineReturning(PipelineResult result) {
         PipelineService pipeline = mock(PipelineService.class);
-        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any())).thenReturn(result);
+        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any(), any())).thenReturn(result);
         return pipeline;
     }
 
@@ -59,7 +59,7 @@ class TaskWorkServiceParameterTest {
         String outcome = service(pipeline).execute("PRINT", address,
                 Map.of("max-items", "5", "max-pages", "2"));
 
-        verify(pipeline).run(address, 5, 2, null);
+        verify(pipeline).run(address, 5, 2, null, null);
         assertTrue(outcome.startsWith("CHAIN:"));
     }
 
@@ -98,7 +98,7 @@ class TaskWorkServiceParameterTest {
 
         service(pipeline).execute("PRINT", address, Map.of());
 
-        verify(pipeline).run(address, 50, 10, null);
+        verify(pipeline).run(address, 50, 10, null, null);
     }
 
     @Test

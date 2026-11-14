@@ -19,8 +19,14 @@ public interface NewsEventStorePort {
     /**
      * Upserts the extracted items of one address. Returns the number of
      * records stored (new + updated).
+     *
+     * @param executionId the execution that extracted the items
+     *                    (US-14.2 provenance; nullable)
+     * @param contentId   the scrape.html content record the items came
+     *                    from (US-14.2 provenance; nullable)
      */
-    int saveAll(String addressId, String kind, List<NewsEventItem> items);
+    int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                String executionId, String contentId);
 
     /** The stored items of one address, newest first. */
     List<NewsEventItem> byAddress(String addressId);

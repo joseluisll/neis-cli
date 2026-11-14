@@ -54,9 +54,10 @@ class SchemaRoundTripTest {
         var applied = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank");
         // V1 = the base schema; V2 = the captures table (US-11.4); V3 =
-        // the news/events repository table (US-14.1).
-        assertEquals(3, applied.size(),
-                "the V1, V2 and V3 migrations should be applied");
+        // the news/events repository table (US-14.1); V4 = its
+        // provenance columns (US-14.2).
+        assertEquals(4, applied.size(),
+                "the V1..V4 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.

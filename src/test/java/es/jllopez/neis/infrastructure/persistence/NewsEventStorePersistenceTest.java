@@ -54,15 +54,15 @@ class NewsEventStorePersistenceTest {
         var item = new NewsEventItem("ADDR-N1", "news", "Title",
                 "Summary", "https://example.eu/news/1", "2026-11-14");
 
-        assertEquals(1, store.saveAll("ADDR-N1", "news", List.of(item)));
+        assertEquals(1, store.saveAll("ADDR-N1", "news", List.of(item), null, null));
         // Re-extraction of the same item: upsert, not a duplicate.
-        assertEquals(1, store.saveAll("ADDR-N1", "news", List.of(item)));
+        assertEquals(1, store.saveAll("ADDR-N1", "news", List.of(item), null, null));
         assertEquals(1, store.byAddress("ADDR-N1").size());
 
         // A changed title for the same URL updates the same row.
         var renamed = new NewsEventItem("ADDR-N1", "news", "Title (updated)",
                 "Summary", "https://example.eu/news/1", "2026-11-14");
-        store.saveAll("ADDR-N1", "news", List.of(renamed));
+        store.saveAll("ADDR-N1", "news", List.of(renamed), null, null);
         assertEquals(1, store.byAddress("ADDR-N1").size());
         assertEquals("Title (updated)", store.byAddress("ADDR-N1").get(0).title());
     }
@@ -73,8 +73,8 @@ class NewsEventStorePersistenceTest {
         var item = new NewsEventItem("ADDR-N2", "event", "Event without a link",
                 null, null, "2026-11-14");
 
-        store.saveAll("ADDR-N2", "event", List.of(item));
-        store.saveAll("ADDR-N2", "event", List.of(item));
+        store.saveAll("ADDR-N2", "event", List.of(item), null, null);
+        store.saveAll("ADDR-N2", "event", List.of(item), null, null);
 
         assertEquals(1, store.byAddress("ADDR-N2").size(),
                 "no duplicate rows for link-less items");
@@ -89,7 +89,7 @@ class NewsEventStorePersistenceTest {
         seedAddress("ADDR-N5");
         var item = new NewsEventItem("ADDR-N5", "news", "Timestamped item",
                 null, "https://example.eu/news/9", null);
-        store.saveAll("ADDR-N5", "news", List.of(item));
+        store.saveAll("ADDR-N5", "news", List.of(item), null, null);
         String createdAt = jdbcTemplate.queryForObject(
                 "SELECT created_at FROM news_events WHERE address_id = 'ADDR-N5'",
                 String.class);
@@ -97,7 +97,7 @@ class NewsEventStorePersistenceTest {
                 "SELECT updated_at FROM news_events WHERE address_id = 'ADDR-N5'",
                 String.class);
 
-        store.saveAll("ADDR-N5", "news", List.of(item));
+        store.saveAll("ADDR-N5", "news", List.of(item), null, null);
 
         assertEquals(createdAt, jdbcTemplate.queryForObject(
                 "SELECT created_at FROM news_events WHERE address_id = 'ADDR-N5'",
@@ -116,10 +116,10 @@ class NewsEventStorePersistenceTest {
         seedAddress("ADDR-N6");
         store.saveAll("ADDR-N6", "news", List.of(new NewsEventItem(
                 "ADDR-N6", "news", "Dual-kind item", null,
-                "https://example.eu/dual", null)));
+                "https://example.eu/dual", null)), null, null);
         store.saveAll("ADDR-N6", "event", List.of(new NewsEventItem(
                 "ADDR-N6", "event", "Dual-kind item", null,
-                "https://example.eu/dual", null)));
+                "https://example.eu/dual", null)), null, null);
 
         assertEquals(1, store.byAddress("ADDR-N6").size());
         assertEquals("event", store.byAddress("ADDR-N6").get(0).kind());
@@ -136,8 +136,8 @@ class NewsEventStorePersistenceTest {
         var second = new NewsEventItem("ADDR-N7", "news", "Link-less item",
                 null, "", null);
 
-        store.saveAll("ADDR-N7", "news", List.of(first));
-        store.saveAll("ADDR-N7", "news", List.of(second));
+        store.saveAll("ADDR-N7", "news", List.of(first), null, null);
+        store.saveAll("ADDR-N7", "news", List.of(second), null, null);
 
         assertEquals(1, store.byAddress("ADDR-N7").size(),
                 "both blank-url variants key on the title: one row");
@@ -149,10 +149,10 @@ class NewsEventStorePersistenceTest {
         seedAddress("ADDR-N4");
         store.saveAll("ADDR-N3", "news", List.of(new NewsEventItem(
                 "ADDR-N3", "news", "Same title", null,
-                "https://example.eu/n1", null)));
+                "https://example.eu/n1", null)), null, null);
         store.saveAll("ADDR-N4", "event", List.of(new NewsEventItem(
                 "ADDR-N4", "event", "Same title", null,
-                "https://example.eu/n1", null)));
+                "https://example.eu/n1", null)), null, null);
 
         assertEquals("news", store.byAddress("ADDR-N3").get(0).kind());
         assertEquals("event", store.byAddress("ADDR-N4").get(0).kind());

@@ -1035,7 +1035,7 @@ class PipelineServiceTest {
                 catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
-                new FilterSpec("Event status", "Past"));
+                new FilterSpec("Event status", "Past"), null);
 
         assertEquals("Event status", result.appliedFilterField(),
                 "the chain's criterion must be applied without any AI");
@@ -1076,7 +1076,7 @@ class PipelineServiceTest {
                 catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
-                new FilterSpec("Keyword", "plasma"));
+                new FilterSpec("Keyword", "plasma"), null);
 
         assertTrue(result.appliedFilterField() == null);
         assertTrue(result.filterApplicationNote().contains("does not match"),

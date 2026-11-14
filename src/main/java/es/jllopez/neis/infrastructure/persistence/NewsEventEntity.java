@@ -45,6 +45,14 @@ public class NewsEventEntity {
     @Column(name = "updated_at", nullable = false)
     private String updatedAt;
 
+    /** The execution that extracted this item (US-14.2 provenance). */
+    @Column(name = "execution_id")
+    private String executionId;
+
+    /** The scrape.html content record the item came from (US-14.2). */
+    @Column(name = "content_id")
+    private String contentId;
+
     public String getId() {
         return id;
     }
@@ -115,5 +123,21 @@ public class NewsEventEntity {
 
     public void setUpdatedAt(String updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getExecutionId() {
+        return executionId;
+    }
+
+    public void setExecutionId(String executionId) {
+        this.executionId = executionId;
+    }
+
+    public String getContentId() {
+        return contentId;
+    }
+
+    public void setContentId(String contentId) {
+        this.contentId = contentId;
     }
 }

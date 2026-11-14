@@ -138,7 +138,7 @@ public class PipelineService {
 
     /** Runs the whole pipeline for one address. */
     public PipelineResult run(Address address) {
-        return run(address, MAX_ITEMS, MAX_PAGES, null);
+        return run(address, MAX_ITEMS, MAX_PAGES, null, null);
     }
 
     /**
@@ -148,7 +148,7 @@ public class PipelineService {
      * pagination-iteration block.
      */
     public PipelineResult run(Address address, int maxItems, int maxPages) {
-        return run(address, maxItems, maxPages, null);
+        return run(address, maxItems, maxPages, null, null);
     }
 
     /**
@@ -156,9 +156,12 @@ public class PipelineService {
      * when the chain definition carries a filter, the FILTER
      * application applies THAT criterion — offline, no AI in the loop —
      * instead of letting the AI choose one.
+     *
+     * @param executionId the owning execution's id (US-14.2 provenance:
+     *                    persisted with every extracted item), or null
      */
     public PipelineResult run(Address address, int maxItems, int maxPages,
-                              FilterSpec filterSpec) {
+                              FilterSpec filterSpec, String executionId) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -260,7 +263,11 @@ public class PipelineService {
         // pagination iteration, so page-2+ items reach the repository
         // too (US-14.1 review finding, 2026-11-14: the persist used to
         // run before the loop and page-2+ items were never stored).
-        newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items);
+        // US-14.2 (issue #56): each record references the execution that
+        // extracted it and the scrape.html content it came from.
+        newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items,
+                executionId,
+                contentStore.contentRecordId(flagged, "WEBSCRAPE", "scrape.html"));
 
         // FILTER block (US-17): ONLY on addresses flagged FILTERING.
         // The AI first identifies the filter-zone selector (like the
@@ -1051,6 +1058,12 @@ public class PipelineService {
                        String fileName, String content) {
         return contentStore.writeTaskOutput(address, address.url(), taskCode,
                 kind, fileName, content);
+    }
+
+    /** The deterministic content-record id of a task output (US-14.2
+     * provenance references use it without re-reading the store). */
+    String contentRecordId(Address address, String taskCode, String fileName) {
+        return contentStore.contentRecordId(address, taskCode, fileName);
     }
 
     /** Chosen selector plus its provenance and the page analysis. */

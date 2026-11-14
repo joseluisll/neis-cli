@@ -113,20 +113,22 @@ public class TaskWorkService {
      */
     public String execute(String taskCode, Address address,
                           Map<String, String> parameters, String chainName) {
-        return execute(taskCode, address, parameters, chainName, null);
+        return execute(taskCode, address, parameters, chainName, null, null);
     }
 
     /**
      * Same as {@link #execute(String, Address, Map)} with the name of
      * the chain whose step is being executed (null for single task
-     * runs; the PRINT report artifact is titled with it) and the
-     * chain's filter spec (owner decision 2026-11-12): the criterion
-     * the chain DEFINITION carries, applied offline by the FILTER
-     * application of this run. Null when the chain defines no filter.
+     * runs; the PRINT report artifact is titled with it), the chain's
+     * filter spec (owner decision 2026-11-12): the criterion the chain
+     * DEFINITION carries, applied offline by the FILTER application of
+     * this run — null when the chain defines no filter — and the
+     * owning execution's id (US-14.2 provenance: persisted with every
+     * extracted item; null in tests).
      */
     public String execute(String taskCode, Address address,
                           Map<String, String> parameters, String chainName,
-                          FilterSpec chainFilterSpec) {
+                          FilterSpec chainFilterSpec, String executionId) {
         return switch (taskCode) {
             case "WEBSCRAPE" -> {
                 // US-12.5: the step accepts an optional max-items cap
@@ -137,7 +139,7 @@ public class TaskWorkService {
                 // before anything runs.
                 requireNoParameters(taskCode, parameters, "max-items", "selector");
                 yield scrape(address, maxItemsCap(parameters),
-                        parameters.get("selector"));
+                        parameters.get("selector"), executionId);
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
@@ -158,7 +160,7 @@ public class TaskWorkService {
                 yield filter(address, spec);
             }
             case "PRINT", "CHAIN" -> fullChain(address, parameters, chainName,
-                    chainFilterSpec);
+                    chainFilterSpec, executionId);
             default -> throw new IllegalArgumentException(
                     "Unknown task type: " + taskCode
                             + " (known: WEBSCRAPE, SIMPLIFY, ANALYZE, FILTER, PRINT, CHAIN)");
@@ -197,7 +199,8 @@ public class TaskWorkService {
      * strategy (AI/heuristic re-identification) and tolerates empty
      * matches instead.
      */
-    private String scrape(Address address, int maxItems, String selectorOverride) {
+    private String scrape(Address address, int maxItems, String selectorOverride,
+                          String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
@@ -320,8 +323,12 @@ public class TaskWorkService {
                 "items-json", "items.json", itemsJson(items));
         // US-14.1 (issue #55): the extracted items are persisted as
         // repository entities, not only as content files — idempotent
-        // upsert per (address, detail URL).
-        newsEventStore.saveAll(address.id(), address.itemKind(), items);
+        // upsert per (address, detail URL). US-14.2 (issue #56): each
+        // record references the execution that extracted it and the
+        // scrape.html content it came from.
+        newsEventStore.saveAll(address.id(), address.itemKind(), items,
+                executionId,
+                pipeline.contentRecordId(address, "WEBSCRAPE", "scrape.html"));
         // 'cap M' states that extraction stopped at the cap — the count
         // is the recorded truth; whether MORE elements existed beyond the
         // cap is not observable through the extraction contract (review
@@ -494,7 +501,8 @@ public class TaskWorkService {
      * spec, when the chain defines one, governs the run's filter
      * application. */
     private String fullChain(Address address, Map<String, String> parameters,
-                             String chainName, FilterSpec chainFilterSpec) {
+                             String chainName, FilterSpec chainFilterSpec,
+                             String executionId) {
         // Whitelist, not lookup-and-ignore: an unknown key would
         // otherwise be silently dead configuration — the exact
         // fail-open the US-08 review disqualified (a typo like
@@ -507,7 +515,8 @@ public class TaskWorkService {
         }
         int maxItems = intParameter(parameters, "max-items", 50, 1, 10_000);
         int maxPages = intParameter(parameters, "max-pages", 10, 1, 100);
-        PipelineResult result = pipeline.run(address, maxItems, maxPages, chainFilterSpec);
+        PipelineResult result = pipeline.run(address, maxItems, maxPages,
+                chainFilterSpec, executionId);
         String report = PipelineReport.render(
                 chainName != null ? chainName : "PRINT", result);
         Path reportArtifact = pipeline.writeArtifact(address, "PRINT", "report",

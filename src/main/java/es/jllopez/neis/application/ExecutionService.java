@@ -189,8 +189,9 @@ public class ExecutionService {
             // concurrent runs (slice-3 review finding).
             synchronized (addressLocks.computeIfAbsent(address.id(), key -> new Object())) {
                 outcome = record.chainId() != null
-                        ? runChain(record.chainId(), address)
-                        : taskWork.execute(record.taskCode(), address, parameters, null, null);
+                        ? runChain(record.chainId(), address, record.id())
+                        : taskWork.execute(record.taskCode(), address, parameters,
+                                null, null, record.id());
             }
             finalStatus = ExecutionStatus.SUCCESS;
         } catch (Throwable t) {
@@ -229,7 +230,7 @@ public class ExecutionService {
      * failure do NOT run, and Errors propagate raw (the run() catch
      * records and re-throws them).
      */
-    private String runChain(String chainId, Address address) {
+    private String runChain(String chainId, Address address, String executionId) {
         Chain chain = chains.findById(chainId).orElseThrow(
                 () -> new IllegalStateException("Chain vanished mid-run: " + chainId));
         List<ChainTask> tasks = chain.tasks();
@@ -246,7 +247,7 @@ public class ExecutionService {
             ChainTask task = tasks.get(i);
             try {
                 String stepOutcome = taskWork.execute(task.taskCode(), address,
-                        task.parameters(), chain.name(), chainFilterSpec);
+                        task.parameters(), chain.name(), chainFilterSpec, executionId);
                 outcome.append("step ").append(i + 1).append('/').append(tasks.size())
                         .append(' ').append(task.taskCode()).append(": ")
                         .append(stepOutcome);

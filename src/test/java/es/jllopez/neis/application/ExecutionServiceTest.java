@@ -66,7 +66,7 @@ class ExecutionServiceTest {
     @SuppressWarnings("unchecked")
     private TaskWorkService workReturning(String outcome) {
         TaskWorkService work = mock(TaskWorkService.class);
-        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenReturn(outcome);
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any(), any())).thenReturn(outcome);
         return work;
     }
 
@@ -96,7 +96,7 @@ class ExecutionServiceTest {
         InMemoryExecutionStorePort store =
                 new InMemoryExecutionStorePort(List.of("WEBSCRAPE"));
         TaskWorkService failing = mock(TaskWorkService.class);
-        when(failing.execute(anyString(), any(Address.class), anyMap(), any(), any()))
+        when(failing.execute(anyString(), any(Address.class), anyMap(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("scrape boom"));
         ExecutionService service = service(failing, DIRECT, store);
 
@@ -234,7 +234,7 @@ class ExecutionServiceTest {
         List<long[]> intervals =
                 java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         TaskWorkService slowWork = mock(TaskWorkService.class);
-        when(slowWork.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
+        when(slowWork.execute(anyString(), any(Address.class), anyMap(), any(), any(), any())).thenAnswer(inv -> {
             long start = System.nanoTime();
             intervals.add(new long[]{start, 0}); // enter
             Thread.sleep(250);
@@ -313,7 +313,7 @@ class ExecutionServiceTest {
                 ChainTask.at(3, "PRINT")));
         TaskWorkService work = mock(TaskWorkService.class);
         Map<String, Object> specByCode = new java.util.HashMap<>();
-        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any()))
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any(), any()))
                 .thenAnswer(inv -> {
                     specByCode.put(inv.getArgument(0), inv.getArgument(4));
                     return "ok";
@@ -340,7 +340,7 @@ class ExecutionServiceTest {
         TaskWorkService work = mock(TaskWorkService.class);
         List<String> invoked = new java.util.ArrayList<>();
         Map<String, Map<String, String>> paramsByCode = new java.util.HashMap<>();
-        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any(), any())).thenAnswer(inv -> {
             String code = inv.getArgument(0);
             invoked.add(code);
             paramsByCode.put(code, inv.getArgument(2));
@@ -378,7 +378,7 @@ class ExecutionServiceTest {
                 ChainTask.at(3, "PRINT")));
         TaskWorkService work = mock(TaskWorkService.class);
         List<String> invoked = new java.util.ArrayList<>();
-        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any())).thenAnswer(inv -> {
+        when(work.execute(anyString(), any(Address.class), anyMap(), any(), any(), any())).thenAnswer(inv -> {
             String code = inv.getArgument(0);
             invoked.add(code);
             if ("SIMPLIFY".equals(code)) {

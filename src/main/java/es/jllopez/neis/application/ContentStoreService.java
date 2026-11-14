@@ -116,6 +116,16 @@ public class ContentStoreService {
         return store.findAll();
     }
 
+    /**
+     * The deterministic content-record id a task output WILL get (or
+     * already has) for this address/task/file — provenance references
+     * (US-14.2) use it without re-reading the store.
+     */
+    public String contentRecordId(Address address, String taskCode, String fileName) {
+        return "CONT-" + sha256(address.id() + "|" + captureId(address.url())
+                + "|" + taskCode + "|" + fileName).substring(0, 12);
+    }
+
     /** Every content record of one address, newest first. */
     public List<ContentRecord> listByAddress(String addressId) {
         return store.findByAddress(addressId);

@@ -31,7 +31,8 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     }
 
     @Override
-    public int saveAll(String addressId, String kind, List<NewsEventItem> items) {
+    public int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                       String executionId, String contentId) {
         String now = Instant.now().toString();
         int stored = 0;
         for (NewsEventItem item : items) {
@@ -50,6 +51,10 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             // (US-14.1 review finding, 2026-11-14).
             entity.setUrl(item.url() == null || item.url().isBlank()
                     ? null : item.url());
+            // US-14.2 provenance: the execution and the scrape.html
+            // content record this extraction came from.
+            entity.setExecutionId(executionId);
+            entity.setContentId(contentId);
             if (isNew) {
                 entity.setCreatedAt(now);
             }
