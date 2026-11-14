@@ -113,6 +113,24 @@ class JsoupSelectorConnectorTest {
     }
 
     @Test
+    void locationMatchRequiresTheWholeWord() {
+        // US-14.4 review: [class*=location] is a substring match and
+        // mistook "relocation"-style classes for a venue — the class
+        // match is word-boundary now.
+        String listing = "<html><body><ul class='news'>"
+                + "<li><h2><a href='/news/one'>Item</a></h2>"
+                + "<span class='relocation-policy'>Moving offices in 2027</span>"
+                + "<span class='venue'>Madrid</span></li>"
+                + "</ul></body></html>";
+        List<NewsEventItem> items = connector.extract(
+                listing, "ul.news li", "news", "ADDR-T", 50,
+                "https://example.eu/news/");
+        assertEquals(1, items.size());
+        assertEquals("Madrid", items.get(0).location(),
+                "the relocation class is not a venue");
+    }
+
+    @Test
     void documentBaseTagOverridesThePassedBaseUri() {
         // jsoup resolves a document-level <base href> against the passed
         // baseUri and lets it win — standard HTML semantics; the address

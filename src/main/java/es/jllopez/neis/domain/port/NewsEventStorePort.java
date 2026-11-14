@@ -34,7 +34,10 @@ public interface NewsEventStorePort {
      *                    <p>A null item title does not abort the batch
      *                    on the schema's NOT NULL: it is stored empty
      *                    and flagged incomplete (missing: title) with
-     *                    the rest of the batch (US-14.4 review).</p>
+     *                    the rest of the batch (US-14.4 review). Note
+     *                    that title-less (null or blank) link-less
+     *                    items on one address share the title-based
+     *                    natural key, so they upsert into ONE row.</p>
      */
     int saveAll(String addressId, String kind, List<NewsEventItem> items,
                 String executionId, String contentId);
