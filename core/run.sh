@@ -33,6 +33,10 @@ mkdir -p "$WORK_DIR" "$RESULTS_DIR"
 export NEIS_CORE_WORK_DIR="$WORK_DIR"
 # Keep the kit's SQLite database inside the kit's work dir too (US-02).
 export NEIS_DB_PATH="$WORK_DIR/neis.db"
+# Keep the rolling log file inside the kit as well (US-15.2 review
+# finding, 2026-11-14): ./logs/neis.log otherwise resolves against the
+# caller's working directory.
+export NEIS_LOG_PATH="$WORK_DIR/logs/neis.log"
 
 cli() { "$ROOT_DIR/core/start.sh" -- "$1"; }
 
