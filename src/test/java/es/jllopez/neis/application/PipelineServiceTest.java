@@ -435,9 +435,27 @@ class PipelineServiceTest {
         assertEquals(".filter-zone", saved.filterSelector(),
                 "the stored filter-zone selector survives re-identification");
         assertFalse(saved.filters().isEmpty(),
-                "the filter catalogue is never wiped by re-identification: it is "
-                        + "either carried over or re-derived in the same run, got "
-                        + saved.filters());
+                "the filter catalogue is not wiped by ITEM-selector "
+                        + "re-identification: it is either carried over or "
+                        + "re-derived in the same run, got " + saved.filters());
+    }
+
+    @Test
+    void rePersistenceStampsTheCurrentKindOverAStaleStoredKind() {
+        // US-12.1 review finding (2026-11-14): both re-persistence
+        // branches stamp the CURRENT run's kind, not the stale stored
+        // record's — pinned with a stored record whose kind differs from
+        // the address's kind.
+        store.put("ADDR-003", new StoredSelectors("ADDR-003", "event",
+                ".does-not-match-anymore", "ai", "2026-11-01", "stale, wrong kind"));
+        AiAssistantPort ai = aiAnswering("news",
+                "{\"selector\":\"sedia-result-card-news-translation\",\"reasoning\":\"refreshed\"}");
+
+        PipelineResult result = service(aiProvider(ai)).run(catalog.byId("ADDR-003"));
+
+        assertEquals("ai", result.selectorSource());
+        assertEquals("news", store.get("ADDR-003").kind(),
+                "the re-persisted record carries the current run's kind");
     }
 
     @Test
