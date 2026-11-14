@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
@@ -47,10 +48,13 @@ public class HttpScrapeConnector implements ContentScrapePort {
 
     private final HttpClient client;
     private final Duration timeout;
+    private final int maxBytes;
 
     public HttpScrapeConnector(
-            @Value("${neis.scrape.timeout-seconds:20}") long timeoutSeconds) {
+            @Value("${neis.scrape.timeout-seconds:20}") long timeoutSeconds,
+            @Value("${neis.scrape.max-bytes:10485760}") int maxBytes) {
         this.timeout = Duration.ofSeconds(timeoutSeconds);
+        this.maxBytes = maxBytes;
         this.client = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(timeout)
@@ -72,25 +76,53 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     client.send(request, HttpResponse.BodyHandlers.ofByteArray());
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
-                throw new IllegalStateException(
-                        "WEBSCRAPE fetch of " + url + " returned HTTP " + status);
+                throw failure(address, start, " returned HTTP " + status);
             }
             byte[] body = response.body();
+            if (body.length > maxBytes) {
+                throw failure(address, start, " body of " + body.length
+                        + " bytes exceeds the " + maxBytes + " byte cap"
+                        + " (neis.scrape.max-bytes)");
+            }
             String contentType = response.headers().firstValue("Content-Type")
                     .orElse("unknown");
             // jsoup detects the charset (BOM / meta declaration / UTF-8
-            // default) and normalizes the markup to HTML5.
+            // default) and normalizes the markup to HTML5. The response
+            // header's charset is NOT honored yet — Tika content-type/
+            // charset detection lands with US-06.2 (issue #28).
             Document doc = DataUtil.load(new ByteArrayInputStream(body), null, url);
             String html = doc.html();
-            log.info("WEBSCRAPE fetch {} -> HTTP {} {} {} bytes ({} ms)",
-                    url, status, contentType, body.length, elapsedMs(start));
-            return new ScrapeResult(html, contentType, body.length);
+            // sizeBytes follows the static connector's convention: the
+            // byte size of the content actually stored (the normalized
+            // HTML5), not the raw wire size (review finding, 2026-11-14).
+            int storedBytes = html.getBytes(StandardCharsets.UTF_8).length;
+            log.info("WEBSCRAPE fetch {} -> HTTP {} {} wire {} bytes, stored {} bytes ({} ms)",
+                    url, status, contentType, body.length, storedBytes, elapsedMs(start));
+            return new ScrapeResult(html, contentType, storedBytes);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("WEBSCRAPE fetch of " + url + " interrupted", e);
+            throw failure(address, start, " interrupted", e);
         } catch (IOException e) {
-            throw new IllegalStateException("WEBSCRAPE fetch of " + url + " failed: " + e, e);
+            throw failure(address, start, " failed: " + e, e);
         }
+    }
+
+    /**
+     * Every failed fetch logs ONE operational line (url, reason,
+     * elapsed) before failing the scrape — the promise of the class
+     * javadoc; success and failure are both observable (review
+     * finding, 2026-11-14).
+     */
+    private IllegalStateException failure(Address address, long start,
+                                          String reason, Throwable cause) {
+        log.warn("WEBSCRAPE fetch {} FAILED{} ({} ms)",
+                address.url().trim(), reason, elapsedMs(start));
+        return new IllegalStateException("WEBSCRAPE fetch of "
+                + address.url().trim() + reason, cause);
+    }
+
+    private IllegalStateException failure(Address address, long start, String reason) {
+        return failure(address, start, reason, null);
     }
 
     private long elapsedMs(long startNanos) {

@@ -54,6 +54,10 @@ neis:
     connector: static
     # Per-request timeout of the live fetch.
     timeout-seconds: 20
+    # Safety cap of the live fetch's response body (review finding
+    # 2026-11-14): a misbehaving registered address must not be able to
+    # buffer unbounded bytes into memory.
+    max-bytes: 10485760
   address:
     verification:
       # Address reachability check (US-04.2): per-request timeout of the

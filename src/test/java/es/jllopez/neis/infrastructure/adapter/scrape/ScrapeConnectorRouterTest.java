@@ -32,7 +32,7 @@ class ScrapeConnectorRouterTest {
 
     @Test
     void liveModeDelegatesToTheHttpConnector() {
-        HttpScrapeConnector stub = new HttpScrapeConnector(5) {
+        HttpScrapeConnector stub = new HttpScrapeConnector(5, 1024 * 1024) {
             @Override
             public ScrapeResult scrape(Address address) {
                 return new ScrapeResult("<html><body>live</body></html>",

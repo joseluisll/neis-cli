@@ -29,7 +29,7 @@ class HttpScrapeConnectorTest {
     private HttpServer server;
     private int port;
 
-    private final HttpScrapeConnector connector = new HttpScrapeConnector(5);
+    private final HttpScrapeConnector connector = new HttpScrapeConnector(5, 1024 * 1024);
 
     @BeforeEach
     void startServer() throws IOException {
@@ -114,10 +114,78 @@ class HttpScrapeConnectorTest {
     }
 
     @Test
-    void unreachableServerFailsTheScrape() {
-        // Port 1 on localhost: nothing listens there.
-        Address dead = new Address("ADDR-DEAD", "Dead", null,
-                "http://127.0.0.1:1/page", AddressType.URL_NEWS);
-        assertThrows(IllegalStateException.class, () -> connector.scrape(dead));
+    void oversizedBodyFailsTheScrape() {
+        byte[] body = new byte[4096]; // larger than the 1024-byte cap below
+        server.createContext("/huge", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+        HttpScrapeConnector capped = new HttpScrapeConnector(5, 1024);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> capped.scrape(addressAt("/huge")));
+        assertTrue(e.getMessage().contains("byte cap"), e.getMessage());
+    }
+
+    @Test
+    void sizeBytesIsTheStoredNormalizedSize() {
+        // The convention (shared with the static connector) is the byte
+        // size of the content actually stored, the jsoup-normalized
+        // HTML5 — not the raw wire size (review finding, 2026-11-14).
+        server.createContext("/size", exchange -> {
+            byte[] body = "<html><body>hello</body></html>".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        ScrapeResult result = connector.scrape(addressAt("/size"));
+
+        assertEquals(result.html().getBytes(StandardCharsets.UTF_8).length,
+                result.sizeBytes());
+    }
+
+    @Test
+    void headerCharsetIsNotHonoredYet() {
+        // PINNED current behavior until US-06.2 (Tika, issue #28): a
+        // server-declared ISO-8859-1 body WITHOUT a meta declaration is
+        // decoded as UTF-8 — 0xE9 ('é' in ISO-8859-1) is not valid
+        // UTF-8, so jsoup replaces it with U+FFFD. When Tika lands this
+        // test changes to assert 'caf\u00e9'.
+        byte[] body = "<html><body>caf\351 menu</body></html>"
+                .getBytes(StandardCharsets.ISO_8859_1);
+        server.createContext("/header-charset", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type",
+                    "text/html; charset=ISO-8859-1");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+
+        ScrapeResult result = connector.scrape(addressAt("/header-charset"));
+
+        assertTrue(result.contentType().contains("ISO-8859-1"),
+                "response content type is recorded verbatim");
+        assertTrue(result.html().contains("\uFFFD"),
+                "pinned: header charset ignored, body decoded as UTF-8");
+    }
+
+    @Test
+    void unreachableServerFailsTheScrape() throws IOException {
+        // Bind an ephemeral port, close it, and target it: nothing
+        // listens there, without hard-coding a port (review finding,
+        // 2026-11-14).
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            Address dead = new Address("ADDR-DEAD", "Dead", null,
+                    "http://127.0.0.1:" + socket.getLocalPort() + "/page",
+                    AddressType.URL_NEWS);
+            assertThrows(IllegalStateException.class, () -> connector.scrape(dead));
+        }
     }
 }
