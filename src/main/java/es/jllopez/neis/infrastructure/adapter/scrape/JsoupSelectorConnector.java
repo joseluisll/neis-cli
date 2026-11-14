@@ -177,6 +177,25 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
                 || lower.equals(">");
     }
 
+    /**
+     * Syntax validation against the engine (US-12.3, issue #48): the
+     * selector must parse — evaluated against an empty document, so no
+     * content is needed; a syntax error surfaces as a jsoup parse
+     * exception.
+     */
+    @Override
+    public boolean isSyntaxValid(String selector) {
+        if (selector == null || selector.isBlank()) {
+            return false;
+        }
+        try {
+            Jsoup.parse("").select(selector.trim());
+            return true;
+        } catch (RuntimeException e) {
+            return false; // SelectorParseException and friends: syntax error
+        }
+    }
+
     private String extractDate(Element el) {
         // ECL/EUREF date blocks (portal event cards): day + month + year spans.
         Element day = el.selectFirst(".ecl-date-block__day");

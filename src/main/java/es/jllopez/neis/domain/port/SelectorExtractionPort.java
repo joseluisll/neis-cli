@@ -54,4 +54,14 @@ public interface SelectorExtractionPort {
     default String nextPageUrl(String html, String baseUrl) {
         return null;
     }
+
+    /**
+     * Syntax validation of a CSS selector against the engine (US-12.3,
+     * issue #48): true when the selector parses; content probing
+     * (selects at least one element) is a separate, execution-time
+     * check. Defaults to false — fail-closed.
+     */
+    default boolean isSyntaxValid(String selector) {
+        return false;
+    }
 }

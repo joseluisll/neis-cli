@@ -71,6 +71,12 @@ class TaskWorkServiceWebScrapeTest {
         return new TaskWorkService(pipeline, catalog, configuredMaxItems);
     }
 
+    private PreconfiguredSelectors catalog(
+            List<PreconfiguredSelectorProperties.Entry> entries) {
+        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(entries),
+                new JsoupSelectorConnector());
+    }
+
     @BeforeEach
     void cleanWorkDir() throws Exception {
         // content folders are deterministic per URL; start empty
@@ -92,10 +98,9 @@ class TaskWorkServiceWebScrapeTest {
 
     @Test
     void extractsItemsWithAPreconfiguredSelector() {
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
 
         String outcome = service(configured).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
@@ -112,8 +117,7 @@ class TaskWorkServiceWebScrapeTest {
 
     @Test
     void skipsExtractionWithoutAPreconfiguredSelector() {
-        String outcome = service(new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of()))).execute("WEBSCRAPE",
+        String outcome = service(catalog(List.of())).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
 
         assertTrue(outcome.contains("no preconfigured selector"), outcome);
@@ -123,10 +127,9 @@ class TaskWorkServiceWebScrapeTest {
 
     @Test
     void extractedItemsCarryTheMetadata() throws Exception {
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
         service(configured).execute("WEBSCRAPE", catalog.byId("ADDR-001"));
 
         String json = Files.readString(firstFileMatching("items.json"));
@@ -142,10 +145,9 @@ class TaskWorkServiceWebScrapeTest {
         // US-12.5: extraction stops at the limit without error; the
         // outcome records how many were extracted and that the cap was
         // reached.
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
 
         String outcome = service(configured, null).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"), java.util.Map.of("max-items", "3"));
@@ -158,10 +160,9 @@ class TaskWorkServiceWebScrapeTest {
     void configuredMaxItemsIsTheDefaultCap() {
         // US-12.5: the externalized default applies when the task
         // carries no max-items parameter.
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
 
         String outcome = service(configured, "5").execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
@@ -172,10 +173,9 @@ class TaskWorkServiceWebScrapeTest {
 
     @Test
     void withoutCapConfigurationExtractionIsUnlimited() {
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
 
         String noParam = service(configured, null).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
@@ -194,10 +194,9 @@ class TaskWorkServiceWebScrapeTest {
 
     @Test
     void invalidConfiguredMaxItemsFailsTheBoot() {
-        PreconfiguredSelectors configured = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(List.of(
+        PreconfiguredSelectors configured = catalog(List.of(
                         new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
-                                "ul.news-list li"))));
+                                "ul.news-list li")));
         IllegalArgumentException letters = assertThrows(IllegalArgumentException.class,
                 () -> service(configured, "many"));
         assertTrue(letters.getMessage().contains("must be an integer"));
@@ -246,7 +245,8 @@ class TaskWorkServiceWebScrapeTest {
             PreconfiguredSelectors configured = new PreconfiguredSelectors(
                     new PreconfiguredSelectorProperties(List.of(
                             new PreconfiguredSelectorProperties.Entry("ADDR-LIVE", "news",
-                                    "ul.news-list li"))));
+                                    "ul.news-list li"))),
+                    new JsoupSelectorConnector());
             PipelineService livePipeline = new PipelineService(
                     new es.jllopez.neis.infrastructure.adapter.scrape.HttpScrapeConnector(5,
                             1024 * 1024),
@@ -319,7 +319,8 @@ class TaskWorkServiceWebScrapeTest {
             PreconfiguredSelectors configured = new PreconfiguredSelectors(
                     new PreconfiguredSelectorProperties(List.of(
                             new PreconfiguredSelectorProperties.Entry("ADDR-LIVE", "news",
-                                    "ul.news-list li"))));
+                                    "ul.news-list li"))),
+                    new JsoupSelectorConnector());
             PipelineService livePipeline = new PipelineService(
                     new es.jllopez.neis.infrastructure.adapter.scrape.HttpScrapeConnector(5,
                             1024 * 1024),
@@ -352,6 +353,48 @@ class TaskWorkServiceWebScrapeTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void selectorOverrideReplacesThePreconfiguredSelector() {
+        // US-12.6: the override replaces the preconfigured selector (the
+        // preconfigured one deliberately does not match here) and the
+        // outcome names it.
+        PreconfiguredSelectors configured = catalog(List.of(
+                new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
+                        ".does-not-apply")));
+
+        String outcome = service(configured, null).execute("WEBSCRAPE",
+                catalog.byId("ADDR-001"), java.util.Map.of(
+                        "selector", "ul.news-list li a", "max-items", "5"));
+
+        assertTrue(outcome.contains("selector 'ul.news-list li a'"), outcome);
+        assertTrue(outcome.contains("items extracted: 5"), outcome);
+    }
+
+    @Test
+    void invalidSelectorOverrideAbortsLoudly() {
+        // US-12.3 + US-12.6: an invalid override aborts the run with a
+        // clear error — falling back is not silent.
+        PreconfiguredSelectors configured = catalog(List.of(
+                new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
+                        "ul.news-list li")));
+
+        IllegalArgumentException syntax = assertThrows(IllegalArgumentException.class,
+                () -> service(configured, null).execute("WEBSCRAPE",
+                        catalog.byId("ADDR-001"),
+                        java.util.Map.of("selector", "###bad")));
+        assertTrue(syntax.getMessage().contains("does not parse"), syntax.getMessage());
+        assertTrue(syntax.getMessage().contains("(override)"), syntax.getMessage());
+
+        // A syntactically valid override matching nothing on the page is
+        // equally invalid here (US-12.3: selects at least one element).
+        IllegalArgumentException empty = assertThrows(IllegalArgumentException.class,
+                () -> service(configured, null).execute("WEBSCRAPE",
+                        catalog.byId("ADDR-001"),
+                        java.util.Map.of("selector", ".no-such-element")));
+        assertTrue(empty.getMessage().contains("matched no elements"),
+                empty.getMessage());
     }
 
     private Path firstFileMatching(String fileName) {

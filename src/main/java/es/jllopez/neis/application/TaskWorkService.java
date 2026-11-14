@@ -127,9 +127,13 @@ public class TaskWorkService {
             case "WEBSCRAPE" -> {
                 // US-12.5: the step accepts an optional max-items cap
                 // (1..10000); absent, the externalized default applies;
-                // absent too, extraction is unlimited.
-                requireNoParameters(taskCode, parameters, "max-items");
-                yield scrape(address, maxItemsCap(parameters));
+                // absent too, extraction is unlimited. US-12.6: an
+                // optional selector override replaces the preconfigured
+                // selector for this run; it is validated (US-12.3)
+                // before anything runs.
+                requireNoParameters(taskCode, parameters, "max-items", "selector");
+                yield scrape(address, maxItemsCap(parameters),
+                        parameters.get("selector"));
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
@@ -185,24 +189,48 @@ public class TaskWorkService {
      * selector, extraction is skipped here: identifying a selector is
      * ANALYZE's job (AI or fallbacks).
      */
-    private String scrape(Address address, int maxItems) {
+    private String scrape(Address address, int maxItems, String selectorOverride) {
         var scrape = pipeline.scrapePort.scrape(address);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
         PaginationInfo pagination = pipeline.paginationDetector.detect(scrape.html());
 
-        Optional<String> selector =
-                pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
+        // US-12.6 (issue #72): a selector override replaces the
+        // preconfigured selector for this run; preconfigured selectors
+        // remain the default whenever no override applies.
+        String selectorOverrideTrimmed = selectorOverride == null || selectorOverride.isBlank()
+                ? null : selectorOverride.trim();
+        Optional<String> selector = selectorOverrideTrimmed != null
+                ? Optional.of(selectorOverrideTrimmed)
+                : pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
         if (selector.isEmpty()) {
             return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
                     + "; no preconfigured selector for " + address.id()
                     + " — item extraction skipped (US-06.4); paginated: "
                     + pagination.paginated() + " (" + pagination.evidence() + ")";
         }
+        // US-12.3 (issue #48): validation BEFORE execution — a selector
+        // that does not parse never runs; the abort is loud, no silent
+        // fallback (US-12.6).
+        if (!pipeline.extractionPort.isSyntaxValid(selector.get())) {
+            throw new IllegalArgumentException("Selector '" + selector.get()
+                    + "' is invalid (does not parse; US-12.3) — WEBSCRAPE over "
+                    + address.id() + " aborted"
+                    + (selectorOverrideTrimmed != null ? " (override)" : ""));
+        }
 
         List<NewsEventItem> items = new ArrayList<>(pipeline.extractionPort.extract(
                 scrape.html(), selector.get(), address.itemKind(), address.id(),
                 maxItems, address.url()));
+        // US-12.3: a selector is only valid if it selects at least one
+        // element in the live content — an empty match aborts the run
+        // with a clear error instead of silently extracting nothing.
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("Selector '" + selector.get()
+                    + "' matched no elements on " + address.url()
+                    + " (US-12.3 validation) — WEBSCRAPE over " + address.id()
+                    + " aborted");
+        }
         int pages = 1;
         List<String> notes = new ArrayList<>();
         java.util.Set<String> visited = new java.util.HashSet<>();

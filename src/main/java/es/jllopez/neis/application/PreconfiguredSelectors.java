@@ -13,13 +13,32 @@ import java.util.Optional;
  * <p>Lookup order: a specific entry (address + kind) wins over a
  * kind-wide default (an entry with no address); entries for another
  * kind never match.</p>
+ *
+ * <p>Configuration-time validation (US-12.3, issue #48): every entry's
+ * selector must parse against the engine — an invalid one fails the
+ * boot, so an invalid selector never reaches a task. Execution-time
+ * validation (the selector must match the fetched content) happens
+ * before every use (TaskWorkService, PipelineService).</p>
+ *
+ * @throws IllegalArgumentException at construction when an entry's
+ *         selector has a syntax error
  */
 @Component
 public class PreconfiguredSelectors {
 
     private final PreconfiguredSelectorProperties properties;
 
-    public PreconfiguredSelectors(PreconfiguredSelectorProperties properties) {
+    public PreconfiguredSelectors(PreconfiguredSelectorProperties properties,
+                                  es.jllopez.neis.domain.port.SelectorExtractionPort extractionPort) {
+        for (PreconfiguredSelectorProperties.Entry entry : properties.preconfigured()) {
+            if (entry.selector() != null && !entry.selector().isBlank()
+                    && !extractionPort.isSyntaxValid(entry.selector())) {
+                throw new IllegalArgumentException(
+                        "Invalid preconfigured selector for " + entry.address()
+                                + "/" + entry.kind() + ": '" + entry.selector()
+                                + "' does not parse (US-12.3)");
+            }
+        }
         this.properties = properties;
     }
 

@@ -138,13 +138,14 @@ class PipelineServiceTest {
     /** Empty preconfigured-selector catalog (US-12.1): no configured
      * selectors unless a test passes its own. */
     private PreconfiguredSelectors preconfigured() {
-        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(List.of()));
+        return preconfigured(List.of());
     }
 
     /** Preconfigured-selector catalog with the given entries (US-12.1). */
     private PreconfiguredSelectors preconfigured(
             List<PreconfiguredSelectorProperties.Entry> entries) {
-        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(entries));
+        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(entries),
+                extractionPort);
     }
 
     /** The deterministic capture folder of an address's listing page

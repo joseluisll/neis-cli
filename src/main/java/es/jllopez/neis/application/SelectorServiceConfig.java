@@ -15,7 +15,8 @@ public class SelectorServiceConfig {
 
     @Bean
     public PreconfiguredSelectors preconfiguredSelectors(
-            PreconfiguredSelectorProperties properties) {
-        return new PreconfiguredSelectors(properties);
+            PreconfiguredSelectorProperties properties,
+            es.jllopez.neis.domain.port.SelectorExtractionPort extractionPort) {
+        return new PreconfiguredSelectors(properties, extractionPort);
     }
 }

@@ -75,9 +75,22 @@ public class ExecutionService {
      *                                  unknown/ineligible address (US-04.3)
      */
     public TaskExecution submit(String taskCode, String addressId, TriggerType trigger) {
+        return submit(taskCode, addressId, trigger, Map.of());
+    }
+
+    /**
+     * Submits a single-task run with per-task parameters (US-08.3,
+     * US-12.5/12.6): the run-level override channel — e.g. a WEBSCRAPE
+     * {@code selector} override (US-12.6) or a {@code max-items} cap —
+     * without a chain definition.
+     */
+    public TaskExecution submit(String taskCode, String addressId, TriggerType trigger,
+                                Map<String, String> parameters) {
         requireKnownTaskCode(taskCode);
         Address address = catalog.byId(addressId); // unknown ids refuse here
         requireEligible(address);
+        Map<String, String> safeParams = parameters == null
+                ? Map.of() : Map.copyOf(parameters);
         TaskExecution record = new TaskExecution(
                 "EXEC-" + UUID.randomUUID(),
                 taskCode, address.id(), null,
@@ -86,7 +99,7 @@ public class ExecutionService {
         log.info("Execution {} submitted: {} over {} ({})", record.id(), taskCode,
                 address.id(),
                 trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
-        CompletableFuture.runAsync(() -> run(record, address), executor)
+        CompletableFuture.runAsync(() -> run(record, address, safeParams), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.error("Execution {} runner failed: {}", record.id(), e.toString());
@@ -116,7 +129,7 @@ public class ExecutionService {
         log.info("Execution {} submitted: chain '{}' ({} tasks) over {} ({})",
                 record.id(), chain.name(), chain.tasks().size(), address.id(),
                 trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
-        CompletableFuture.runAsync(() -> run(record, address), executor)
+        CompletableFuture.runAsync(() -> run(record, address, Map.of()), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.error("Execution {} runner failed: {}", record.id(), e.toString());
@@ -161,7 +174,8 @@ public class ExecutionService {
         return store.taskTypes();
     }
 
-    private void run(TaskExecution record, Address address) {
+    private void run(TaskExecution record, Address address,
+                     Map<String, String> parameters) {
         // Every store failure below is caught and logged: the lifecycle
         // must never strand the record — a failure at the RUNNING
         // transition used to escape run() and lose the outcome forever
@@ -176,7 +190,7 @@ public class ExecutionService {
             synchronized (addressLocks.computeIfAbsent(address.id(), key -> new Object())) {
                 outcome = record.chainId() != null
                         ? runChain(record.chainId(), address)
-                        : taskWork.execute(record.taskCode(), address, Map.of(), null, null);
+                        : taskWork.execute(record.taskCode(), address, parameters, null, null);
             }
             finalStatus = ExecutionStatus.SUCCESS;
         } catch (Throwable t) {

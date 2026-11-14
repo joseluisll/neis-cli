@@ -1,11 +1,13 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -20,7 +22,8 @@ class PreconfiguredSelectorsTest {
                     new PreconfiguredSelectorProperties.Entry(
                             "ADDR-005", "event", "div.view-content > article"),
                     new PreconfiguredSelectorProperties.Entry(
-                            null, "news", "ul.news-list li"))));
+                            null, "news", "ul.news-list li"))),
+            new JsoupSelectorConnector());
 
     @Test
     void specificEntryWinsOverTheKindDefault() {
@@ -47,15 +50,29 @@ class PreconfiguredSelectorsTest {
         PreconfiguredSelectors withBlank = new PreconfiguredSelectors(
                 new PreconfiguredSelectorProperties(List.of(
                         new PreconfiguredSelectorProperties.Entry(
-                                "ADDR-001", "news", "  "))));
+                                "ADDR-001", "news", "  "))),
+                new JsoupSelectorConnector());
         assertEquals(Optional.empty(), withBlank.find("ADDR-001", "news"));
     }
 
     @Test
     void emptyConfigurationYieldsNothing() {
         PreconfiguredSelectors empty = new PreconfiguredSelectors(
-                new PreconfiguredSelectorProperties(null));
+                new PreconfiguredSelectorProperties(null), new JsoupSelectorConnector());
         assertEquals(Optional.empty(), empty.find("ADDR-001", "news"));
         assertTrue(empty.find(null, "news").isEmpty());
+    }
+
+    @Test
+    void invalidSelectorSyntaxFailsTheConfiguration() {
+        // US-12.3 (issue #48): an invalid selector never reaches a task —
+        // the catalog rejects it at configuration time.
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new PreconfiguredSelectors(
+                        new PreconfiguredSelectorProperties(List.of(
+                                new PreconfiguredSelectorProperties.Entry(
+                                        "ADDR-001", "news", "###not-a-selector"))),
+                        new JsoupSelectorConnector()));
+        assertTrue(e.getMessage().contains("US-12.3"), e.getMessage());
     }
 }

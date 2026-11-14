@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Driving adapter: Spring Shell commands triggering task and chain
@@ -42,8 +43,13 @@ public class ExecutionCommands {
             @Option(shortName = 'i', longName = "id", required = true,
                     description = "Address id") String id,
             @Option(longName = "wait", defaultValue = "false",
-                    description = "Block until the run finishes and show its outcome") boolean wait) {
-        TaskExecution submitted = executions.submit(task, id, TriggerType.MANUAL);
+                    description = "Block until the run finishes and show its outcome") boolean wait,
+            @Option(longName = "param",
+                    description = "Task parameter as key=value (repeatable), e.g. "
+                            + "--param max-items=5 or --param selector=\"ul.news-list li\" "
+                            + "(US-12.5/12.6)") List<String> params) {
+        Map<String, String> parameters = parseParams(params);
+        TaskExecution submitted = executions.submit(task, id, TriggerType.MANUAL, parameters);
         StringBuilder out = new StringBuilder("Submitted ").append(submitted.id())
                 .append(": ").append(task).append(" over ").append(id)
                 .append(" (running asynchronously)\n");
@@ -57,6 +63,23 @@ public class ExecutionCommands {
             out.append("  check it with: execution show --id ").append(submitted.id());
         }
         return out.toString();
+    }
+
+    /** key=value pairs from the repeatable --param option. */
+    private static Map<String, String> parseParams(List<String> params) {
+        if (params == null || params.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> map = new java.util.LinkedHashMap<>();
+        for (String entry : params) {
+            int eq = entry.indexOf('=');
+            if (eq <= 0) {
+                throw new IllegalArgumentException(
+                        "--param expects key=value, got: " + entry);
+            }
+            map.put(entry.substring(0, eq).trim(), entry.substring(eq + 1).trim());
+        }
+        return map;
     }
 
     @Command(name = {"execution", "list"}, group = "Executions",
