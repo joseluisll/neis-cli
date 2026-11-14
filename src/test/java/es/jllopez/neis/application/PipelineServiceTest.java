@@ -696,8 +696,9 @@ class PipelineServiceTest {
                 looselyRegistered, "WEBSCRAPE", "scrape.html");
         assertFalse(newsEventStoreInst.provenanceCalls.isEmpty(),
                 "the run must persist the extracted items");
-        for (String call : newsEventStoreInst.provenanceCalls) {
-            assertTrue(call.endsWith("|" + expectedContentId),
+        for (es.jllopez.neis.testsupport.InMemoryNewsEventStorePort.ProvenanceCall call
+                : newsEventStoreInst.provenanceCalls) {
+            assertEquals(expectedContentId, call.contentId(),
                     "provenance content id must match the ORIGINAL url's "
                             + "capture (not the corrected one): " + call);
         }

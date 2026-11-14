@@ -13,13 +13,14 @@ import java.util.Map;
 public class InMemoryNewsEventStorePort implements NewsEventStorePort {
 
     private final Map<String, NewsEventItem> store = new LinkedHashMap<>();
-    /** Provenance recorded by saveAll (US-14.2, test assertions). */
-    public final List<String> provenanceCalls = new ArrayList<>();
+    /** One provenance pair per saveAll call (US-14.2, exact-field assertions). */
+    public record ProvenanceCall(String executionId, String contentId) {}
+    public final List<ProvenanceCall> provenanceCalls = new ArrayList<>();
 
     @Override
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
                        String executionId, String contentId) {
-        provenanceCalls.add(executionId + "|" + contentId);
+        provenanceCalls.add(new ProvenanceCall(executionId, contentId));
         int stored = 0;
         for (NewsEventItem item : items) {
             store.put(key(addressId, item),
