@@ -220,4 +220,31 @@ class HttpScrapeConnectorTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new HttpScrapeConnector(5, -1));
     }
+
+    @Test
+    void stalledBodyFailsAtTheDeadline() {
+        // A request timeout does NOT cover a streamed body read (it is
+        // spent once the headers arrive; JDK-8258397): without the
+        // watchdog a server that sends headers and then stalls would
+        // wedge the scrape thread forever (review blocking finding,
+        // 2026-11-14). With a 1s fetch timeout the scrape must fail in
+        // about a second, not hang.
+        server.createContext("/stall", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, 8192); // headers, then nothing
+            try {
+                Thread.sleep(10_000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        HttpScrapeConnector impatient = new HttpScrapeConnector(1, 1024 * 1024);
+
+        long t0 = System.nanoTime();
+        assertThrows(IllegalStateException.class,
+                () -> impatient.scrape(addressAt("/stall")));
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 5_000,
+                "stalled fetch returned in " + elapsedMs + " ms, not bounded");
+    }
 }

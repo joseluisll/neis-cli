@@ -52,6 +52,19 @@ public class HttpScrapeConnector implements ContentScrapePort {
     private final Duration timeout;
     private final int maxBytes;
 
+    /**
+     * Force-closes the response stream at the fetch deadline: a stream
+     * read has no timeout of its own (see the scrape() javadoc), so this
+     * is what bounds a stalled or slow-dripping server. One daemon
+     * thread serves all fetches.
+     */
+    private final java.util.concurrent.ScheduledExecutorService watchdog =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "neis-scrape-watchdog");
+                t.setDaemon(true);
+                return t;
+            });
+
     public HttpScrapeConnector(
             @Value("${neis.scrape.timeout-seconds:20}") long timeoutSeconds,
             @Value("${neis.scrape.max-bytes:10485760}") int maxBytes) {
@@ -81,12 +94,14 @@ public class HttpScrapeConnector implements ContentScrapePort {
             // Streaming body handler: send() returns with the HEADERS,
             // the body is only materialized by readBody() — a misbehaving
             // registered address cannot buffer unbounded bytes into
-            // memory (review blocking finding, 2026-11-14).
+            // memory (review blocking finding, 2026-11-14). The wire
+            // bound is the cap; parsing a cap-sized document into the
+            // jsoup DOM (and re-serializing) is inherently larger.
             HttpResponse<InputStream> response =
                     client.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
-                response.body().close();
+                closeQuietly(response.body());
                 throw failure(address, start, " returned HTTP " + status);
             }
             String contentType = response.headers().firstValue("Content-Type")
@@ -95,12 +110,32 @@ public class HttpScrapeConnector implements ContentScrapePort {
             long declared = response.headers().firstValueAsLong("Content-Length")
                     .orElse(-1);
             if (declared > maxBytes) {
-                response.body().close();
+                closeQuietly(response.body());
                 throw failure(address, start, " Content-Length " + declared
                         + " exceeds the " + maxBytes + " byte cap"
                         + " (neis.scrape.max-bytes)");
             }
-            byte[] body = readBody(address, response.body(), start);
+            // Once the headers arrive, HttpRequest.timeout() is spent and
+            // a stream read has NO deadline on any JDK this project runs
+            // (OpenJDK JDK-8258397/JDK-8208693; the request-time-scope
+            // extension only shipped in JDK 26): without a watchdog, a
+            // server that drips bytes or stalls after the headers could
+            // wedge the scrape thread forever — the second half of the
+            // misbehaving-address threat model (review blocking finding,
+            // 2026-11-14). The watchdog force-closes the stream at the
+            // deadline; the loop check turns it into a specific reason.
+            long deadlineNanos = start + timeout.toNanos();
+            InputStream stream = response.body();
+            java.util.concurrent.ScheduledFuture<?> alarm = watchdog.schedule(
+                    () -> closeQuietly(stream),
+                    Math.max(0, deadlineNanos - System.nanoTime()),
+                    java.util.concurrent.TimeUnit.NANOSECONDS);
+            byte[] body;
+            try {
+                body = readBody(address, stream, start, deadlineNanos);
+            } finally {
+                alarm.cancel(false);
+            }
             // jsoup detects the charset (BOM / meta declaration / UTF-8
             // default) and normalizes the markup to HTML5. The response
             // header's charset is NOT honored yet — Tika content-type/
@@ -122,14 +157,27 @@ public class HttpScrapeConnector implements ContentScrapePort {
         }
     }
 
+    private void closeQuietly(java.io.Closeable c) {
+        try {
+            c.close();
+        } catch (IOException ignored) {
+            // The failure path must keep its specific reason, not this
+            // close's exception (review finding, 2026-11-14).
+        }
+    }
+
     /**
-     * Reads the response body under the byte cap, aborting the transfer
-     * as soon as it is exceeded — the memory bound is the cap, not the
-     * server's goodwill (review blocking finding, 2026-11-14).
+     * Reads the response body under the byte cap AND the deadline,
+     * aborting the transfer as soon as either is exceeded — the memory
+     * bound is the cap (transient peak a small multiple of it: the
+     * output buffer grows geometrically and {@code toByteArray()} copies
+     * once), the time bound is the fetch timeout (review blocking
+     * findings, 2026-11-14).
      */
-    private byte[] readBody(Address address, InputStream body, long start)
-            throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+    private byte[] readBody(Address address, InputStream body, long start,
+                            long deadlineNanos) throws IOException {
+        ByteArrayOutputStream out =
+                new ByteArrayOutputStream(Math.min(maxBytes, 2 * 1024 * 1024));
         byte[] buffer = new byte[8192];
         long total = 0;
         try (body) {
@@ -141,6 +189,11 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     // the cap is ever buffered.
                     throw failure(address, start, " body of more than " + maxBytes
                             + " bytes exceeds the cap (neis.scrape.max-bytes)");
+                }
+                if (System.nanoTime() > deadlineNanos) {
+                    throw failure(address, start, " body read exceeded the "
+                            + timeout.getSeconds() + "s fetch timeout"
+                            + " (slow-drip or stalled server)");
                 }
                 out.write(buffer, 0, n);
             }
