@@ -123,7 +123,11 @@ public class HttpScrapeConnector implements ContentScrapePort {
             // wedge the scrape thread forever — the second half of the
             // misbehaving-address threat model (review blocking finding,
             // 2026-11-14). The watchdog force-closes the stream at the
-            // deadline; the loop check turns it into a specific reason.
+            // deadline: a slow-drip transfer then hits the loop check's
+            // specific reason, a hard stall surfaces as the close
+            // ("closed" IOException) — either way bounded (third-round
+            // review note). The deadline is total-fetch (headers
+            // included), matching the bound claimed.
             long deadlineNanos = start + timeout.toNanos();
             InputStream stream = response.body();
             java.util.concurrent.ScheduledFuture<?> alarm = watchdog.schedule(
@@ -191,8 +195,8 @@ public class HttpScrapeConnector implements ContentScrapePort {
                             + " bytes exceeds the cap (neis.scrape.max-bytes)");
                 }
                 if (System.nanoTime() > deadlineNanos) {
-                    throw failure(address, start, " body read exceeded the "
-                            + timeout.getSeconds() + "s fetch timeout"
+                    throw failure(address, start, " fetch exceeded the "
+                            + timeout.getSeconds() + "s timeout while reading the body"
                             + " (slow-drip or stalled server)");
                 }
                 out.write(buffer, 0, n);

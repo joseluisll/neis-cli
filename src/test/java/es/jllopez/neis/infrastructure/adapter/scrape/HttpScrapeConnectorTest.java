@@ -34,6 +34,14 @@ class HttpScrapeConnectorTest {
     @BeforeEach
     void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        // Daemon executor: a handler that sleeps past server.stop(0)
+        // (the stall test) must not keep the surefire fork alive
+        // (third-round review note).
+        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r);
+            t.setDaemon(true);
+            return t;
+        }));
         server.start();
         port = server.getAddress().getPort();
     }
