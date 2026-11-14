@@ -3,6 +3,7 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.FilterSpec;
+import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PaginationInfo;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Executes one TASK TYPE over one address (US-05, epic #5): the
@@ -131,12 +133,81 @@ public class TaskWorkService {
         }
     }
 
-    /** WEBSCRAPE (US-06 slice): obtain and store the listing HTML5. */
+    /**
+     * WEBSCRAPE (US-06 slice): obtain and store the listing HTML5; with
+     * a preconfigured selector (US-12.1), also extract the news/events
+     * list with metadata — deterministic element iteration, no AI
+     * (US-06.4, issue #44). Without one, extraction is skipped here:
+     * identifying a selector is ANALYZE's job (AI or fallbacks).
+     */
     private String scrape(Address address) {
         var scrape = pipeline.scrapePort.scrape(address);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
-        return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact;
+        Optional<String> selector =
+                pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
+        if (selector.isEmpty()) {
+            return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
+                    + "; no preconfigured selector for " + address.id()
+                    + " — item extraction skipped (US-06.4)";
+        }
+        List<NewsEventItem> items = pipeline.extractionPort.extract(scrape.html(),
+                selector.get(), address.itemKind(), address.id(),
+                Integer.MAX_VALUE, address.url());
+        Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
+                "items-json", "items.json", itemsJson(items));
+        return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
+                + "; items extracted: " + items.size() + " (selector '"
+                + selector.get() + "') -> " + itemsArtifact;
+    }
+
+    /** The extracted items as JSON (US-06.4 artifact), hand-rolled like
+     * the pipeline's other JSON handling — no new stack dependency. */
+    private static String itemsJson(List<NewsEventItem> items) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < items.size(); i++) {
+            NewsEventItem item = items.get(i);
+            if (i > 0) {
+                sb.append(",");
+            }
+            sb.append("{\"title\":\"").append(jsonEscape(item.title()))
+                    .append("\",\"kind\":\"").append(jsonEscape(item.kind()))
+                    .append("\",\"description\":")
+                    .append(jsonValue(item.description()))
+                    .append(",\"date\":").append(jsonValue(item.date()))
+                    .append(",\"url\":").append(jsonValue(item.url()))
+                    .append("}");
+        }
+        return sb.append("]").toString();
+    }
+
+    /** A JSON string literal, or the JSON null for a null/absent value. */
+    private static String jsonValue(String s) {
+        return s == null ? "null" : "\"" + jsonEscape(s) + "\"";
+    }
+
+    private static String jsonEscape(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        return sb.toString();
     }
 
     /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */

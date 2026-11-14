@@ -97,14 +97,14 @@ public class PipelineService {
 
     final ContentScrapePort scrapePort;
     final SimplifyPort simplifyPort;
-    private final SelectorExtractionPort extractionPort;
+    final SelectorExtractionPort extractionPort;
     private final SelectorStorePort selectorStore;
     final PaginationDetector paginationDetector;
     private final ExposedFilterDetector exposedFilterDetector;
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
-    private final PreconfiguredSelectors preconfiguredSelectors;
+    final PreconfiguredSelectors preconfiguredSelectors;
     final ContentStoreService contentStore;
 
     public PipelineService(ContentScrapePort scrapePort,
