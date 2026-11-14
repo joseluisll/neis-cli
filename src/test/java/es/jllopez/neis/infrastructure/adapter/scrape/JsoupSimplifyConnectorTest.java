@@ -60,6 +60,61 @@ class JsoupSimplifyConnectorTest {
     }
 
     @Test
+    void keepsActionAndDataElements() {
+        // US-07.2: the result is reduced to action and data elements —
+        // forms, buttons, links, inputs, tables, lists, headings and
+        // text survive; the style/script/media noise around them does
+        // not (pinned per the acceptance criteria).
+        String raw = """
+                <html><body>
+                <nav class="main-menu"><a href="/menu">Menu</a></nav>
+                <form action="/filter"><select name="year"><option>2026</option></select>
+                <input type="checkbox" name="flag"><button type="submit">Go</button></form>
+                <table><tr><td>Cell data</td></tr></table>
+                <ul><li>List item</li></ul>
+                <h2>Section heading</h2>
+                <p>Paragraph text</p>
+                </body></html>""";
+        String simplified = connector.simplify(raw).html();
+
+        assertTrue(simplified.contains("<form"), "forms are action elements");
+        assertTrue(simplified.contains("<select"), "selects are action elements");
+        assertTrue(simplified.contains("<option"), "options carry the values");
+        assertTrue(simplified.contains("<input"), "inputs are action elements");
+        assertTrue(simplified.contains("<button"), "buttons are action elements");
+        assertTrue(simplified.contains("<table"), "tables are data elements");
+        assertTrue(simplified.contains("Cell data"));
+        assertTrue(simplified.contains("<li>List item</li>"), "lists are data elements");
+        assertTrue(simplified.contains("<h2>Section heading</h2>"), "headings are kept");
+        assertTrue(simplified.contains("Paragraph text"));
+        assertFalse(simplified.contains("main-menu"), "chrome navs are stripped");
+    }
+
+    @Test
+    void dropsPresentationAttributes() {
+        // US-07.2: presentation attributes and inline styles are dropped
+        // — the data survives, the looks do not.
+        String raw = """
+                <html><body>
+                <table border="1" cellpadding="2" bgcolor="#ffffff" width="100%">
+                <tr align="center" valign="top"><td height="20">Data cell</td></tr></table>
+                <div align="right" style="font-weight:bold">Styled text</div>
+                </body></html>""";
+        String simplified = connector.simplify(raw).html();
+
+        assertFalse(simplified.contains("border="));
+        assertFalse(simplified.contains("cellpadding="));
+        assertFalse(simplified.contains("bgcolor="));
+        assertFalse(simplified.contains("width="));
+        assertFalse(simplified.contains("align="));
+        assertFalse(simplified.contains("valign="));
+        assertFalse(simplified.contains("height="));
+        assertFalse(simplified.contains("style="));
+        assertTrue(simplified.contains("Data cell"), "the data survives");
+        assertTrue(simplified.contains("Styled text"), "the text survives");
+    }
+
+    @Test
     void capsSyntheticOversizedInputAt100Kb() {
         String filler = "<p class=\"filler\">" + "x".repeat(128) + "</p>".repeat(1200);
         String raw = "<html><body><h1>Head</h1>" + filler + "</body></html>";

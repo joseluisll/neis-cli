@@ -35,7 +35,13 @@ public class JsoupSimplifyConnector implements SimplifyPort {
 
     private static final String[] STRIPPED_ATTRIBUTES = {
             "style", "srcset", "sizes", "media", "onload", "onclick", "data-src",
-            "data-image", "background"};
+            "data-image", "background",
+            // presentation attributes (US-07.2: drop presentation
+            // attributes and inline styles — the result carries data,
+            // not looks)
+            "align", "valign", "bgcolor", "border", "cellpadding",
+            "cellspacing", "width", "height", "frame", "rules", "clear",
+            "hspace", "vspace"};
 
     /**
      * Structural/layout-only class fragments (US-07.1): page trees,
