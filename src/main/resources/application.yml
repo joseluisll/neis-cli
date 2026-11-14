@@ -112,13 +112,18 @@ neis:
 #        address: ADDR-001
 #        cron: "0 5 * * * *"
   ai:
-    # AI integration point (US-01.3) using the same MeliousAI provider as
-    # the Hermes agent (owner decision 2026-11-11; provider management is
-    # US-15.3). The API key never lives in this repository: it is read
-    # from the MELIOUS_API_KEY environment variable (same variable the
-    # Hermes setup uses, in ~/.hermes/.env).
+    # AI provider management (US-15.3, issue #66): exactly one provider
+    # is accepted in this iteration — MeliousAI (the same provider the
+    # Hermes agent uses; owner decision 2026-11-11). Configuring any
+    # other provider name is refused at boot until a new owner decision
+    # adds it. The API key NEVER lives in configuration or the
+    # repository: api-key-ref names the environment variable holding
+    # the key (resolved at connector construction); a plain-text
+    # neis.ai.api-key value that does not match the environment key is
+    # rejected at boot.
     enabled: false
+    provider: melious
     base-url: https://api.melious.ai/v1
-    api-key: ${MELIOUS_API_KEY:}
+    api-key-ref: MELIOUS_API_KEY
     # Default model, same as the Hermes agent's.
     model: glm-5.3-flash

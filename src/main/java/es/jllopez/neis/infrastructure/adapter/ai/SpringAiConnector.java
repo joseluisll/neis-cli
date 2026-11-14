@@ -35,13 +35,44 @@ public class SpringAiConnector implements AiAssistantPort {
     private final String model;
 
     public SpringAiConnector(
-            @Value("${neis.ai.api-key}") String apiKey,
+            @Value("${neis.ai.provider:melious}") String provider,
             @Value("${neis.ai.base-url}") String baseUrl,
-            @Value("${neis.ai.model:}") String model) {
+            @Value("${neis.ai.model:}") String model,
+            @Value("${neis.ai.api-key-ref:MELIOUS_API_KEY}") String apiKeyRef,
+            @Value("${neis.ai.api-key:}") String legacyApiKey) {
+        // US-15.3 (issue #66): exactly one provider is accepted in this
+        // iteration — MeliousAI; configuring any other name is refused
+        // until a new owner decision adds it.
+        if (!"melious".equalsIgnoreCase(provider == null ? "" : provider.trim())) {
+            throw new IllegalArgumentException(
+                    "AI provider '" + provider + "' is not accepted (US-15.3): "
+                            + "the only configured provider in this iteration is 'melious'");
+        }
+        // The key comes from the environment variable named by
+        // api-key-ref — never from configuration. A neis.ai.api-key
+        // value that does not match the environment key is a plain-text
+        // key in configuration: rejected (US-15.3).
+        String envKey = System.getenv(apiKeyRef == null || apiKeyRef.isBlank()
+                ? "MELIOUS_API_KEY" : apiKeyRef.trim());
+        if (legacyApiKey != null && !legacyApiKey.isBlank()
+                && !legacyApiKey.equals(envKey)) {
+            throw new IllegalArgumentException(
+                    "neis.ai.api-key holds a plain-text key (US-15.3): keys are "
+                            + "resolved from the environment variable named by "
+                            + "neis.ai.api-key-ref (" + apiKeyRef + ") — remove the "
+                            + "literal value from configuration");
+        }
+        if (envKey == null || envKey.isBlank()) {
+            throw new IllegalStateException(
+                    "AI enabled but the API key is missing: set the environment "
+                            + "variable " + apiKeyRef + " (US-15.3)");
+        }
         this.model = model == null || model.isBlank() ? "(provider default)" : model;
+        log.info("AI provider: {} ({}) model {} — key from environment variable {}",
+                provider, baseUrl, this.model, apiKeyRef);
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
-                .apiKey(apiKey)
+                .apiKey(envKey)
                 // Deterministic analysis answers: the chain's decisions
                 // (selectors, capability flags, filter choice) must be
                 // reproducible across runs of the same page.
