@@ -92,6 +92,12 @@ neis:
 #        selector: "div.view-content > article"
 #      - kind: news
 #        selector: "ul.news-list li"
+  extraction:
+    # Default cap on extracted items (US-12.5, issue #68): optional —
+    # absent means no limit; the WEBSCRAPE step's own max-items
+    # parameter (1..10000) overrides it per task. A present value must
+    # be a positive integer or the boot fails.
+#    max-items: 100
   execution:
     # How long the CLI --wait option blocks for an asynchronous run.
     await-timeout-seconds: 300

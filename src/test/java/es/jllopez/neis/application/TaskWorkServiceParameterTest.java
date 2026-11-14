@@ -42,7 +42,7 @@ class TaskWorkServiceParameterTest {
     }
 
     private TaskWorkService service(PipelineService pipeline) {
-        return new TaskWorkService(pipeline, mock(AddressCatalogService.class));
+        return new TaskWorkService(pipeline, mock(AddressCatalogService.class), null);
     }
 
     private PipelineService pipelineReturning(PipelineResult result) {
@@ -113,9 +113,29 @@ class TaskWorkServiceParameterTest {
     @Test
     void otherTaskTypesStillRefuseAnyParameter() {
         TaskWorkService work = service(mock(PipelineService.class));
+        // SIMPLIFY and ANALYZE take no parameters at all (WEBSCRAPE
+        // accepts max-items since US-12.5).
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "5")));
+                () -> work.execute("SIMPLIFY", address, Map.of("max-items", "5")));
         assertTrue(e.getMessage().contains("takes no such parameter"));
+        IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+                () -> work.execute("ANALYZE", address, Map.of("selector", "ul li")));
+        assertTrue(e2.getMessage().contains("takes no such parameter"));
+    }
+
+    @Test
+    void webScrapeAcceptsBoundedMaxItemsAndRefusesBrokenOnes() {
+        TaskWorkService work = service(mock(PipelineService.class));
+        // Bounds follow PRINT's max-items: 1..10000, integer only.
+        IllegalArgumentException nonInt = assertThrows(IllegalArgumentException.class,
+                () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "many")));
+        assertTrue(nonInt.getMessage().contains("must be an integer"));
+        IllegalArgumentException zero = assertThrows(IllegalArgumentException.class,
+                () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "0")));
+        assertTrue(zero.getMessage().contains("between 1 and 10000"));
+        IllegalArgumentException huge = assertThrows(IllegalArgumentException.class,
+                () -> work.execute("WEBSCRAPE", address, Map.of("max-items", "10001")));
+        assertTrue(huge.getMessage().contains("between 1 and 10000"));
     }
 
     @Test

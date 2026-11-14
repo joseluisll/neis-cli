@@ -36,10 +36,39 @@ public class TaskWorkService {
 
     private final PipelineService pipeline;
     private final AddressCatalogService addressCatalog;
+    /** Externalized default cap (US-12.5): null = no limit. */
+    private final Integer configuredMaxItems;
 
-    public TaskWorkService(PipelineService pipeline, AddressCatalogService addressCatalog) {
+    public TaskWorkService(PipelineService pipeline, AddressCatalogService addressCatalog,
+                           @org.springframework.beans.factory.annotation.Value(
+                                   "${neis.extraction.max-items:}") String configuredMaxItems) {
         this.pipeline = pipeline;
         this.addressCatalog = addressCatalog;
+        this.configuredMaxItems = parseMaxItems(configuredMaxItems);
+    }
+
+    /**
+     * US-12.5: the externalized cap is optional — absent (blank) means
+     * no limit; a present value must be a positive integer (a bad
+     * configuration fails the boot instead of silently running
+     * unlimited).
+     */
+    private static Integer parseMaxItems(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        int value;
+        try {
+            value = Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "neis.extraction.max-items must be an integer, got: " + raw);
+        }
+        if (value < 1) {
+            throw new IllegalArgumentException(
+                    "neis.extraction.max-items must be >= 1, got: " + value);
+        }
+        return value;
     }
 
     /**
@@ -54,11 +83,14 @@ public class TaskWorkService {
      * Runs the task type over the address with per-task parameters
      * (US-08.3, issue #35). PRINT and CHAIN accept {@code max-items}
      * (1..10000, the item cap; default 50) and {@code max-pages}
-     * (1..100, the pagination-iteration guard; default 10); any other
-     * parameter key is refused. WEBSCRAPE, SIMPLIFY, ANALYZE and
-     * FILTER take no parameters yet — their parameter needs arrive
-     * with the selector and extraction slices (US-12), and passing
-     * one before then is an error, not silent dead configuration.
+     * (1..100, the pagination-iteration guard; default 10); WEBSCRAPE
+     * accepts {@code max-items} (US-12.5, issue #68: the extraction
+     * cap — absent, the externalized {@code neis.extraction.max-items}
+     * default applies; absent too, extraction is unlimited). Any other
+     * parameter key is refused — SIMPLIFY, ANALYZE and FILTER take no
+     * parameters (FILTER's chain-carried filter spec aside), and
+     * passing one before then is an error, not silent dead
+     * configuration.
      */
     public String execute(String taskCode, Address address,
                           Map<String, String> parameters) {
@@ -88,8 +120,11 @@ public class TaskWorkService {
                           FilterSpec chainFilterSpec) {
         return switch (taskCode) {
             case "WEBSCRAPE" -> {
-                requireNoParameters(taskCode, parameters);
-                yield scrape(address);
+                // US-12.5: the step accepts an optional max-items cap
+                // (1..10000); absent, the externalized default applies;
+                // absent too, extraction is unlimited.
+                requireNoParameters(taskCode, parameters, "max-items");
+                yield scrape(address, maxItemsCap(parameters));
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
@@ -140,7 +175,7 @@ public class TaskWorkService {
      * (US-06.4, issue #44). Without one, extraction is skipped here:
      * identifying a selector is ANALYZE's job (AI or fallbacks).
      */
-    private String scrape(Address address) {
+    private String scrape(Address address, int maxItems) {
         var scrape = pipeline.scrapePort.scrape(address);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
@@ -153,12 +188,14 @@ public class TaskWorkService {
         }
         List<NewsEventItem> items = pipeline.extractionPort.extract(scrape.html(),
                 selector.get(), address.itemKind(), address.id(),
-                Integer.MAX_VALUE, address.url());
+                maxItems, address.url());
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
                 "items-json", "items.json", itemsJson(items));
+        String capNote = maxItems == Integer.MAX_VALUE ? "no cap"
+                : "cap " + maxItems + (items.size() >= maxItems ? ", reached" : "");
         return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
-                + "; items extracted: " + items.size() + " (selector '"
-                + selector.get() + "') -> " + itemsArtifact;
+                + "; items extracted: " + items.size() + " (" + capNote
+                + "; selector '" + selector.get() + "') -> " + itemsArtifact;
     }
 
     /** The extracted items as JSON (US-06.4 artifact), hand-rolled like
@@ -339,5 +376,17 @@ public class TaskWorkService {
                     + "' must be between " + min + " and " + max + ", got: " + value);
         }
         return value;
+    }
+
+    /**
+     * US-12.5 (issue #68): the effective extraction cap — the task's
+     * max-items parameter, else the externalized default
+     * (neis.extraction.max-items), else no limit.
+     */
+    private int maxItemsCap(Map<String, String> parameters) {
+        if (parameters.containsKey("max-items")) {
+            return intParameter(parameters, "max-items", 0, 1, 10_000);
+        }
+        return configuredMaxItems == null ? Integer.MAX_VALUE : configuredMaxItems;
     }
 }
