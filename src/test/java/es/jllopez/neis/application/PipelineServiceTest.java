@@ -135,6 +135,13 @@ class PipelineServiceTest {
         return new ContentStoreService(new InMemoryContentStorePort(), workDir.toString());
     }
 
+    private final es.jllopez.neis.testsupport.InMemoryNewsEventStorePort newsEventStoreInst =
+            new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort();
+
+    private es.jllopez.neis.testsupport.InMemoryNewsEventStorePort newsEventStore() {
+        return newsEventStoreInst;
+    }
+
     /** Empty preconfigured-selector catalog (US-12.1): no configured
      * selectors unless a test passes its own. */
     private PreconfiguredSelectors preconfigured() {
@@ -159,7 +166,7 @@ class PipelineServiceTest {
     private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         return new PipelineService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
-                ai, catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                ai, catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
     }
 
     @Test
@@ -172,7 +179,7 @@ class PipelineServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                badCatalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                badCatalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> chain.run(bad));
@@ -191,7 +198,7 @@ class PipelineServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                catalog2, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> chain.run(unverified));
@@ -215,7 +222,7 @@ class PipelineServiceTest {
                                 + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                                 + "\"correctedAddress\":null}",
                         "{\"filters\":[],\"reasoning\":\"none\"}")),
-                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         chain.run(good);
 
@@ -368,7 +375,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
-                catalog, new UrlSyntaxValidator(), configured, contentStore(),
+                catalog, new UrlSyntaxValidator(), configured, newsEventStore(), contentStore(),
                 workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-003"));
@@ -403,7 +410,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
-                catalog, new UrlSyntaxValidator(), configured, contentStore(),
+                catalog, new UrlSyntaxValidator(), configured, newsEventStore(), contentStore(),
                 workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-003"));
@@ -795,7 +802,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -847,7 +854,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -890,7 +897,7 @@ class PipelineServiceTest {
                         + "\"reasoning\":\"ignored the constraint\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -938,7 +945,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -978,7 +985,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiCapabilityOnly),
-                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -1025,7 +1032,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Event status", "Past"));
@@ -1066,7 +1073,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Keyword", "plasma"));

@@ -14,6 +14,7 @@ import es.jllopez.neis.domain.model.SimplifiedContent;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import es.jllopez.neis.domain.port.ContentScrapePort;
+import es.jllopez.neis.domain.port.NewsEventStorePort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
 import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
@@ -105,6 +106,7 @@ public class PipelineService {
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
     final PreconfiguredSelectors preconfiguredSelectors;
+    private final NewsEventStorePort newsEventStore;
     final ContentStoreService contentStore;
 
     public PipelineService(ContentScrapePort scrapePort,
@@ -117,6 +119,7 @@ public class PipelineService {
                            AddressCatalogService addressCatalog,
                            UrlSyntaxValidator urlValidator,
                            PreconfiguredSelectors preconfiguredSelectors,
+                           NewsEventStorePort newsEventStore,
                            ContentStoreService contentStore,
                            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
@@ -129,6 +132,7 @@ public class PipelineService {
         this.addressCatalog = addressCatalog;
         this.urlValidator = urlValidator;
         this.preconfiguredSelectors = preconfiguredSelectors;
+        this.newsEventStore = newsEventStore;
         this.contentStore = contentStore;
     }
 
@@ -211,6 +215,9 @@ public class PipelineService {
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
                 selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
                 flagged.url()));
+        // US-14.1 (issue #55): the extracted items are persisted as
+        // repository entities, not only as content files.
+        newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items);
 
         // Pagination-iteration block (US-12.4 slice): ONLY on addresses
         // flagged PAGINATION, and only when the AI derived a page URL

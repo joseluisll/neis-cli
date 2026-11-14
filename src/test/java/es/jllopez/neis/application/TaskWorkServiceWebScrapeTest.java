@@ -47,6 +47,9 @@ class TaskWorkServiceWebScrapeTest {
         return service(preconfigured, null);
     }
 
+    private final es.jllopez.neis.testsupport.InMemoryNewsEventStorePort newsEventStore =
+            new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort();
+
     private TaskWorkService service(PreconfiguredSelectors preconfigured,
                                     String configuredMaxItems) {
         PipelineService pipeline = new PipelineService(new StaticScrapeConnector(),
@@ -65,10 +68,10 @@ class TaskWorkServiceWebScrapeTest {
                 new PaginationDetector(),
                 new es.jllopez.neis.domain.service.ExposedFilterDetector(),
                 new ObjectProviderStub(), catalog, new UrlSyntaxValidator(),
-                preconfigured,
+                preconfigured, newsEventStore,
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                 workDir.toString());
-        return new TaskWorkService(pipeline, catalog, configuredMaxItems);
+        return new TaskWorkService(pipeline, catalog, newsEventStore, configuredMaxItems);
     }
 
     private PreconfiguredSelectors catalog(
@@ -264,11 +267,11 @@ class TaskWorkServiceWebScrapeTest {
                     new PaginationDetector(),
                     new es.jllopez.neis.domain.service.ExposedFilterDetector(),
                     new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
-                    configured,
+                    configured, newsEventStore,
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                     workDir.toString());
 
-            String outcome = new TaskWorkService(livePipeline, liveCatalog, null)
+            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore, null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"));
 
             assertTrue(outcome.contains("items extracted: 4"), outcome);
@@ -338,11 +341,11 @@ class TaskWorkServiceWebScrapeTest {
                     new PaginationDetector(),
                     new es.jllopez.neis.domain.service.ExposedFilterDetector(),
                     new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
-                    configured,
+                    configured, newsEventStore,
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                     workDir.toString());
 
-            String outcome = new TaskWorkService(livePipeline, liveCatalog, null)
+            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore, null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"),
                             java.util.Map.of("max-items", "3"));
 

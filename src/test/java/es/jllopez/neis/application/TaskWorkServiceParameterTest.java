@@ -42,7 +42,8 @@ class TaskWorkServiceParameterTest {
     }
 
     private TaskWorkService service(PipelineService pipeline) {
-        return new TaskWorkService(pipeline, mock(AddressCatalogService.class), null);
+        return new TaskWorkService(pipeline, mock(AddressCatalogService.class),
+                new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort(), null);
     }
 
     private PipelineService pipelineReturning(PipelineResult result) {

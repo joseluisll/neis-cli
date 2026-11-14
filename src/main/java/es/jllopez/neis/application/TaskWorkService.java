@@ -6,6 +6,7 @@ import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PaginationInfo;
 import es.jllopez.neis.domain.model.ScrapeResult;
+import es.jllopez.neis.domain.port.NewsEventStorePort;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
@@ -41,14 +42,17 @@ public class TaskWorkService {
 
     private final PipelineService pipeline;
     private final AddressCatalogService addressCatalog;
+    private final NewsEventStorePort newsEventStore;
     /** Externalized default cap (US-12.5): null = no limit. */
     private final Integer configuredMaxItems;
 
     public TaskWorkService(PipelineService pipeline, AddressCatalogService addressCatalog,
+                           NewsEventStorePort newsEventStore,
                            @org.springframework.beans.factory.annotation.Value(
                                    "${neis.extraction.max-items:}") String configuredMaxItems) {
         this.pipeline = pipeline;
         this.addressCatalog = addressCatalog;
+        this.newsEventStore = newsEventStore;
         this.configuredMaxItems = parseMaxItems(configuredMaxItems);
     }
 
@@ -314,6 +318,10 @@ public class TaskWorkService {
 
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
                 "items-json", "items.json", itemsJson(items));
+        // US-14.1 (issue #55): the extracted items are persisted as
+        // repository entities, not only as content files — idempotent
+        // upsert per (address, detail URL).
+        int stored = newsEventStore.saveAll(address.id(), address.itemKind(), items);
         // 'cap M' states that extraction stopped at the cap — the count
         // is the recorded truth; whether MORE elements existed beyond the
         // cap is not observable through the extraction contract (review
