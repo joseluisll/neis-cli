@@ -42,13 +42,22 @@ class AddressCatalogServiceTest {
     }
 
     @Test
-    void createRefusesAnAlreadyRegisteredId() {
-        catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
-                AddressType.URL_NEWS);
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> catalog.create("addr-001", "Again", null, "https://example.eu/z",
-                        AddressType.URL_NEWS));
-        assertTrue(e.getMessage().contains("already registered"));
+    void reRegistrationWithIdenticalStateIsANoOpAndWithChangesUpdates() {
+        // US-15.4 (issue #70): re-running a registration is a no-op when
+        // the state already matches; different fields update to the
+        // requested state (same end state as a single run).
+        Address first = catalog.create("ADDR-001", "Source A", null,
+                "https://example.eu/a", AddressType.URL_NEWS);
+        Address again = catalog.create("ADDR-001", "Source A", null,
+                "https://example.eu/a", AddressType.URL_NEWS);
+        assertEquals(first, again, "identical re-registration: no-op");
+        assertEquals(1, catalog.list().size(), "no duplicate records");
+
+        Address changed = catalog.create("addr-001", "Source A renamed", null,
+                "https://example.eu/a2", AddressType.URL_NEWS);
+        assertEquals("Source A renamed", changed.name());
+        assertEquals("https://example.eu/a2", changed.url());
+        assertEquals(1, catalog.list().size(), "still one record, updated in place");
     }
 
     @Test

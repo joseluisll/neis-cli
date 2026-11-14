@@ -58,6 +58,12 @@ public class AddressCatalogService {
     /**
      * Registers a new address (US-03.2, issue #19). When no id is
      * given, the next free {@code ADDR-NNN} id is assigned.
+     *
+     * <p>Idempotent (US-15.4, issue #70): re-registering an address
+     * whose registered state already matches is a no-op returning the
+     * existing record; a re-registration with different fields updates
+     * the registered state (same end state as a single run), keeping
+     * the verification state and capability flags.</p>
      */
     public Address create(String id, String name, String description,
                           String url, AddressType type) {
@@ -65,11 +71,19 @@ public class AddressCatalogService {
         String addressId = (id == null || id.isBlank())
                 ? nextAddressId().orElseThrow()
                 : id;
-        if (catalogPort.findById(addressId).isPresent()
-                || catalogPort.findAll().stream()
-                        .anyMatch(a -> a.id().equalsIgnoreCase(addressId))) {
-            throw new IllegalArgumentException(
-                    "Address id already registered: " + addressId);
+        Address existing = catalogPort.findAll().stream()
+                .filter(a -> a.id().equalsIgnoreCase(addressId))
+                .findFirst()
+                .orElse(catalogPort.findById(addressId).orElse(null));
+        if (existing != null) {
+            boolean sameState = existing.name().equals(name)
+                    && java.util.Objects.equals(existing.description(), description)
+                    && existing.url().equals(url)
+                    && existing.type() == type;
+            if (sameState) {
+                return existing; // no-op: the state already matches (US-15.4)
+            }
+            return update(existing.id(), name, description, url, type);
         }
         return catalogPort.save(new Address(addressId, name, description,
                 url, type, Set.of()));
