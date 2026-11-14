@@ -46,7 +46,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `AiAssistantPort` | driven | `SpringAiConnector` (Spring AI `ChatClient`, provider-neutral) |
 | `ContentScrapePort` | driven | `ScrapeConnectorRouter` → `StaticScrapeConnector` (default: HTML5 fixtures of issue #62, offline runs) or `HttpScrapeConnector` (`neis.scrape.connector=live`, US-06.1/06.2: java.net.http fetch, Tika content-type/charset handling, jsoup HTML5 normalization, body cap + fetch deadline) |
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
-| `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
+| `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction, US-12.2: deterministic `Document.select` iteration — title, description, date, detail URL resolved against the address's base URI) |
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
 | `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout) |
 | `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
@@ -63,6 +63,11 @@ address — the hardcoded MVP orchestration (`MvpChainService`,
 `MvpChainResult`, the `mvp-chain` command and the `mvp/` run kit) was
 retired when the Core Platform took over. The kit's PRINT step
 persists a readable report artifact per address in the content tree.
+The ANALYZE selector strategy (US-12.1/#46): stored fast path first,
+then the configuration's preconfigured selectors
+(`neis.selectors.preconfigured`), then the AI, then static heuristics —
+a validated preconfigured selector is persisted with
+`discoveredBy=preconfigured`.
 Pure-Java domain services (`PaginationDetector`,
 `ExposedFilterDetector`) are the heuristic fallbacks when no AI is
 configured; AI classification, selector identification, capability
