@@ -187,7 +187,11 @@ public class TaskWorkService {
      * yields new items and the US-12.5 cap allows. The detection result
      * and the page count are recorded in the outcome. Without a
      * selector, extraction is skipped here: identifying a selector is
-     * ANALYZE's job (AI or fallbacks).
+     * ANALYZE's job (AI or fallbacks). US-12.3: the selector is
+     * validated (syntax + at least one match) before extraction — this
+     * step is STRICT; the CHAIN/PRINT path keeps its own fallback
+     * strategy (AI/heuristic re-identification) and tolerates empty
+     * matches instead.
      */
     private String scrape(Address address, int maxItems, String selectorOverride) {
         var scrape = pipeline.scrapePort.scrape(address);
@@ -197,8 +201,16 @@ public class TaskWorkService {
 
         // US-12.6 (issue #72): a selector override replaces the
         // preconfigured selector for this run; preconfigured selectors
-        // remain the default whenever no override applies.
-        String selectorOverrideTrimmed = selectorOverride == null || selectorOverride.isBlank()
+        // remain the default whenever no override applies. An
+        // EXPLICITLY EMPTY override is refused — no silent fallback to
+        // the preconfigured selector (US-12.3/12.6 review finding,
+        // 2026-11-14).
+        if (selectorOverride != null && selectorOverride.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Empty selector override (US-12.6): remove the parameter to "
+                            + "use the preconfigured selector, or provide a selector");
+        }
+        String selectorOverrideTrimmed = selectorOverride == null
                 ? null : selectorOverride.trim();
         Optional<String> selector = selectorOverrideTrimmed != null
                 ? Optional.of(selectorOverrideTrimmed)

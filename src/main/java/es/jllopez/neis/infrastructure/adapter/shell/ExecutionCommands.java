@@ -65,8 +65,9 @@ public class ExecutionCommands {
         return out.toString();
     }
 
-    /** key=value pairs from the repeatable --param option. */
-    private static Map<String, String> parseParams(List<String> params) {
+    /** key=value pairs from the repeatable --param option. Public for
+     * tests (pure function). */
+    public static Map<String, String> parseParams(List<String> params) {
         if (params == null || params.isEmpty()) {
             return Map.of();
         }
@@ -77,7 +78,14 @@ public class ExecutionCommands {
                 throw new IllegalArgumentException(
                         "--param expects key=value, got: " + entry);
             }
-            map.put(entry.substring(0, eq).trim(), entry.substring(eq + 1).trim());
+            String key = entry.substring(0, eq).trim();
+            String value = entry.substring(eq + 1).trim();
+            if (map.put(key, value) != null) {
+                // Duplicate keys would silently take the last value —
+                // refused, per the fail-not-silent parameter philosophy
+                // (US-12.3/12.6 review finding, 2026-11-14).
+                throw new IllegalArgumentException("Duplicate --param key: " + key);
+            }
         }
         return map;
     }

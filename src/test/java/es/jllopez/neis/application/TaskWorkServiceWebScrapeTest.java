@@ -356,6 +356,22 @@ class TaskWorkServiceWebScrapeTest {
     }
 
     @Test
+    void preconfiguredSelectorMatchingNothingAborts() {
+        // US-12.3: the 0-match abort applies to preconfigured selectors
+        // too — a scheduled run whose site markup drifts ends FAILED
+        // with a clear error, not silently empty (US-12.3/12.6 review
+        // finding, 2026-11-14).
+        PreconfiguredSelectors configured = catalog(List.of(
+                new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
+                        ".site-redesigned-away")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service(configured, null).execute("WEBSCRAPE",
+                        catalog.byId("ADDR-001")));
+        assertTrue(e.getMessage().contains("matched no elements"), e.getMessage());
+    }
+
+    @Test
     void selectorOverrideReplacesThePreconfiguredSelector() {
         // US-12.6: the override replaces the preconfigured selector (the
         // preconfigured one deliberately does not match here) and the
@@ -395,6 +411,16 @@ class TaskWorkServiceWebScrapeTest {
                         java.util.Map.of("selector", ".no-such-element")));
         assertTrue(empty.getMessage().contains("matched no elements"),
                 empty.getMessage());
+    }
+
+    @Test
+    void duplicateParamKeysAreRefused() {
+        // US-12.3/12.6 review finding: duplicate --param keys would
+        // silently take the last value — refused.
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> es.jllopez.neis.infrastructure.adapter.shell.ExecutionCommands
+                        .parseParams(List.of("max-items=3", "max-items=5")));
+        assertTrue(e.getMessage().contains("Duplicate"), e.getMessage());
     }
 
     private Path firstFileMatching(String fileName) {
