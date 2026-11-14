@@ -24,6 +24,12 @@ public interface NewsEventStorePort {
      *                    (US-14.2 provenance; nullable)
      * @param contentId   the scrape.html content record the items came
      *                    from (US-14.2 provenance; nullable)
+     *                    <p>Provenance is REFRESHED on every upsert: a
+     *                    re-run under a new execution id relinks the
+     *                    rows — and a null provenance on a later save
+     *                    would overwrite existing provenance with NULL
+     *                    (no production caller does; pinned here per
+     *                    the US-14.2 review).</p>
      */
     int saveAll(String addressId, String kind, List<NewsEventItem> items,
                 String executionId, String contentId);

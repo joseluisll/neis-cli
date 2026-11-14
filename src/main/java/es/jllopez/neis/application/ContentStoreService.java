@@ -104,26 +104,26 @@ public class ContentStoreService {
             throw new IllegalStateException(
                     "Cannot write task output " + fileName + " for " + taskCode, e);
         }
-        String recordId = "CONT-" + sha256(address.id() + "|" + captureId(url)
-                + "|" + taskCode + "|" + fileName).substring(0, 12);
+        String recordId = contentRecordId(address, taskCode, fileName);
         store.saveContent(new ContentRecord(recordId, address.id(), captureId(url),
                 taskCode, kind, file.toString(), Instant.now()));
         return file;
     }
 
-    /** Every content record, newest first. */
-    public List<ContentRecord> listAll() {
-        return store.findAll();
-    }
-
     /**
      * The deterministic content-record id a task output WILL get (or
      * already has) for this address/task/file — provenance references
-     * (US-14.2) use it without re-reading the store.
+     * (US-14.2) use it without re-reading the store. The SINGLE formula:
+     * writeTaskOutput derives the same id inline, so they cannot drift.
      */
     public String contentRecordId(Address address, String taskCode, String fileName) {
         return "CONT-" + sha256(address.id() + "|" + captureId(address.url())
                 + "|" + taskCode + "|" + fileName).substring(0, 12);
+    }
+
+    /** Every content record, newest first. */
+    public List<ContentRecord> listAll() {
+        return store.findAll();
     }
 
     /** Every content record of one address, newest first. */

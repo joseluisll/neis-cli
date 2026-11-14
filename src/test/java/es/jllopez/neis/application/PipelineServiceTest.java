@@ -687,6 +687,20 @@ class PipelineServiceTest {
         assertEquals("https://www.ema.europa.eu/en/events/upcoming-events?page={n}",
                 result.pageUrlPattern(),
                 "the page pattern must match the corrected address");
+        // US-14.2 review finding (2026-11-14): the provenance content id
+        // must reference the capture of the ORIGINAL url — the one whose
+        // scrape.html was actually written — even though ANALYZE
+        // corrected the address mid-run. A content id hashed from the
+        // corrected URL would dangle.
+        String expectedContentId = contentStore().contentRecordId(
+                looselyRegistered, "WEBSCRAPE", "scrape.html");
+        assertFalse(newsEventStoreInst.provenanceCalls.isEmpty(),
+                "the run must persist the extracted items");
+        for (String call : newsEventStoreInst.provenanceCalls) {
+            assertTrue(call.endsWith("|" + expectedContentId),
+                    "provenance content id must match the ORIGINAL url's "
+                            + "capture (not the corrected one): " + call);
+        }
     }
 
     @Test

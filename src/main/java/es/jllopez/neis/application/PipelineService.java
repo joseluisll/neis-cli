@@ -264,10 +264,16 @@ public class PipelineService {
         // too (US-14.1 review finding, 2026-11-14: the persist used to
         // run before the loop and page-2+ items were never stored).
         // US-14.2 (issue #56): each record references the execution that
-        // extracted it and the scrape.html content it came from.
+        // extracted it and the scrape.html content it came from. The
+        // content id is computed from `address` — the SAME object whose
+        // URL produced the artifact at writeArtifact — NOT from
+        // `flagged`, whose URL ANALYZE may have corrected (US-13.7):
+        // a corrected URL would hash to a capture that never existed
+        // and the provenance link would dangle silently (US-14.2
+        // review finding, 2026-11-14).
         newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items,
                 executionId,
-                contentStore.contentRecordId(flagged, "WEBSCRAPE", "scrape.html"));
+                contentStore.contentRecordId(address, "WEBSCRAPE", "scrape.html"));
 
         // FILTER block (US-17): ONLY on addresses flagged FILTERING.
         // The AI first identifies the filter-zone selector (like the
