@@ -215,9 +215,6 @@ public class PipelineService {
         List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
                 selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
                 flagged.url()));
-        // US-14.1 (issue #55): the extracted items are persisted as
-        // repository entities, not only as content files.
-        newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items);
 
         // Pagination-iteration block (US-12.4 slice): ONLY on addresses
         // flagged PAGINATION, and only when the AI derived a page URL
@@ -257,6 +254,13 @@ public class PipelineService {
                 }
             }
         }
+
+        // US-14.1 (issue #55): the extracted items are persisted as
+        // repository entities, not only as content files — AFTER the
+        // pagination iteration, so page-2+ items reach the repository
+        // too (US-14.1 review finding, 2026-11-14: the persist used to
+        // run before the loop and page-2+ items were never stored).
+        newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items);
 
         // FILTER block (US-17): ONLY on addresses flagged FILTERING.
         // The AI first identifies the filter-zone selector (like the
