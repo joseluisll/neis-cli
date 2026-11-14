@@ -37,11 +37,20 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         int stored = 0;
         for (NewsEventItem item : items) {
             String key = key(addressId, item);
+            // The real connector normalizes blank urls to null (unique
+            // index key) and evaluates completeness on save (US-14.4):
+            // the double mirrors both so unit tests see the same rows.
+            String url = item.url() == null || item.url().isBlank()
+                    ? null : item.url();
+            List<String> missing = item.missingMandatory();
             store.put(key,
                     new NewsEventItem(addressId,
                             kind == null ? item.kind() : kind,
-                            item.title(), item.description(), item.url(),
-                            item.date(), executionId, contentId));
+                            item.title(), item.description(), url,
+                            item.date(), item.picture(), item.location(),
+                            executionId, contentId,
+                            !missing.isEmpty(),
+                            missing.isEmpty() ? null : String.join(", ", missing)));
             sequence.put(key, stamp);
             stored++;
         }

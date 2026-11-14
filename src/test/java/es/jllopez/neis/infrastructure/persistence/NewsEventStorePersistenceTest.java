@@ -236,4 +236,58 @@ class NewsEventStorePersistenceTest {
         assertEquals("news", store.byAddress("ADDR-N3").get(0).kind());
         assertEquals("event", store.byAddress("ADDR-N4").get(0).kind());
     }
+
+    @Test
+    void optionalMetadataRoundTrips() {
+        // US-14.4: picture and location are captured when present and
+        // survive the read path.
+        seedAddress("ADDR-NB");
+        store.saveAll("ADDR-NB", "event", List.of(new NewsEventItem(
+                "ADDR-NB", "event", "Rich event", "Description",
+                "https://example.eu/rich", "2026-12-01")), null, null);
+        var stored = NewsEventItem.extracted("ADDR-NB", "event",
+                "Rich event", "Description", "https://example.eu/rich",
+                "2026-12-01", "https://example.eu/img.jpg", "Brussels");
+        store.saveAll("ADDR-NB", "event", List.of(stored), null, null);
+
+        var read = store.byAddress("ADDR-NB");
+        assertEquals(1, read.size(), "the optional fields are not part of the key");
+        assertEquals("https://example.eu/img.jpg", read.get(0).picture());
+        assertEquals("Brussels", read.get(0).location());
+    }
+
+    @Test
+    void missingMandatoryDataIsFlaggedIncompleteWithTheMissingFields() {
+        // US-14.4: a record missing mandatory data is not silently
+        // stored as complete — flagged incomplete, missing fields listed.
+        seedAddress("ADDR-NC");
+        store.saveAll("ADDR-NC", "event", List.of(new NewsEventItem(
+                "ADDR-NC", "event", "Sparse event", null,
+                "https://example.eu/sparse", null)), null, null);
+
+        var read = store.byAddress("ADDR-NC");
+        assertEquals(1, read.size());
+        assertTrue(read.get(0).incomplete());
+        assertEquals("description, date", read.get(0).missingFields());
+    }
+
+    @Test
+    void upsertThatFixesTheDataClearsTheIncompleteFlag() {
+        // US-14.4: completeness is re-evaluated on every save — a later
+        // extraction that finds the missing data completes the record.
+        seedAddress("ADDR-ND");
+        var sparse = new NewsEventItem("ADDR-ND", "news", "Item",
+                null, "https://example.eu/fix", null);
+        store.saveAll("ADDR-ND", "news", List.of(sparse), null, null);
+        assertTrue(store.byAddress("ADDR-ND").get(0).incomplete());
+
+        var complete = new NewsEventItem("ADDR-ND", "news", "Item",
+                "Now described", "https://example.eu/fix", "2026-11-14");
+        store.saveAll("ADDR-ND", "news", List.of(complete), null, null);
+
+        var read = store.byAddress("ADDR-ND");
+        assertEquals(1, read.size());
+        assertTrue(!read.get(0).incomplete(), "flag cleared by the fixing upsert");
+        assertEquals(null, read.get(0).missingFields());
+    }
 }

@@ -271,6 +271,16 @@ cap.
   parsed leniently (ISO and the extractor's human form) by
   `NewsEventQuery.dateInRange`. The same commands inside the
   interactive shell are the repository's TUI view.
+- Mandatory metadata (US-14.4, schema V5): title, description and date
+  are the mandatory minimum (publication date for news, event date for
+  events); picture and location are optional, captured when the listing
+  shows them. The store evaluates completeness on EVERY save
+  (`NewsEventItem.missingMandatory()`) — a record missing mandatory
+  data is stored flagged `incomplete` with the missing fields recorded,
+  never silently as complete, and a later upsert that fixes the data
+  clears the flag. `news list` marks such rows
+  `INCOMPLETE(missing: ...)` so selector or source problems are visible
+  in the listing itself.
 
 ## Enforced rules (ArchUnit)
 

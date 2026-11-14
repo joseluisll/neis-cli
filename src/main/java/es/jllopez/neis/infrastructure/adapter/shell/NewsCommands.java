@@ -70,6 +70,7 @@ public class NewsCommands {
                     .append(item.title() == null ? "<no title>" : item.title())
                     .append(item.url() == null ? "" : "  <" + item.url() + ">")
                     .append(provenance(item))
+                    .append(incompleteness(item))
                     .append("\n");
         }
         if (items.isEmpty()) {
@@ -87,6 +88,17 @@ public class NewsCommands {
         }
         return "  {" + (item.executionId() == null ? "-" : item.executionId())
                 + " | " + (item.contentId() == null ? "-" : item.contentId()) + "}";
+    }
+
+    /** The incompleteness suffix (US-14.4): a record missing mandatory
+     * metadata is flagged with the missing fields, so selector or
+     * source problems are visible in the listing itself. */
+    private static String incompleteness(NewsEventItem item) {
+        if (!item.incomplete()) {
+            return "";
+        }
+        return "  INCOMPLETE(missing: "
+                + (item.missingFields() == null ? "?" : item.missingFields()) + ")";
     }
 
     @Command(name = {"news", "provenance"}, group = "News",

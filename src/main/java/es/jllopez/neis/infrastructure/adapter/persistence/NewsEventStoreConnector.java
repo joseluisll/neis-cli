@@ -56,6 +56,16 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             // content record this extraction came from.
             entity.setExecutionId(executionId);
             entity.setContentId(contentId);
+            // US-14.4: optional metadata is captured when present;
+            // completeness is evaluated by the store on every save, so
+            // an upsert that fixes the data clears the incomplete flag
+            // (and an upsert that loses data sets it).
+            entity.setPicture(item.picture());
+            entity.setLocation(item.location());
+            List<String> missing = item.missingMandatory();
+            entity.setIncomplete(!missing.isEmpty());
+            entity.setMissingFields(missing.isEmpty()
+                    ? null : String.join(", ", missing));
             if (isNew) {
                 entity.setCreatedAt(now);
             }
@@ -107,7 +117,9 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     private static NewsEventItem toItem(NewsEventEntity e) {
         return new NewsEventItem(e.getAddressId(), e.getKind(),
                 e.getTitle(), e.getDescription(), e.getUrl(), e.getDate(),
-                e.getExecutionId(), e.getContentId());
+                e.getPicture(), e.getLocation(),
+                e.getExecutionId(), e.getContentId(),
+                e.isIncomplete(), e.getMissingFields());
     }
 
     /**

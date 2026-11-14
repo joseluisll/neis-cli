@@ -77,6 +77,42 @@ class JsoupSelectorConnectorTest {
     }
 
     @Test
+    void optionalPictureAndLocationAreCapturedWhenPresent() {
+        // US-14.4: optional metadata (picture, location) is captured
+        // when the listing shows it, absent when it does not.
+        String listing = "<html><body><ul class='events'>"
+                + "<li><h2><a href='/events/one'>Event one</a></h2>"
+                + "<img src='/img/one.jpg' alt=''>"
+                + "<span class='location'>Brussels, Belgium</span>"
+                + "<time datetime='2026-12-01'>1 December 2026</time></li>"
+                + "<li><h2><a href='/events/two'>Event two</a></h2>"
+                + "<p>No picture or location here.</p></li>"
+                + "</ul></body></html>";
+        List<NewsEventItem> items = connector.extract(
+                listing, "ul.events li", "event", "ADDR-T", 50,
+                "https://example.eu/events/");
+
+        assertEquals(2, items.size());
+        assertEquals("https://example.eu/img/one.jpg", items.get(0).picture());
+        assertEquals("Brussels, Belgium", items.get(0).location());
+        assertEquals(null, items.get(1).picture());
+        assertEquals(null, items.get(1).location());
+    }
+
+    @Test
+    void lazyLoadedPictureFallsBackToDataSrc() {
+        String listing = "<html><body><ul class='news'>"
+                + "<li><h2><a href='/news/one'>Item</a></h2>"
+                + "<img data-src='/img/lazy.jpg'></li>"
+                + "</ul></body></html>";
+        List<NewsEventItem> items = connector.extract(
+                listing, "ul.news li", "news", "ADDR-T", 50,
+                "https://example.eu/news/");
+        assertEquals(1, items.size());
+        assertEquals("https://example.eu/img/lazy.jpg", items.get(0).picture());
+    }
+
+    @Test
     void documentBaseTagOverridesThePassedBaseUri() {
         // jsoup resolves a document-level <base href> against the passed
         // baseUri and lets it win — standard HTML semantics; the address

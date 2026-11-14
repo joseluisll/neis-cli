@@ -53,6 +53,23 @@ public class NewsEventEntity {
     @Column(name = "content_id")
     private String contentId;
 
+    /** Optional picture URL (US-14.4). */
+    @Column
+    private String picture;
+
+    /** Optional location/venue (US-14.4). */
+    @Column
+    private String location;
+
+    /** True when a mandatory field is missing (US-14.4). SQLite
+     * stores booleans as integers per the schema's storage format. */
+    @Column(nullable = false)
+    private boolean incomplete;
+
+    /** The missing mandatory fields, comma-separated (US-14.4). */
+    @Column(name = "missing_fields")
+    private String missingFields;
+
     public String getId() {
         return id;
     }
@@ -139,5 +156,37 @@ public class NewsEventEntity {
 
     public void setContentId(String contentId) {
         this.contentId = contentId;
+    }
+
+    public String getPicture() {
+        return picture;
+    }
+
+    public void setPicture(String picture) {
+        this.picture = picture;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public boolean isIncomplete() {
+        return incomplete;
+    }
+
+    public void setIncomplete(boolean incomplete) {
+        this.incomplete = incomplete;
+    }
+
+    public String getMissingFields() {
+        return missingFields;
+    }
+
+    public void setMissingFields(String missingFields) {
+        this.missingFields = missingFields;
     }
 }

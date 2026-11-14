@@ -132,4 +132,38 @@ class NewsEventServiceTest {
         assertEquals("First (updated)", store.all().get(0).title());
         assertEquals("Second", store.all().get(1).title());
     }
+
+    @Test
+    void inMemoryDoubleEvaluatesCompletenessLikeTheRealStore() {
+        // US-14.4 double fidelity: the test double flags missing
+        // mandatory data and records the missing fields exactly like
+        // the SQLite connector, so unit tests see the same rows.
+        store.saveAll("ADDR-001", "event", List.of(new NewsEventItem(
+                "ADDR-001", "event", "Sparse", null, "https://x.eu/s", null)),
+                null, null);
+        var read = store.byAddress("ADDR-001");
+        assertEquals(1, read.size());
+        assertTrue(read.get(0).incomplete());
+        assertEquals("description, date", read.get(0).missingFields());
+
+        // A complete item is flagged complete, and a fixing upsert
+        // clears the flag.
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "Complete", "Described",
+                "https://x.eu/c", "2026-11-14")), null, null);
+        var complete = store.byAddress("ADDR-001").stream()
+                .filter(item -> "Complete".equals(item.title()))
+                .findFirst().orElseThrow();
+        assertTrue(!complete.incomplete());
+        assertEquals(null, complete.missingFields());
+
+        store.saveAll("ADDR-001", "event", List.of(new NewsEventItem(
+                "ADDR-001", "event", "Sparse", "Now described",
+                "https://x.eu/s", "2026-11-14")), null, null);
+        var fixed = store.byAddress("ADDR-001").stream()
+                .filter(item -> "Sparse".equals(item.title()))
+                .findFirst().orElseThrow();
+        assertTrue(!fixed.incomplete());
+        assertEquals(null, fixed.missingFields());
+    }
 }

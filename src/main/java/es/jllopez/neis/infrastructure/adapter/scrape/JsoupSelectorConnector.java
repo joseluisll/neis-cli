@@ -60,8 +60,9 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
             if (title.isBlank() && url == null) {
                 continue; // not a meaningful item
             }
-            items.add(new NewsEventItem(addressId, kind, title, extractDescription(el),
-                    url, extractDate(el)));
+            items.add(NewsEventItem.extracted(addressId, kind, title,
+                    extractDescription(el), url, extractDate(el),
+                    extractPicture(el), extractLocation(el)));
         }
         return items;
     }
@@ -125,6 +126,38 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         Element link = el.is("a[href]") ? el : el.selectFirst("a[href]");
         return link != null ? link.attr("abs:href").isBlank()
                 ? link.attr("href") : link.attr("abs:href") : null;
+    }
+
+    /**
+     * Optional metadata (US-14.4): the item's picture URL when the
+     * listing shows one — the first image inside the item, absolute
+     * against the base URI, with the lazy-loading data-src fallback.
+     */
+    private String extractPicture(Element el) {
+        Element img = el.selectFirst("img");
+        if (img == null) {
+            return null;
+        }
+        String src = img.attr("abs:src");
+        if (src.isBlank()) {
+            // Lazy loading: data-src is not a resolved URL attribute —
+            // jsoup's abs: prefix resolves it against the base URI too.
+            src = img.attr("abs:data-src");
+        }
+        return src.isBlank() ? null : src;
+    }
+
+    /** Optional metadata (US-14.4): the item's location/venue when the
+     * listing marks one (location/venue classes, microdata, address). */
+    private String extractLocation(Element el) {
+        Element location = el.selectFirst(
+                "[class*=location], [class*=venue], [itemprop=location], address");
+        if (location == null) {
+            return null;
+        }
+        String text = location.text().trim();
+        return text.isBlank() ? null
+                : text.length() > 200 ? text.substring(0, 200) + "..." : text;
     }
 
     /**
