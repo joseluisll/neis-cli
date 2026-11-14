@@ -31,6 +31,10 @@ public interface NewsEventStorePort {
      *                    would overwrite existing provenance with NULL
      *                    (no production caller does; pinned here per
      *                    the US-14.2 review).</p>
+     *                    <p>A null item title does not abort the batch
+     *                    on the schema's NOT NULL: it is stored empty
+     *                    and flagged incomplete (missing: title) with
+     *                    the rest of the batch (US-14.4 review).</p>
      */
     int saveAll(String addressId, String kind, List<NewsEventItem> items,
                 String executionId, String contentId);

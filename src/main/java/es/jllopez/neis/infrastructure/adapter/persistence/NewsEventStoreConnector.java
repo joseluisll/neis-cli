@@ -43,7 +43,11 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             entity.setId(id);
             entity.setAddressId(addressId);
             entity.setKind(kind == null ? item.kind() : kind);
-            entity.setTitle(item.title());
+            // A null title would abort the whole batch on the schema's
+            // NOT NULL (US-14.4 review): it is stored as empty and the
+            // completeness evaluation above already flags it — the row
+            // lands INCOMPLETE(missing: title), never as a crash.
+            entity.setTitle(item.title() == null ? "" : item.title());
             entity.setDescription(item.description());
             entity.setDate(item.date());
             // A blank-but-non-null url (raw href fallback in the

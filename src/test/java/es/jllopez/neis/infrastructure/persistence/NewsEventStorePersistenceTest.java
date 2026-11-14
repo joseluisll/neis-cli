@@ -290,4 +290,34 @@ class NewsEventStorePersistenceTest {
         assertTrue(!read.get(0).incomplete(), "flag cleared by the fixing upsert");
         assertEquals(null, read.get(0).missingFields());
     }
+
+    @Test
+    void nullTitleIsStoredFlaggedNotAbortingTheBatch() {
+        // US-14.4 review: the schema's title NOT NULL must not abort
+        // saveAll for a title-less item — the row is stored (empty
+        // title) flagged incomplete with "title" among the missing
+        // fields, and the REST of the batch still lands.
+        seedAddress("ADDR-NE");
+        var titleless = new NewsEventItem("ADDR-NE", "event", null,
+                "Description", "https://example.eu/notitle", "2026-12-01");
+        var healthy = new NewsEventItem("ADDR-NE", "event", "Healthy item",
+                "Description", "https://example.eu/healthy", "2026-12-01");
+
+        assertEquals(2, store.saveAll("ADDR-NE", "event",
+                List.of(titleless, healthy), null, null),
+                "the null-title row does not abort the batch");
+
+        var byTitle = store.byAddress("ADDR-NE").stream()
+                .filter(item -> item.url() != null
+                        && item.url().endsWith("notitle"))
+                .findFirst().orElseThrow();
+        assertTrue(byTitle.incomplete());
+        assertTrue(byTitle.missingFields().contains("title"));
+        assertEquals("", byTitle.title());
+
+        var healthyRow = store.byAddress("ADDR-NE").stream()
+                .filter(item -> "Healthy item".equals(item.title()))
+                .findFirst().orElseThrow();
+        assertTrue(!healthyRow.incomplete());
+    }
 }
