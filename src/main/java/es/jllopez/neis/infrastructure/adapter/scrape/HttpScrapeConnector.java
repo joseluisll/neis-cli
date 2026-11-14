@@ -295,6 +295,9 @@ public class HttpScrapeConnector implements ContentScrapePort {
                     .filter(java.util.Objects::nonNull)
                     .findFirst()
                     .orElse(null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null; // jsoup decides next
         } catch (Exception e) { // IOException + any Tika runtime failure
             return null; // jsoup decides next
         }
