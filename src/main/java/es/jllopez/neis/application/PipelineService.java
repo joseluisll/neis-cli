@@ -49,15 +49,17 @@ import java.util.regex.Pattern;
  * orchestration any more: batch runs are chain runs submitted per
  * address through {@code ExecutionService}.
  *
- * <p>ANALYZE selector strategy (owner decision 2026-11-11): a stored,
- * previously validated selector for the address is used directly and the
- * AI is skipped entirely (fast path). Only when no working selector is
- * stored does the chain invoke the AI — one task-specific prompt per
- * concern from {@link AiPromptCatalog} (classification, then news or
- * events selector identification) — validate the identified selector by
- * probe extraction, and persist it with the address so future runs need
- * no AI. Static heuristic selectors remain as last-resort fallback and
- * are never persisted.</p>
+ * <p>ANALYZE selector strategy (owner decision 2026-11-11, extended by
+ * US-12.1): a stored, previously validated selector for the address is
+ * used directly and the AI is skipped entirely (fast path). Next comes
+ * the configuration's preconfigured selector (US-12.1,
+ * {@code neis.selectors}) — deterministic, persisted once validated.
+ * Only when neither exists does the chain invoke the AI — one
+ * task-specific prompt per concern from {@link AiPromptCatalog}
+ * (classification, then news or events selector identification) —
+ * validate the identified selector by probe extraction, and persist it
+ * with the address so future runs need no AI. Static heuristic
+ * selectors remain as last-resort fallback and are never persisted.</p>
  *
  * <p>Capability flagging (US-17, owner decision 2026-11-11): ANALYZE
  * detects the listing capabilities of the address — pagination and
@@ -102,6 +104,7 @@ public class PipelineService {
     private final ObjectProvider<AiAssistantPort> aiPort;
     private final AddressCatalogService addressCatalog;
     private final UrlSyntaxValidator urlValidator;
+    private final PreconfiguredSelectors preconfiguredSelectors;
     final ContentStoreService contentStore;
 
     public PipelineService(ContentScrapePort scrapePort,
@@ -113,6 +116,7 @@ public class PipelineService {
                            ObjectProvider<AiAssistantPort> aiPort,
                            AddressCatalogService addressCatalog,
                            UrlSyntaxValidator urlValidator,
+                           PreconfiguredSelectors preconfiguredSelectors,
                            ContentStoreService contentStore,
                            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
@@ -124,6 +128,7 @@ public class PipelineService {
         this.aiPort = aiPort;
         this.addressCatalog = addressCatalog;
         this.urlValidator = urlValidator;
+        this.preconfiguredSelectors = preconfiguredSelectors;
         this.contentStore = contentStore;
     }
 
@@ -765,7 +770,36 @@ public class PipelineService {
                     address.id());
         }
 
-        // 2. AI identification: classification prompt, then the selector
+        // 2. Preconfigured selector (US-12.1, issue #46): configuration,
+        //    not AI. Validated by the same probe; persisted with
+        //    discoveredBy=preconfigured (carrying over any stored filter
+        //    data) so later runs take the stored fast path.
+        Optional<String> preconfigured = preconfiguredSelectors.find(address.id(), kind);
+        if (preconfigured.isPresent()) {
+            String configured = preconfigured.get();
+            if (valid(simplifiedHtml, configured, kind, address)) {
+                log.info("[AI] {}: preconfigured selector valid - AI skipped ({})",
+                        address.id(), configured);
+                StoredSelectors persisted = stored
+                        .map(s -> new StoredSelectors(s.addressId(), s.kind(), configured,
+                                s.filterSelector(), s.filters(), "preconfigured",
+                                LocalDate.now().toString(),
+                                "preconfigured in neis.selectors (US-12.1)"))
+                        .orElse(new StoredSelectors(address.id(), kind, configured,
+                                "preconfigured", LocalDate.now().toString(),
+                                "preconfigured in neis.selectors (US-12.1)"));
+                selectorStore.save(persisted);
+                return new SelectorSelection(configured, "preconfigured",
+                        new PageAnalysis(kind,
+                                kind.equals("news") ? configured : null,
+                                kind.equals("event") ? configured : null, false,
+                                "Preconfigured selector (neis.selectors, US-12.1); AI skipped."));
+            }
+            log.info("[AI] {}: preconfigured selector stale - falling to the AI",
+                    address.id());
+        }
+
+        // 3. AI identification: classification prompt, then the selector
         //    prompt for the page's kind. Persisted when the probe validates it.
         AiAssistantPort ai = aiPort.getIfAvailable();
         String classification = kind;
@@ -814,7 +848,7 @@ public class PipelineService {
             log.info("[AI] {}: AI not configured - heuristic fallback selectors", address.id());
         }
 
-        // 3. Static heuristic fallback (not persisted — the point is to
+        // 4. Static heuristic fallback (not persisted — the point is to
         //    store AI-identified working selectors only).
         String selected = null;
         for (String candidate : fallbackSelectors(address)) {

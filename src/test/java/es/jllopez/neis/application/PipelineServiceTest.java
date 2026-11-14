@@ -135,6 +135,18 @@ class PipelineServiceTest {
         return new ContentStoreService(new InMemoryContentStorePort(), workDir.toString());
     }
 
+    /** Empty preconfigured-selector catalog (US-12.1): no configured
+     * selectors unless a test passes its own. */
+    private PreconfiguredSelectors preconfigured() {
+        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(List.of()));
+    }
+
+    /** Preconfigured-selector catalog with the given entries (US-12.1). */
+    private PreconfiguredSelectors preconfigured(
+            List<PreconfiguredSelectorProperties.Entry> entries) {
+        return new PreconfiguredSelectors(new PreconfiguredSelectorProperties(entries));
+    }
+
     /** The deterministic capture folder of an address's listing page
      * (US-11.4): capture ids derive from the URL, so a fresh service
      * computes the same folder the run wrote to. */
@@ -146,7 +158,7 @@ class PipelineServiceTest {
     private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         return new PipelineService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
-                ai, catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                ai, catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
     }
 
     @Test
@@ -159,7 +171,7 @@ class PipelineServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                badCatalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                badCatalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> chain.run(bad));
@@ -178,7 +190,7 @@ class PipelineServiceTest {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                catalog2, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> chain.run(unverified));
@@ -202,7 +214,7 @@ class PipelineServiceTest {
                                 + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                                 + "\"correctedAddress\":null}",
                         "{\"filters\":[],\"reasoning\":\"none\"}")),
-                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         chain.run(good);
 
@@ -331,6 +343,75 @@ class PipelineServiceTest {
         assertFalse(result.analysis().aiAssisted());
         assertFalse(result.items().isEmpty(), "stored selector must still extract items");
         assertTrue(result.analysis().notes().contains("AI skipped"));
+    }
+
+    @Test
+    void preconfiguredSelectorSkipsTheAi() {
+        // US-12.1: the configuration's selector for ADDR-003 is used
+        // directly — the selector-identification AI is never reached.
+        AiAssistantPort selectorAiMustNotCall = prompt -> {
+            if (prompt.contains("REPEATING list items")) {
+                throw new AssertionError(
+                        "selector AI must be skipped when a preconfigured selector works");
+            }
+            if (prompt.contains("CAPABILITIES")) {
+                return "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,"
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"}}";
+            }
+            return "news";
+        };
+        PreconfiguredSelectors configured = preconfigured(List.of(
+                new PreconfiguredSelectorProperties.Entry("ADDR-003", "news",
+                        "sedia-result-card-news-translation")));
+        PipelineService service = new PipelineService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
+                catalog, new UrlSyntaxValidator(), configured, contentStore(),
+                workDir.toString());
+
+        PipelineResult result = service.run(catalog.byId("ADDR-003"));
+
+        assertEquals("preconfigured", result.selectorSource());
+        assertFalse(result.analysis().aiAssisted());
+        assertFalse(result.items().isEmpty(), "preconfigured selector must extract items");
+        assertEquals("preconfigured", store.get("ADDR-003").discoveredBy(),
+                "a validated preconfigured selector is persisted");
+        assertEquals("sedia-result-card-news-translation", store.get("ADDR-003").selector());
+    }
+
+    @Test
+    void staleStoredSelectorFallsToThePreconfiguredOneBeforeTheAi() {
+        store.put("ADDR-003", new StoredSelectors("ADDR-003", "news",
+                ".does-not-match-anymore", "ai", "2026-11-01", "stale"));
+        AiAssistantPort selectorAiMustNotCall = prompt -> {
+            if (prompt.contains("REPEATING list items")) {
+                throw new AssertionError(
+                        "a valid preconfigured selector must win over the AI");
+            }
+            if (prompt.contains("CAPABILITIES")) {
+                return "{\"pagination\":{\"detected\":false,\"pageUrlPattern\":null,"
+                        + "\"reasoning\":\"\"},"
+                        + "\"filtering\":{\"detected\":false,\"reasoning\":\"\"}}";
+            }
+            return "news";
+        };
+        PreconfiguredSelectors configured = preconfigured(List.of(
+                new PreconfiguredSelectorProperties.Entry("ADDR-003", "news",
+                        "sedia-result-card-news-translation")));
+        PipelineService service = new PipelineService(scrapePort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
+                catalog, new UrlSyntaxValidator(), configured, contentStore(),
+                workDir.toString());
+
+        PipelineResult result = service.run(catalog.byId("ADDR-003"));
+
+        assertEquals("preconfigured", result.selectorSource());
+        assertFalse(result.items().isEmpty());
+        // The stale stored record's identity carries into the persisted
+        // replacement (same address, same kind).
+        assertEquals("preconfigured", store.get("ADDR-003").discoveredBy());
     }
 
     @Test
@@ -669,7 +750,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -721,7 +802,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -764,7 +845,7 @@ class PipelineServiceTest {
                         + "\"reasoning\":\"ignored the constraint\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -812,7 +893,7 @@ class PipelineServiceTest {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -852,7 +933,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiCapabilityOnly),
-                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -899,7 +980,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Event status", "Past"));
@@ -940,7 +1021,7 @@ class PipelineServiceTest {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), contentStore(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), contentStore(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Keyword", "plasma"));
