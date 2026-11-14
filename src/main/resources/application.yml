@@ -45,6 +45,15 @@ neis:
   # the SCRAPE/SIMPLIFY artifacts and the selector store live (US-11).
   core:
     work-dir: ./core-work
+  scrape:
+    # Which connector serves the WEBSCRAPE step (US-06.1): 'static' (the
+    # bundled HTML5 fixtures of the issue #62 seed addresses, default —
+    # offline runs need no network) or 'live' (real HTTP fetch over
+    # java.net.http HttpClient with jsoup HTML5 normalization). An
+    # unknown value fails the boot instead of silently falling back.
+    connector: static
+    # Per-request timeout of the live fetch.
+    timeout-seconds: 20
   address:
     verification:
       # Address reachability check (US-04.2): per-request timeout of the

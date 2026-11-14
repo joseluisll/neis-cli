@@ -44,7 +44,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 |---|---|---|
 | `RuntimeInfoPort` | driven | `MavenRuntimeInfoConnector` (Spring Boot build properties) |
 | `AiAssistantPort` | driven | `SpringAiConnector` (Spring AI `ChatClient`, provider-neutral) |
-| `ContentScrapePort` | driven | `StaticScrapeConnector` (MVP: static HTML5 fixtures of issue #62; real fetching connectors plug in behind it) |
+| `ContentScrapePort` | driven | `ScrapeConnectorRouter` → `StaticScrapeConnector` (default: HTML5 fixtures of issue #62, offline runs) or `HttpScrapeConnector` (`neis.scrape.connector=live`, US-06.1: java.net.http fetch + jsoup HTML5 normalization) |
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction) |
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
