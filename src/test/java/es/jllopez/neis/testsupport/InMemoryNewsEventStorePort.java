@@ -19,7 +19,10 @@ import java.util.Map;
 public class InMemoryNewsEventStorePort implements NewsEventStorePort {
 
     private final Map<String, NewsEventItem> store = new LinkedHashMap<>();
-    /** Per-key write sequence: higher = written later = newer. */
+    /** Per-key write sequence: higher = written later = newer. Rows of
+     * ONE saveAll call share the stamp (like the connector, which
+     * writes one updated_at per call) — within a batch the insertion
+     * order stands in for the real store's arbitrary tiebreak. */
     private final Map<String, Long> sequence = new HashMap<>();
     private long lastWrite = 0;
     /** One provenance pair per saveAll call (US-14.2, exact-field assertions). */
@@ -30,6 +33,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
                        String executionId, String contentId) {
         provenanceCalls.add(new ProvenanceCall(executionId, contentId));
+        long stamp = ++lastWrite;
         int stored = 0;
         for (NewsEventItem item : items) {
             String key = key(addressId, item);
@@ -38,7 +42,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                             kind == null ? item.kind() : kind,
                             item.title(), item.description(), item.url(),
                             item.date(), executionId, contentId));
-            sequence.put(key, ++lastWrite);
+            sequence.put(key, stamp);
             stored++;
         }
         return stored;
@@ -57,12 +61,14 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
 
     @Override
     public List<NewsEventItem> search(NewsEventQuery query) {
+        // The kind filter mirrors the connector's SQL exactly: exact,
+        // case-sensitive equality on the (already normalized) value.
         return newestFirst(store.entrySet().stream()
                 .filter(e -> query.addressId() == null || query.addressId().isBlank()
                         || e.getKey().startsWith(query.addressId().trim() + "|")))
                 .stream()
                 .filter(item -> query.kind() == null || query.kind().isBlank()
-                        || query.kind().trim().equalsIgnoreCase(item.kind()))
+                        || query.kind().equals(item.kind()))
                 .filter(item -> query.dateInRange(item.date()))
                 .limit(query.limit())
                 .toList();

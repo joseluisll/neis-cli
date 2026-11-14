@@ -63,6 +63,16 @@ public record NewsEventQuery(
                 && (to == null || !date.isAfter(to));
     }
 
+    /**
+     * The lenient item-date parser (ISO first, then the extractor's
+     * human format), or null when the value does not parse. Public so
+     * the driving adapter can validate user-supplied range bounds
+     * instead of letting a typo silently deactivate a filter.
+     */
+    public static LocalDate parseLenient(String value) {
+        return parse(value);
+    }
+
     private static LocalDate parse(String value) {
         if (value == null || value.isBlank()) {
             return null;

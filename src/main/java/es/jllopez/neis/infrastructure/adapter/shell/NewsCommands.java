@@ -10,6 +10,7 @@ import org.springframework.shell.core.command.annotation.Option;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Driving adapter: Spring Shell commands inspecting the news/events
@@ -37,19 +38,34 @@ public class NewsCommands {
             @Option(shortName = 'k', longName = "kind",
                     description = "Item kind: news or event (omit for both)") String kind,
             @Option(longName = "from",
-                    description = "Items dated on/after this ISO date (yyyy-MM-dd); "
-                            + "rows without a date are excluded") String dateFrom,
+                    description = "Items dated on/after this date — ISO (yyyy-MM-dd) or "
+                            + "the extractor's form ('Jul 16, 2026'); rows without a "
+                            + "parseable date are excluded") String dateFrom,
             @Option(longName = "to",
-                    description = "Items dated on/before this ISO date (yyyy-MM-dd)") String dateTo,
+                    description = "Items dated on/before this date (same accepted forms "
+                            + "as --from)") String dateTo,
             @Option(longName = "limit", defaultValue = "20",
                     description = "Maximum number of items to show") int limit) {
+        // A typo in a range bound must not silently deactivate the
+        // filter (US-14.3 review finding): validate what the user
+        // passed before it reaches the lenient query parser.
+        for (String[] bound : new String[][] {{"--from", dateFrom}, {"--to", dateTo}}) {
+            if (bound[1] != null && !bound[1].isBlank()
+                    && NewsEventQuery.parseLenient(bound[1]) == null) {
+                return "Invalid " + bound[0] + " date '" + bound[1]
+                        + "' — use ISO (yyyy-MM-dd) or the extractor's form "
+                        + "(e.g. 'Jul 16, 2026')";
+            }
+        }
         List<NewsEventItem> items = newsEvents.search(new NewsEventQuery(
-                addressId, kind, dateFrom, dateTo, limit));
+                addressId == null ? null : addressId.trim(),
+                kind == null ? null : kind.trim().toLowerCase(Locale.ROOT),
+                dateFrom, dateTo, limit));
         StringBuilder out = new StringBuilder("News/events (")
                 .append(items.size()).append("):\n");
         for (NewsEventItem item : items) {
             out.append("  ").append(item.date() == null ? "????-??-??" : item.date())
-                    .append("  ").append(item.kind())
+                    .append("  ").append(item.kind() == null ? "-" : item.kind())
                     .append("  [").append(item.addressId()).append("]  ")
                     .append(item.title() == null ? "<no title>" : item.title())
                     .append(item.url() == null ? "" : "  <" + item.url() + ">")
