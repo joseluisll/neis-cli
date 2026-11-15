@@ -133,6 +133,68 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
         return forAddress(address).scrapeFiltered(address, filterRequest);
     }
 
+    /**
+     * US-06.6 (issue #73): the WEBSCRAPE filter set applied before
+     * extraction. Strategy-specific application — query parameters on
+     * the URL for the {@code http} strategy, operated filter controls
+     * for the {@code rendered} strategy; the fixtures connector serves
+     * its captured filtered responses offline; a feed-classified
+     * address is refused loud (feeds are parsed directly, US-06.8).
+     * An empty filter set is the plain scrape.
+     */
+    @Override
+    public ScrapeResult scrapeWithFilters(Address address,
+                                          java.util.Map<String, String> filters,
+                                          String connectorOverride) {
+        if (filters == null || filters.isEmpty()) {
+            return scrape(address, connectorOverride);
+        }
+        if (!live || "fixtures".equalsIgnoreCase(
+                connectorOverride == null ? "" : connectorOverride.trim())) {
+            return staticConnector.scrapeWithFilters(address, filters, null);
+        }
+        String strategy = strategyFor(address);
+        if (WebpageType.STRATEGY_FEED.equals(strategy)) {
+            throw new UnsupportedOperationException(
+                    "Filter controls do not apply to feed sources (US-06.6/06.8): "
+                            + address.id() + " is parsed directly — remove the filters");
+        }
+        if (WebpageType.STRATEGY_RENDERED.equals(strategy)) {
+            return renderedConnector.getObject().scrapeWithFilters(address, filters, null);
+        }
+        return httpConnector.getObject().scrapeUrl(withQueryParams(address.url(), filters));
+    }
+
+    /** The address's strategy in the live taxonomy (unclassified → http). */
+    private String strategyFor(Address address) {
+        return webpageTypes.byId(address.webpageType())
+                .map(WebpageType::strategy)
+                .orElse(WebpageType.STRATEGY_HTTP);
+    }
+
+    /**
+     * The static URL with the filter set as query parameters
+     * (US-06.6): name=value pairs, URL-encoded, in filter order,
+     * appended after '?' or '&' as the existing URL requires.
+     */
+    static String withQueryParams(String url, java.util.Map<String, String> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return url;
+        }
+        StringBuilder query = new StringBuilder();
+        for (var e : filters.entrySet()) {
+            if (query.length() > 0) {
+                query.append('&');
+            }
+            query.append(java.net.URLEncoder.encode(e.getKey(),
+                            java.nio.charset.StandardCharsets.UTF_8))
+                    .append('=')
+                    .append(java.net.URLEncoder.encode(e.getValue(),
+                            java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return url + (url.contains("?") ? "&" : "?") + query;
+    }
+
     @Override
     public List<FilterRequestOption> supportedFilterRequests(Address address) {
         if (!live) {

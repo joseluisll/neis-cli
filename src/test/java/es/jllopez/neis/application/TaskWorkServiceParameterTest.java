@@ -47,7 +47,7 @@ class TaskWorkServiceParameterTest {
                 new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576),
                 new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
                         new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties()),
-                null);
+                new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null);
     }
 
     private PipelineService pipelineReturning(PipelineResult result) {

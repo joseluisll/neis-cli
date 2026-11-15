@@ -8,12 +8,24 @@ import java.time.Instant;
  * id derives from the webpage URL (never from run timestamps), so the
  * same webpage always maps to the same storage folder and repeated
  * operations land in the same place.
+ *
+ * <p>{@code filters} (US-06.6, issue #73): the filter set applied
+ * BEFORE extraction on this capture (URL parameters for static pages,
+ * operated controls for rendered pages), as a JSON object string in
+ * config order; null = fetched without filters. A re-capture without
+ * filters never wipes a stored set (the same rule as the webpage
+ * type).</p>
  */
 public record Capture(String addressId, String captureId, String url,
-                      Instant createdAt, String webpageType) {
+                      Instant createdAt, String webpageType, String filters) {
 
     public Capture(String addressId, String captureId, String url, Instant createdAt) {
-        this(addressId, captureId, url, createdAt, null);
+        this(addressId, captureId, url, createdAt, null, null);
+    }
+
+    public Capture(String addressId, String captureId, String url,
+                   Instant createdAt, String webpageType) {
+        this(addressId, captureId, url, createdAt, webpageType, null);
     }
 
     public Capture {

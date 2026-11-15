@@ -41,6 +41,18 @@ public class CaptureEntity {
     /** The webpage type the capture was recorded under (US-06.5). */
     private String webpageType;
 
+    /** The applied filter set of the capture, JSON object (US-06.6). */
+    @Column(name = "filters")
+    private String filters;
+
+    public String getFilters() {
+        return filters;
+    }
+
+    public void setFilters(String filters) {
+        this.filters = filters;
+    }
+
     public String getWebpageType() {
         return webpageType;
     }

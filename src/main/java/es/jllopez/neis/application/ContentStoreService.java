@@ -46,6 +46,11 @@ public class ContentStoreService {
     private static final Logger log = LoggerFactory.getLogger(ContentStoreService.class);
 
     private final ContentStorePort store;
+
+    /** Read access for metadata maintenance (US-06.6 capture filters). */
+    ContentStorePort store() {
+        return store;
+    }
     private final String contentRoot;
 
     public ContentStoreService(ContentStorePort store,
@@ -73,17 +78,75 @@ public class ContentStoreService {
      * {@code metadata/}.
      */
     public Path captureDir(Address address, String url) {
+        return captureDir(address, url, null);
+    }
+
+    /**
+     * As {@link #captureDir(Address, String)} with the applied filter
+     * set recorded in the capture metadata (US-06.6, issue #73): the
+     * JSON rendering goes onto the capture row; a filter-less capture
+     * stores null and never wipes a stored set (the webpage-type
+     * rule).
+     */
+    public Path captureDir(Address address, String url, java.util.Map<String, String> filters) {
         String captureId = captureId(url);
         if (store.findCapture(address.id(), captureId).isEmpty()) {
             store.saveCapture(new Capture(address.id(), captureId, url,
-                    Instant.now(), address.webpageType()));
-            log.info("Content store: capture {} of {} recorded ({}, type {})",
+                    Instant.now(), address.webpageType(), filtersJson(filters)));
+            log.info("Content store: capture {} of {} recorded ({}, type {}{})",
                     captureId, address.id(), url,
-                    address.webpageType() == null ? "unclassified" : address.webpageType());
+                    address.webpageType() == null ? "unclassified" : address.webpageType(),
+                    filters == null || filters.isEmpty() ? ""
+                            : ", filters " + filters.size());
         }
         Path dir = ensureDir(addressDir(address).resolve(captureId));
         writeFetchRecord(dir, address, url, captureId);
         return dir;
+    }
+
+    /**
+     * The JSON object rendering of an applied filter set, in map
+     * order: {@code {"name":"value", ...}}. Values are escaped for
+     * JSON (quote, backslash, control characters as \\uXXXX); the
+     * rendering is deterministic so the same filter set always
+     * produces the same stored metadata.
+     */
+    public static String filtersJson(java.util.Map<String, String> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return null;
+        }
+        StringBuilder json = new StringBuilder("{");
+        boolean first = true;
+        for (var e : filters.entrySet()) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append(jsonString(e.getKey())).append(':')
+                    .append(jsonString(e.getValue()));
+        }
+        return json.append('}').toString();
+    }
+
+    private static String jsonString(String value) {
+        StringBuilder out = new StringBuilder("\"");
+        for (char c : value.toCharArray()) {
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
+        }
+        return out.append('"').toString();
     }
 
     /**

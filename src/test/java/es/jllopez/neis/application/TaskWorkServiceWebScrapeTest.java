@@ -35,9 +35,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TaskWorkServiceWebScrapeTest {
 
     private final AddressCatalogService catalog = new AddressCatalogService(
-            new InMemoryAddressCatalogPort(List.of(new Address("ADDR-001", "News",
-                    null, "https://commission.europa.eu/news-and-media/news_en",
-                    AddressType.URL_NEWS))),
+            new InMemoryAddressCatalogPort(List.of(
+                    new Address("ADDR-001", "News",
+                            null, "https://commission.europa.eu/news-and-media/news_en",
+                            AddressType.URL_NEWS),
+                    // US-06.6: the fixture address whose captured
+                    // filtered response embodies programme=EU4Health.
+                    new Address("ADDR-006", "News filtered",
+                            null, "https://example.eu/filtered-news",
+                            AddressType.URL_NEWS))),
             new UrlSyntaxValidator());
 
     @TempDir
@@ -106,7 +112,7 @@ class TaskWorkServiceWebScrapeTest {
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
-                feedSource(), webpageTypes(), configuredMaxItems);
+                feedSource(), webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), configuredMaxItems);
     }
 
     private TaskWorkService serviceWithFeedSource(PreconfiguredSelectors preconfigured,
@@ -131,7 +137,7 @@ class TaskWorkServiceWebScrapeTest {
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
-                source, webpageTypes(), null);
+                source, webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null);
     }
 
     private PreconfiguredSelectors catalog(
@@ -332,7 +338,8 @@ class TaskWorkServiceWebScrapeTest {
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
-                        feedSource(), webpageTypes(), null)
+                        feedSource(), webpageTypes(),
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"));
 
             assertTrue(outcome.contains("items extracted: 4"), outcome);
@@ -407,7 +414,8 @@ class TaskWorkServiceWebScrapeTest {
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
-                        feedSource(), webpageTypes(), null)
+                        feedSource(), webpageTypes(),
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"),
                             java.util.Map.of("max-items", "3"));
 
@@ -588,6 +596,61 @@ class TaskWorkServiceWebScrapeTest {
         assertTrue(outcome.contains("no preconfigured selector"), outcome);
         assertFalse(Files.exists(firstFileMatching("feed.xml")),
                 "no feed path for an unclassified address");
+    }
+
+    // ===== US-06.6 (issue #73): filters and values in WEBSCRAPE =====
+
+    @Test
+    void webScrapeAppliesFiltersViaQueryParameters() {
+        // Static page (US-06.6): the filter set is applied BEFORE
+        // extraction (URL query parameters for static pages) and the
+        // applied set is recorded with the capture metadata; the
+        // outcome line names it.
+        String outcome = serviceWithFeedSource(catalog(List.of()), feedSource())
+                .execute("WEBSCRAPE", catalog.byId("ADDR-006"),
+                        java.util.Map.of("filter.programme", "EU4Health"),
+                        null, null, "EXEC-f1");
+
+        assertTrue(outcome.contains("; filters: programme=EU4Health;"), outcome);
+        assertTrue(outcome.contains("paginated:"), outcome);
+    }
+
+    @Test
+    void aFilterTheSourceCannotServeIsRefusedLoud() {
+        // The fixtures embody exactly one filtered response per
+        // address: a filter set they do not embody is refused loud, no
+        // silently unfiltered content is served (US-06.6).
+        UnsupportedOperationException e = assertThrows(
+                UnsupportedOperationException.class,
+                () -> serviceWithFeedSource(catalog(List.of()), feedSource()).execute(
+                        "WEBSCRAPE", catalog.byId("ADDR-006"),
+                        java.util.Map.of("filter.category", "human"),
+                        null, null, null));
+        assertTrue(e.getMessage().contains("does not match"), e.getMessage());
+    }
+
+    @Test
+    void filterValuesAreValidatedBeforeAnythingRuns() {
+        // US-12.3 rule applied to filters: a blank filter value is
+        // refused, never applied.
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> serviceWithFeedSource(catalog(List.of()), feedSource()).execute(
+                        "WEBSCRAPE", catalog.byId("ADDR-006"),
+                        java.util.Map.of("filter.programme", " "),
+                        null, null, null));
+        assertTrue(e.getMessage().contains("empty value"), e.getMessage());
+    }
+
+    @Test
+    void filtersAreRefusedOnFeeds() {
+        // A feed is parsed directly (US-06.8): filters do not apply —
+        // refused loud.
+        catalog.updateWebpageType("ADDR-001", "feed");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service(null).execute("WEBSCRAPE", catalog.byId("ADDR-001"),
+                        java.util.Map.of("filter.category", "human"),
+                        null, null, null));
+        assertTrue(e.getMessage().contains("does not apply to feed sources"), e.getMessage());
     }
 
     private Path firstFileMatching(String fileName) {

@@ -68,6 +68,28 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
 
     @Override
     public ScrapeResult scrapeUrl(String url) {
+        return render(url, java.util.Map.of());
+    }
+
+    /**
+     * US-06.6 (issue #73), rendered form: the filter set is applied by
+     * operating the page's own filter controls BEFORE the extraction —
+     * a {@code <select>} whose name/id/label matches the filter name
+     * gets the option selected (by value, then by label), a text
+     * input/search/date gets the value filled, a checkbox/radio gets
+     * checked; a submit/apply button is clicked when the page has one
+     * and the page re-settles (NETWORKIDLE). A control that cannot be
+     * found, or an option the control does not offer, fails LOUD — a
+     * silently unfiltered listing would poison the repository.
+     */
+    @Override
+    public ScrapeResult scrapeWithFilters(Address address,
+                                          java.util.Map<String, String> filters,
+                                          String connectorOverride) {
+        return render(address.url(), filters);
+    }
+
+    private ScrapeResult render(String url, java.util.Map<String, String> filters) {
         long start = System.nanoTime();
         com.microsoft.playwright.BrowserContext context = null;
         try {
@@ -83,6 +105,16 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                     new com.microsoft.playwright.Page.NavigateOptions()
                             .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)
                             .setTimeout(timeoutSeconds * 1000L));
+            boolean filtersApplied = false;
+            for (var filter : filters.entrySet()) {
+                applyFilterControl(page, filter.getKey(), filter.getValue(), url);
+                filtersApplied = true;
+            }
+            if (filtersApplied) {
+                submitFilterZone(page, url);
+                page.waitForLoadState(
+                        com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+            }
             String html = page.content();
             int size = html.getBytes(StandardCharsets.UTF_8).length;
             if (size > maxBytes) {
@@ -109,7 +141,92 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
     }
 
     /**
-     * Deterministic shutdown of the provisioned browser and driver
+     * One user filter value applied to the matching page control
+     * (US-06.6): the control is located by name/id/aria-label/data
+     * attributes (case-insensitive on the attribute VALUE). A select
+     * gets the option chosen by value first, then by visible label; a
+     * text/search/date-like input gets the value filled; a checkbox or
+     * radio gets checked. No matching control, or a select that does
+     * not offer the value, fails loud — a silently unfiltered listing
+     * would poison the repository.
+     */
+    private void applyFilterControl(com.microsoft.playwright.Page page,
+                                    String name, String value, String url) {
+        String attr = name.replace("\"", "");
+        String controlSelector = "[name=\"" + attr + "\" i], [id=\"" + attr + "\" i], "
+                + "[aria-label=\"" + attr + "\" i], [data-filter=\"" + attr + "\" i], "
+                + "[placeholder=\"" + attr + "\" i]";
+        var control = page.locator(controlSelector).first();
+        if (control.count() == 0) {
+            throw new IllegalStateException("Filter control for '" + name
+                    + "' not found on " + url + " (US-06.6) — the listing cannot be "
+                    + "filtered, the run is aborted");
+        }
+        String tag = control.evaluate("el => el.tagName.toLowerCase()").toString();
+        switch (tag) {
+            case "select" -> selectOption(control, name, value, url);
+            case "input" -> {
+                String type = control.getAttribute("type");
+                if (type == null || type.isBlank()
+                        || type.equalsIgnoreCase("text")
+                        || type.equalsIgnoreCase("search")
+                        || type.equalsIgnoreCase("email")
+                        || type.equalsIgnoreCase("date")) {
+                    control.fill(value);
+                } else if (type.equalsIgnoreCase("checkbox")
+                        || type.equalsIgnoreCase("radio")) {
+                    control.check();
+                } else {
+                    throw new IllegalStateException("Filter control for '" + name
+                            + "' has unsupported input type '" + type + "' on " + url
+                            + " (US-06.6)");
+                }
+            }
+            case "textarea" -> control.fill(value);
+            default -> throw new IllegalStateException("Filter control for '" + name
+                    + "' is <" + tag + "> — unsupported for filtering on " + url
+                    + " (US-06.6)");
+        }
+    }
+
+    /** Selects by value first, then by visible label; loud on neither. */
+    private void selectOption(com.microsoft.playwright.Locator select,
+                              String name, String value, String url) {
+        try {
+            select.selectOption(value);
+            return;
+        } catch (RuntimeException ignored) {
+            // fall through to the label match
+        }
+        try {
+            select.selectOption(new com.microsoft.playwright.options.SelectOption()
+                    .setLabel(value));
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("The select control for '" + name
+                    + "' offers no option '" + value + "' on " + url
+                    + " (US-06.6) — the run is aborted");
+        }
+    }
+
+    /**
+     * Submits the filter zone when the page has an explicit
+     * submit/apply control; pages whose filters auto-apply need no
+     * click (best-effort, never fails the run).
+     */
+    private void submitFilterZone(com.microsoft.playwright.Page page, String url) {
+        for (String selector : new String[] {
+                "button[type=submit]", "input[type=submit]",
+                "button:has-text(\"Apply\")", "button:has-text(\"Filter\")",
+                "button:has-text(\"Search\")"}) {
+            var button = page.locator(selector).first();
+            if (button.count() > 0) {
+                button.click();
+                return;
+            }
+        }
+    }
+
+    /** Deterministic shutdown of the provisioned browser and driver
      * (US-06.5 review note): without it, closing the JVM relied on
      * Playwright's thread characteristics. Idempotent — a connector
      * that never rendered has nothing to close. Also the remedy for a

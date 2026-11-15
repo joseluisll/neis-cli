@@ -129,6 +129,41 @@ public class StaticScrapeConnector implements ContentScrapePort {
         return readFixture(address, resource);
     }
 
+    /**
+     * US-06.6 (issue #73), offline fixture form: the user's filter set
+     * is applied only when it matches one of the captured criteria
+     * exactly (a single {@code name=value} entry whose request equals
+     * the criterion's request token) — the fixture embodies exactly
+     * one filtered response per address, so a set it does not embody
+     * is refused loud rather than served unfiltered.
+     */
+    @Override
+    public ScrapeResult scrapeWithFilters(Address address,
+                                          java.util.Map<String, String> filters,
+                                          String connectorOverride) {
+        if (filters == null || filters.isEmpty()) {
+            return scrape(address, connectorOverride);
+        }
+        if (filters.size() != 1) {
+            throw new UnsupportedOperationException(
+                    "The static fixtures of " + address.id()
+                            + " embody ONE filtered response per address (US-06.6); the "
+                            + filters.size() + "-value set " + filters
+                            + " does not match any captured criterion");
+        }
+        var entry = filters.entrySet().iterator().next();
+        String request = entry.getKey() + "=" + entry.getValue();
+        FilterRequestOption option = FILTER_CRITERIA.get(address.id());
+        if (option == null || !option.request().equalsIgnoreCase(request)) {
+            throw new UnsupportedOperationException(
+                    "The captured filtered response of " + address.id()
+                            + " embodies '" + (option == null ? "nothing" : option.request())
+                            + "' (US-06.6); the requested filter '" + request
+                            + "' does not match it — no unfiltered content is served");
+        }
+        return scrapeFiltered(address, request);
+    }
+
     private ScrapeResult readFixture(Address address, String resource) {
         try (InputStream in = getClass().getResourceAsStream(resource)) {
             if (in == null) {

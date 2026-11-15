@@ -75,6 +75,27 @@ public interface ContentScrapePort {
     }
 
     /**
+     * Scrapes the listing narrowed by an explicit user filter set
+     * (US-06.6, issue #73): the WEBSCRAPE task's configured (or
+     * per-run overridden) filters, applied BEFORE extraction — URL
+     * query parameters for static pages, operating the page's filter
+     * controls (selects, text boxes, tags) for rendered pages.
+     * Connectors that cannot apply a given filter fail loud; the
+     * caller records the applied set with the capture metadata
+     * (US-11.4). An empty map behaves like {@link #scrape(Address)}.
+     */
+    default ScrapeResult scrapeWithFilters(Address address,
+                                           java.util.Map<String, String> filters,
+                                           String connectorOverride) {
+        if (filters == null || filters.isEmpty()) {
+            return scrape(address, connectorOverride);
+        }
+        throw new UnsupportedOperationException(
+                "This SCRAPE connector cannot apply filters " + filters
+                        + " of " + address.id() + " (US-06.6)");
+    }
+
+    /**
      * The filter requests this connector can currently APPLY for the
      * address (US-06.6): a rendering/scraping connector knows which
      * interactions it can serve. Empty means unconstrained — the

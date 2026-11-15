@@ -49,6 +49,11 @@ public class ContentStoreConnector implements ContentStorePort {
         if (capture.webpageType() != null) {
             entity.setWebpageType(capture.webpageType());
         }
+        // The applied filter set (US-06.6) follows the same rule: a
+        // filter-less re-capture never wipes a stored set.
+        if (capture.filters() != null) {
+            entity.setFilters(capture.filters());
+        }
         captures.save(entity);
         return capture;
     }
@@ -58,7 +63,7 @@ public class ContentStoreConnector implements ContentStorePort {
     public Optional<Capture> findCapture(String addressId, String captureId) {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
-                        e.createdAtInstant(), e.getWebpageType()));
+                        e.createdAtInstant(), e.getWebpageType(), e.getFilters()));
     }
 
     @Override

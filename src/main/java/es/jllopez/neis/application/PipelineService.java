@@ -3,6 +3,7 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.Capture;
 import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.FilterRequestOption;
 import es.jllopez.neis.domain.model.FilterSpec;
@@ -1070,6 +1071,32 @@ public class PipelineService {
      * provenance references use it without re-reading the store). */
     String contentRecordId(Address address, String taskCode, String fileName) {
         return contentStore.contentRecordId(address, taskCode, fileName);
+    }
+
+    /**
+     * Records the applied filter set on the capture metadata (US-06.6,
+     * issue #73 / US-11.4): the JSON rendering lands on the capture
+     * row; the row's other fields (createdAt, webpageType) are
+     * preserved, and a null/empty filter set never touches the stored
+     * metadata (the same never-wipes rule as the webpage type).
+     */
+    void captureWithFilters(Address address, String url,
+                            java.util.Map<String, String> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return;
+        }
+        String captureId = contentStore.captureId(url);
+        es.jllopez.neis.domain.port.ContentStorePort store = contentStore.store();
+        store.findCapture(address.id(), captureId)
+                .ifPresentOrElse(
+                        existing -> store.saveCapture(new Capture(
+                                address.id(), captureId, url, existing.createdAt(),
+                                existing.webpageType(),
+                                ContentStoreService.filtersJson(filters))),
+                        () -> store.saveCapture(new Capture(
+                                address.id(), captureId, url, java.time.Instant.now(),
+                                address.webpageType(),
+                                ContentStoreService.filtersJson(filters))));
     }
 
     /** Chosen selector plus its provenance and the page analysis. */

@@ -71,6 +71,33 @@ class ContentStorePersistenceTest {
     }
 
     @Test
+    void captureFiltersRoundTripAndAFilterlessCaptureNeverWipesThem() {
+        // US-06.6 (issue #73) / US-11.4: the applied filter set is part
+        // of the capture metadata; a later filter-less re-capture never
+        // wipes it (the webpage-type rule).
+        seedAddress("ADDR-CF");
+        store.saveCapture(new Capture("ADDR-CF", "cap-f1lt3r5", "https://example.org/filtered",
+                Instant.parse("2026-11-11T10:00:00Z")));
+        assertTrue(store.findCapture("ADDR-CF", "cap-f1lt3r5").orElseThrow()
+                .filters() == null, "no filters recorded yet");
+
+        store.saveCapture(new Capture("ADDR-CF", "cap-f1lt3r5", "https://example.org/filtered",
+                Instant.parse("2026-11-11T10:00:00Z"), null,
+                "{\"programme\":\"EU4Health\",\"text\":\"wallet\"}"));
+        Capture filtered = store.findCapture("ADDR-CF", "cap-f1lt3r5").orElseThrow();
+        assertEquals("{\"programme\":\"EU4Health\",\"text\":\"wallet\"}", filtered.filters(),
+                "the applied filter set round-trips as stored");
+
+        // A filter-less re-capture (e.g. an unfiltered SIMPLIFY over the
+        // same capture) never wipes the set.
+        store.saveCapture(new Capture("ADDR-CF", "cap-f1lt3r5", "https://example.org/filtered",
+                Instant.parse("2026-11-11T10:00:00Z")));
+        assertEquals("{\"programme\":\"EU4Health\",\"text\":\"wallet\"}",
+                store.findCapture("ADDR-CF", "cap-f1lt3r5").orElseThrow().filters(),
+                "a null filter set never wipes a stored one");
+    }
+
+    @Test
     void contentRecordRoundTripsAndUpdatesOnRerun() {
         seedAddress("ADDR-C2");
         store.saveCapture(new Capture("ADDR-C2", "cap-def456", "https://example.org/x",

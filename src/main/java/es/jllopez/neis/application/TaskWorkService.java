@@ -45,6 +45,7 @@ public class TaskWorkService {
     private final NewsEventStorePort newsEventStore;
     private final es.jllopez.neis.domain.port.FeedSourcePort feedSource;
     private final es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes;
+    private final PreconfiguredFilters preconfiguredFilters;
     /** Externalized default cap (US-12.5): null = no limit. */
     private final Integer configuredMaxItems;
 
@@ -52,6 +53,7 @@ public class TaskWorkService {
                            NewsEventStorePort newsEventStore,
                            es.jllopez.neis.domain.port.FeedSourcePort feedSource,
                            es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes,
+                           PreconfiguredFilters preconfiguredFilters,
                            @org.springframework.beans.factory.annotation.Value(
                                    "${neis.extraction.max-items:}") String configuredMaxItems) {
         this.pipeline = pipeline;
@@ -59,6 +61,7 @@ public class TaskWorkService {
         this.newsEventStore = newsEventStore;
         this.feedSource = feedSource;
         this.webpageTypes = webpageTypes;
+        this.preconfiguredFilters = preconfiguredFilters;
         this.configuredMaxItems = parseMaxItems(configuredMaxItems);
     }
 
@@ -146,23 +149,29 @@ public class TaskWorkService {
                 // override pins the retrieval strategy (fixtures/http/
                 // rendered) for this run instead of the address's
                 // webpage type; an unknown value fails the run loud.
-                // US-06.8: a FEED-classified address is parsed directly
-                // (no selector, no HTML scraping when the feed
+                // US-06.6: optional filter.<name>=<value> parameters
+                // (or the address's preconfigured filters) are applied
+                // BEFORE extraction — URL parameters for static pages,
+                // operated controls for rendered ones. US-06.8: a
+                // FEED-classified address is parsed directly (no
+                // selector, no filters, no HTML scraping when the feed
                 // suffices).
                 requireNoParameters(taskCode, parameters, "max-items", "selector",
-                        "connector");
+                        "connector", "filter.");
                 if (isFeedSource(address)) {
-                    if (parameters.get("selector") != null) {
+                    String filterOverride = firstFilterParam(parameters);
+                    if (parameters.get("selector") != null || filterOverride != null) {
                         throw new IllegalArgumentException(
-                                "A selector override does not apply to feed sources "
-                                        + "(US-06.8) — the feed of " + address.id()
-                                        + " is parsed directly; remove the parameter");
+                                (filterOverride != null ? "Filter parameter '"
+                                        + filterOverride + "'" : "A selector override")
+                                        + " does not apply to feed sources (US-06.6/06.8) — the feed of "
+                                        + address.id() + " is parsed directly; remove the parameter");
                     }
                     yield feedScrape(address, maxItemsCap(parameters), executionId);
                 }
                 yield scrape(address, maxItemsCap(parameters),
                         parameters.get("selector"), executionId,
-                        parameters.get("connector"));
+                        parameters.get("connector"), filterSet(address, parameters));
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
@@ -195,7 +204,12 @@ public class TaskWorkService {
         for (String key : parameters.keySet()) {
             boolean allowed = false;
             for (String allowedKey : allowedKeys) {
-                allowed |= allowedKey.equals(key);
+                // A trailing dot marks a PREFIX allowance: the
+                // WEBSCRAPE filter parameters are filter.<name>
+                // (US-06.6) — the name is user data, not vocabulary.
+                boolean prefixMatch = allowedKey.endsWith(".")
+                        && key.startsWith(allowedKey) && key.length() > allowedKey.length();
+                allowed |= prefixMatch || allowedKey.equals(key);
             }
             if (!allowed) {
                 throw new IllegalArgumentException("Task type " + taskCode
@@ -204,6 +218,47 @@ public class TaskWorkService {
                         + ")");
             }
         }
+    }
+
+    /** The first filter.* parameter key, for refusal messages. */
+    private static String firstFilterParam(Map<String, String> parameters) {
+        return parameters.keySet().stream().filter(k -> k.startsWith("filter."))
+                .filter(k -> k.length() > "filter.".length())
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * The filter set this WEBSCRAPE run applies (US-06.6): the per-run
+     * {@code filter.<name>} overrides win; absent, the address's
+     * preconfigured filter set applies (US-12.6 override semantics);
+     * neither present, the listing is fetched unfiltered.
+     */
+    private Map<String, String> filterSet(Address address,
+                                          Map<String, String> parameters) {
+        Map<String, String> overrides = new java.util.LinkedHashMap<>();
+        for (var e : parameters.entrySet()) {
+            if (e.getKey().startsWith("filter.") && e.getKey().length() > "filter.".length()) {
+                String name = e.getKey().substring("filter.".length()).trim();
+                if (name.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Empty filter name (filter.=...) — name the filter, e.g. "
+                                    + "filter.category=plenary (US-06.6)");
+                }
+                if (e.getValue() == null || e.getValue().isBlank()) {
+                    throw new IllegalArgumentException("The filter '" + name
+                            + "' has an empty value — remove the parameter instead of "
+                            + "filtering to nothing (US-06.6)");
+                }
+                if (overrides.putIfAbsent(name, e.getValue().trim()) != null) {
+                    throw new IllegalArgumentException("Duplicate filter '" + name
+                            + "' (case differs only) — refused (US-12.3 rule)");
+                }
+            }
+        }
+        if (!overrides.isEmpty()) {
+            return overrides;
+        }
+        return preconfiguredFilters.find(address.id()).orElse(Map.of());
     }
 
     /**
@@ -273,10 +328,21 @@ public class TaskWorkService {
     }
 
     private String scrape(Address address, int maxItems, String selectorOverride,
-                          String executionId, String connectorOverride) {
-        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
+                          String executionId, String connectorOverride,
+                          Map<String, String> filters) {
+        // US-06.6 (issue #73): the filter set (per-run override or the
+        // address's preconfigured set) is applied BEFORE extraction —
+        // URL query parameters for static pages, operated filter
+        // controls for rendered pages; the applied set is recorded with
+        // the capture metadata (US-11.4).
+        var scrape = filters == null || filters.isEmpty()
+                ? pipeline.scrapePort.scrape(address, connectorOverride)
+                : pipeline.scrapePort.scrapeWithFilters(address, filters, connectorOverride);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
+        pipeline.captureWithFilters(address, address.url(), filters);
+        String filtersNote = filters == null || filters.isEmpty() ? ""
+                : "; filters: " + filterSummary(filters);
         PaginationInfo pagination = pipeline.paginationDetector.detect(scrape.html());
 
         // US-12.6 (issue #72): a selector override replaces the
@@ -297,6 +363,7 @@ public class TaskWorkService {
                 : pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
         if (selector.isEmpty()) {
             return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
+                    + filtersNote
                     + "; no preconfigured selector for " + address.id()
                     + " — item extraction skipped (US-06.4); paginated: "
                     + pagination.paginated() + " (" + pagination.evidence() + ")";
@@ -411,10 +478,18 @@ public class TaskWorkService {
                 : "cap " + maxItems;
         String iterationNote = notes.isEmpty() ? "" : "; " + String.join("; ", notes);
         return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
+                + filtersNote
                 + "; items extracted: " + items.size() + " (" + capNote
                 + "; selector '" + selector.get() + "') -> " + itemsArtifact
                 + "; pages: " + pages + "; paginated: " + pagination.paginated()
                 + " (" + pagination.evidence() + ")" + iterationNote;
+    }
+
+    /** Compact filter summary for the outcome line: k=v, k2=v2. */
+    private static String filterSummary(Map<String, String> filters) {
+        return filters.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .reduce((a, b) -> a + ", " + b).orElse("");
     }
 
     /**
