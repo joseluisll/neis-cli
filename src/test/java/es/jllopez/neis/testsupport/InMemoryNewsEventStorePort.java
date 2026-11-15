@@ -69,7 +69,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
             // content) triple like the real store's deterministic id.
             sightingHistory
                     .computeIfAbsent(row.canonicalId(), k -> new LinkedHashMap<>())
-                    .putIfAbsent(executionId + "|" + contentId,
+                    .putIfAbsent(addressId + "|" + executionId + "|" + contentId,
                             new NewsEventSighting(row.canonicalId(), addressId,
                                     contentId, executionId, Instant.now()));
             sequence.put(key, stamp);

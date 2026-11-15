@@ -145,11 +145,17 @@ public class NewsCommands {
                 addressId == null ? null : addressId.trim(), null, null, null, limit));
         StringBuilder body = new StringBuilder();
         // Cross-address dedup: rows sharing a canonical id are ONE
-        // logical record — rendered once (US-14.5 review).
+        // logical record — rendered once (US-14.5 review). Rows without
+        // a canonical id (pre-V6, documented policy) are their own
+        // record: keyed on the row's natural identity, never null.
         java.util.Set<String> rendered = new java.util.HashSet<>();
         int shown = 0;
         for (NewsEventItem item : items) {
-            if (!rendered.add(item.canonicalId())) {
+            if (!rendered.add(item.canonicalId() != null
+                    ? item.canonicalId()
+                    : "row:" + item.addressId() + "|"
+                            + (item.url() != null ? item.url()
+                                    : "title:" + item.title()))) {
                 continue;
             }
             shown++;
