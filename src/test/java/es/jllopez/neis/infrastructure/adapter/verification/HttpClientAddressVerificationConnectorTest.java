@@ -97,7 +97,20 @@ class HttpClientAddressVerificationConnectorTest {
         VerificationOutcome outcome = connector.verify(address("/headless"));
         assertEquals(VerificationStatus.VERIFIED, outcome.status());
         assertEquals(1, headHits.get());
-        assertEquals(1, getHits.get(), "the GET fallback must run after a 405");
+        // Two GETs after a 405: the fallback verification GET and the
+        // bounded classification GET (US-06.5) — the /headless handler
+        // sends no body, so the classification stays unclassified.
+        assertEquals(2, getHits.get(), "the GET fallback must run after a 405");
+        assertEquals(null, outcome.webpageType());
+    }
+
+    @Test
+    void aVerified2xxClassifiesThePageIntoTheTaxonomy() {
+        // US-06.5: the verification probe classifies the page (the /ok
+        // handler serves a tiny text/html body without markers).
+        VerificationOutcome outcome = connector.verify(address("/ok"));
+        assertEquals(VerificationStatus.VERIFIED, outcome.status());
+        assertEquals("static", outcome.webpageType());
     }
 
     @Test

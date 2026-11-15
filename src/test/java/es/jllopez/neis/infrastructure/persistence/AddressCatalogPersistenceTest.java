@@ -67,6 +67,22 @@ class AddressCatalogPersistenceTest {
     }
 
     @Test
+    void webpageTypeRoundTripsAndSurvivesPlainCatalogEdits() {
+        // US-06.5 (issue #71): the classified webpage type persists on
+        // the address and is NOT wiped by an unrelated catalog edit —
+        // only the verification flow (with a fresh classification) or
+        // an explicit user action may change it.
+        catalog.save(address("ADDR-PW", "https://example.org/pw",
+                AddressType.URL_NEWS).withWebpageType("spa-angular"));
+        catalog.save(catalog.findById("ADDR-PW").orElseThrow()
+                .withCapabilities(java.util.Set.of(es.jllopez.neis.domain.model.AddressCapability.PAGINATION)));
+
+        Address reloaded = catalog.findById("ADDR-PW").orElseThrow();
+        assertEquals("spa-angular", reloaded.webpageType(),
+                "the type survives a plain capabilities edit");
+    }
+
+    @Test
     void findAllIsOrderedById() {
         catalog.save(address("ADDR-P3", "https://example.org/p3", AddressType.URL_EVENTS));
         catalog.save(address("ADDR-P2", "https://example.org/p2", AddressType.URL_NEWS));

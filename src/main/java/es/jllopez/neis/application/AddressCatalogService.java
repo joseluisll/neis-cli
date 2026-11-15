@@ -142,11 +142,19 @@ public class AddressCatalogService {
 
     /**
      * Records a verification outcome onto the address (US-04.2, issue
-     * #22): the only path that changes the verification columns.
+     * #22): the only path that changes the verification columns. The
+     * probe's webpage-type classification (US-06.5) rides along when
+     * present; a null keeps the previously stored type.
      */
     public Address updateVerification(String id, VerificationStatus status,
-                                      String checkedAt) {
-        return catalogPort.save(byId(id).withVerification(status, checkedAt));
+                                      String checkedAt, String webpageType) {
+        return catalogPort.save(
+                byId(id).withVerification(status, checkedAt, webpageType));
+    }
+
+    /** The webpage type of an address, as the user classified it (US-06.5). */
+    public Address updateWebpageType(String id, String webpageType) {
+        return catalogPort.save(byId(id).withWebpageType(webpageType));
     }
 
     /**

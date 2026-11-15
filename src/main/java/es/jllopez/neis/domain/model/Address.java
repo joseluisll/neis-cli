@@ -25,7 +25,8 @@ import java.util.Set;
  */
 public record Address(String id, String name, String description, String url,
                       AddressType type, Set<AddressCapability> capabilities,
-                      VerificationStatus verificationStatus, String verifiedAt) {
+                      VerificationStatus verificationStatus, String verifiedAt,
+                      String webpageType) {
 
     public Address(String id, String name, String url, AddressType type) {
         this(id, name, null, url, type, Set.of());
@@ -41,18 +42,28 @@ public record Address(String id, String name, String description, String url,
                 VerificationStatus.UNVERIFIED, null);
     }
 
+    public Address(String id, String name, String description, String url,
+                   AddressType type, Set<AddressCapability> capabilities,
+                   VerificationStatus verificationStatus, String verifiedAt) {
+        this(id, name, description, url, type, capabilities,
+                verificationStatus, verifiedAt, null);
+    }
+
     /** Canonical constructor: a missing verification state is UNVERIFIED. */
     public Address {
         if (verificationStatus == null) {
             verificationStatus = VerificationStatus.UNVERIFIED;
         }
         capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
+        if (webpageType != null && webpageType.isBlank()) {
+            webpageType = null; // blank is unclassified, never an empty string
+        }
     }
 
     /** Copy of this address flagged with the given detected capabilities. */
     public Address withCapabilities(Set<AddressCapability> detected) {
         return new Address(id, name, description, url, type, Set.copyOf(detected),
-                verificationStatus, verifiedAt);
+                verificationStatus, verifiedAt, webpageType);
     }
 
     /**
@@ -63,16 +74,36 @@ public record Address(String id, String name, String description, String url,
      */
     public Address withUrl(String correctedUrl) {
         return new Address(id, name, description, correctedUrl, type, capabilities,
-                verificationStatus, verifiedAt);
+                verificationStatus, verifiedAt, webpageType);
     }
 
     /**
      * Copy of this address with a new verification outcome (US-04.2,
      * issue #22): the status and the ISO-8601 instant of the check.
+     * The webpage type rides along when the verification probe
+     * classified the page (US-06.5); a null keeps the stored type —
+     * a re-verification that could not classify never wipes it.
      */
     public Address withVerification(VerificationStatus newStatus, String checkedAt) {
+        return withVerification(newStatus, checkedAt, null);
+    }
+
+    /** As above, carrying the probe's webpage-type classification (US-06.5). */
+    public Address withVerification(VerificationStatus newStatus, String checkedAt,
+                                    String classifiedWebpageType) {
         return new Address(id, name, description, url, type, capabilities,
-                newStatus, checkedAt);
+                newStatus, checkedAt,
+                classifiedWebpageType != null ? classifiedWebpageType : webpageType);
+    }
+
+    /**
+     * Copy of this address with an explicit webpage type (US-06.5):
+     * the user's classification of the webpage — the retrieval
+     * strategy follows from the type (overridable per run).
+     */
+    public Address withWebpageType(String newWebpageType) {
+        return new Address(id, name, description, url, type, capabilities,
+                verificationStatus, verifiedAt, newWebpageType);
     }
 
     /** True when ANALYZE flagged this address with the capability. */

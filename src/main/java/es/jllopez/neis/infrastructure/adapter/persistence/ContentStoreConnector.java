@@ -43,6 +43,12 @@ public class ContentStoreConnector implements ContentStorePort {
         entity.setCaptureId(capture.captureId());
         entity.setUrl(capture.url());
         entity.setCreatedAt(capture.createdAt() == null ? null : capture.createdAt().toString());
+        // The webpage type (US-06.5) refreshes when the re-capture
+        // carries one; a null never wipes a stored classification
+        // (captures recorded before the feature keep their row).
+        if (capture.webpageType() != null) {
+            entity.setWebpageType(capture.webpageType());
+        }
         captures.save(entity);
         return capture;
     }
@@ -52,7 +58,7 @@ public class ContentStoreConnector implements ContentStorePort {
     public Optional<Capture> findCapture(String addressId, String captureId) {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
-                        e.createdAtInstant()));
+                        e.createdAtInstant(), e.getWebpageType()));
     }
 
     @Override

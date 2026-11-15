@@ -4,6 +4,7 @@ import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.VerificationOutcome;
 import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.port.AddressVerificationPort;
+import es.jllopez.neis.domain.service.WebpageTypeClassifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +35,7 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
 
     private final HttpClient client;
     private final Duration timeout;
+    private final WebpageTypeClassifier classifier = new WebpageTypeClassifier();
 
     public HttpClientAddressVerificationConnector(
             @Value("${neis.address.verification.timeout-seconds:10}") long timeoutSeconds) {
@@ -58,13 +60,24 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
             }
             int status = response.statusCode();
             boolean verified = status >= 200 && status < 300;
-            log.info("Address verification {} -> {} {} ({} ms)", address.url(),
-                    verified ? "VERIFIED" : "FAILED", status, elapsedMs(start));
+            String webpageType = null;
+            if (verified) {
+                // US-06.5 (issue #71): the probe fetches a bounded body
+                // sample and classifies the page into the webpage-type
+                // taxonomy. Classification NEVER decides verification
+                // and never fails it — an unclassifiable page simply
+                // keeps the previously stored type.
+                webpageType = classify(address, checkedAt);
+            }
+            log.info("Address verification {} -> {} {} ({} ms{})", address.url(),
+                    verified ? "VERIFIED" : "FAILED", status, elapsedMs(start),
+                    webpageType == null ? "" : ", type " + webpageType);
             return new VerificationOutcome(
                     verified ? VerificationStatus.VERIFIED : VerificationStatus.FAILED,
                     checkedAt, status,
                     verified ? "reachable (HTTP " + status + ")"
-                            : "server responded HTTP " + status);
+                            : "server responded HTTP " + status,
+                    webpageType);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             String detail = "interrupted";
@@ -79,6 +92,43 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
             return new VerificationOutcome(VerificationStatus.FAILED, checkedAt, 0, detail);
         }
     }
+
+    /**
+     * The bounded GET behind the classification (US-06.5): a streamed
+     * body sample capped well below the scrape caps — framework
+     * bootstrap markers sit in the first payload bytes. Any failure
+     * yields null (unclassified), never a failed verification.
+     */
+    private String classify(Address address, String checkedAt) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(address.url().trim()))
+                    .GET()
+                    .timeout(timeout)
+                    .header("User-Agent", "NEIS-verification/0.1")
+                    .header("Accept", "text/html, */*")
+                    .build();
+            HttpResponse<java.io.InputStream> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofInputStream());
+            try (java.io.InputStream body = response.body()) {
+                String contentType = response.headers().firstValue("Content-Type")
+                        .orElse("");
+                byte[] sample = body.readNBytes(CLASSIFY_SAMPLE_BYTES);
+                String type = classifier.classify(contentType,
+                        new String(sample, java.nio.charset.StandardCharsets.ISO_8859_1));
+                log.info("Address classification {} -> {} (HTTP {}, {} bytes sampled)",
+                        address.url(), type == null ? "unclassified" : type,
+                        response.statusCode(), sample.length);
+                return type;
+            }
+        } catch (Exception e) {
+            log.info("Address classification {} -> unclassified ({})",
+                    address.url(), e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /** Body-sample cap of the classification probe (bytes). */
+    static final int CLASSIFY_SAMPLE_BYTES = 256 * 1024;
 
     private HttpResponse<Void> request(Address address, String method,
                                        String checkedAt) throws Exception {

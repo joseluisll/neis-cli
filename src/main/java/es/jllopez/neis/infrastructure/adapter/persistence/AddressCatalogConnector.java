@@ -61,6 +61,7 @@ public class AddressCatalogConnector implements AddressCatalogPort {
         // loaded.
         entity.setVerificationStatus(address.verificationStatus());
         entity.setVerifiedAt(address.verifiedAt());
+        entity.setWebpageType(address.webpageType());
         entity.setUpdatedAt(now());
         return toDomain(jpa.save(entity));
     }
@@ -111,7 +112,7 @@ public class AddressCatalogConnector implements AddressCatalogPort {
     private Address toDomain(AddressEntity e) {
         return new Address(e.getId(), e.getName(), e.getDescription(), e.getUrl(),
                 e.getType(), Set.copyOf(e.getCapabilities()),
-                e.getVerificationStatus(), e.getVerifiedAt());
+                e.getVerificationStatus(), e.getVerifiedAt(), e.getWebpageType());
     }
 
     private String now() {

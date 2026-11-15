@@ -4,6 +4,7 @@ import es.jllopez.neis.application.AddressCatalogService;
 import es.jllopez.neis.application.AddressVerificationService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.port.WebpageTypeCatalogPort;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.CommandGroup;
 import org.springframework.shell.core.command.annotation.Option;
@@ -23,11 +24,14 @@ public class AddressCommands {
 
     private final AddressCatalogService catalog;
     private final AddressVerificationService verificationService;
+    private final WebpageTypeCatalogPort webpageTypes;
 
     public AddressCommands(AddressCatalogService catalog,
-                           AddressVerificationService verificationService) {
+                           AddressVerificationService verificationService,
+                           WebpageTypeCatalogPort webpageTypes) {
         this.catalog = catalog;
         this.verificationService = verificationService;
+        this.webpageTypes = webpageTypes;
     }
 
     @Command(name = {"address", "add"}, group = "Addresses",
@@ -127,7 +131,42 @@ public class AddressCommands {
         return id + " -> " + outcome.status()
                 + (outcome.statusCode() > 0 ? " (HTTP " + outcome.statusCode() + ")" : "")
                 + "\n  " + outcome.detail()
-                + "\n  checked at " + outcome.checkedAt();
+                + "\n  checked at " + outcome.checkedAt()
+                + (outcome.webpageType() == null ? ""
+                        : "\n  webpage type: " + outcome.webpageType());
+    }
+
+    @Command(name = {"address", "webpage-type"}, group = "Addresses",
+            description = "Set or clear the address's webpage type (US-06.5): the "
+                    + "taxonomy id deciding the retrieval strategy (static, spa, "
+                    + "spa-angular, spa-react, spa-vue, hybrid, other — configurable "
+                    + "extensions too); the per-run connector parameter overrides it. "
+                    + "Without --type, prints the stored type.")
+    public String webpageType(
+            @Option(shortName = 'i', longName = "id", required = true,
+                    description = "Address id") String id,
+            @Option(longName = "type",
+                    description = "Taxonomy id (omit to show; 'clear' removes)") String type) {
+        if (type == null || type.isBlank()) {
+            String stored = catalog.byId(id).webpageType();
+            return id + " webpage type: " + (stored == null ? "<unclassified>"
+                    : stored + " (strategy " + webpageTypes.byId(stored)
+                            .map(t -> t.strategy()).orElse("?") + ")");
+        }
+        if (type.trim().equalsIgnoreCase("clear")) {
+            catalog.updateWebpageType(id, null);
+            return id + " webpage type cleared (unclassified; live runs fall "
+                    + "back to HTTP until the next verification classifies it)";
+        }
+        if (!webpageTypes.isKnown(type)) {
+            throw new IllegalArgumentException("Unknown webpage type '" + type
+                    + "' — known types: " + webpageTypes.all().stream()
+                            .map(t -> t.id()).sorted().toList());
+        }
+        Address updated = catalog.updateWebpageType(id, type.trim());
+        return id + " webpage type: " + updated.webpageType()
+                + " (strategy " + webpageTypes.byId(updated.webpageType())
+                        .map(t -> t.strategy()).orElse("?") + ")";
     }
 
     private AddressType parseType(String type) {

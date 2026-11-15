@@ -24,6 +24,7 @@
         <archunit.version>1.5.1</archunit.version>
         <jsoup.version>1.24.1</jsoup.version>
         <tika.version>4.2.0</tika.version>
+        <playwright.version>1.65.0</playwright.version>
     </properties>
 
     <dependencies>
@@ -52,6 +53,17 @@
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-core</artifactId>
             <version>${tika.version}</version>
+        </dependency>
+
+        <!-- US-06.5 (issue #71): the rendered retrieval strategy — real
+             browser rendering of client-side content (owner technology
+             choice, 2026-11-11). LAZY: the driver and browser binaries
+             provision on FIRST USE of the rendered connector, never at
+             boot; offline and fixture runs never touch it. -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
         </dependency>
 
         <!-- Persistence layer (US-02, epic #2): ORM over SQLite3. All DB

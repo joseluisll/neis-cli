@@ -38,6 +38,17 @@ public class CaptureEntity {
     @Column(name = "created_at", nullable = false)
     private String createdAt;
 
+    /** The webpage type the capture was recorded under (US-06.5). */
+    private String webpageType;
+
+    public String getWebpageType() {
+        return webpageType;
+    }
+
+    public void setWebpageType(String webpageType) {
+        this.webpageType = webpageType;
+    }
+
     public String getAddressId() {
         return addressId;
     }

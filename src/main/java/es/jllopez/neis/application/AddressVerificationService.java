@@ -61,6 +61,7 @@ public class AddressVerificationService {
     }
 
     private void persist(Address address, VerificationOutcome outcome) {
-        catalog.updateVerification(address.id(), outcome.status(), outcome.checkedAt());
+        catalog.updateVerification(address.id(), outcome.status(), outcome.checkedAt(),
+                outcome.webpageType());
     }
 }

@@ -75,9 +75,11 @@ public class ContentStoreService {
     public Path captureDir(Address address, String url) {
         String captureId = captureId(url);
         if (store.findCapture(address.id(), captureId).isEmpty()) {
-            store.saveCapture(new Capture(address.id(), captureId, url, Instant.now()));
-            log.info("Content store: capture {} of {} recorded ({})",
-                    captureId, address.id(), url);
+            store.saveCapture(new Capture(address.id(), captureId, url,
+                    Instant.now(), address.webpageType()));
+            log.info("Content store: capture {} of {} recorded ({}, type {})",
+                    captureId, address.id(), url,
+                    address.webpageType() == null ? "unclassified" : address.webpageType());
         }
         Path dir = ensureDir(addressDir(address).resolve(captureId));
         writeFetchRecord(dir, address, url, captureId);

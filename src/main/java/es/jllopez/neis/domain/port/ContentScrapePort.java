@@ -46,6 +46,19 @@ public interface ContentScrapePort {
     }
 
     /**
+     * Scrapes the address with an EXPLICIT retrieval strategy for this
+     * run (US-06.5, issue #71): {@code connector} overrides the
+     * strategy the address's webpage type would select — the
+     * per-run override the requirement shares with the selector
+     * overrides (US-12.6). Values are connector-specific; the routers
+     * accept their own vocabulary and refuse unknown values loud.
+     * The default ignores the override (single-strategy connectors).
+     */
+    default ScrapeResult scrape(Address address, String connectorOverride) {
+        return scrape(address);
+    }
+
+    /**
      * Scrapes the listing narrowed by an applied filter criterion
      * (US-06.6 slice): the connector applies the filter BEFORE returning
      * the content — URL query parameters for static pages, operating the

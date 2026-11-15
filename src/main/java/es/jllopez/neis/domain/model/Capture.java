@@ -9,7 +9,12 @@ import java.time.Instant;
  * same webpage always maps to the same storage folder and repeated
  * operations land in the same place.
  */
-public record Capture(String addressId, String captureId, String url, Instant createdAt) {
+public record Capture(String addressId, String captureId, String url,
+                      Instant createdAt, String webpageType) {
+
+    public Capture(String addressId, String captureId, String url, Instant createdAt) {
+        this(addressId, captureId, url, createdAt, null);
+    }
 
     public Capture {
         if (addressId == null || addressId.isBlank()) {

@@ -53,6 +53,22 @@ public class AddressEntity {
 
     private String verifiedAt;
 
+    /**
+     * The webpage type this address was classified as (US-06.5, issue
+     * #71) — free string, vocabulary of the configuration-driven
+     * WebpageTypeCatalog; null until classified. The DB carries no
+     * CHECK constraint by design: new taxonomy ids need no migration.
+     */
+    private String webpageType;
+
+    public String getWebpageType() {
+        return webpageType;
+    }
+
+    public void setWebpageType(String webpageType) {
+        this.webpageType = webpageType;
+    }
+
     @Column(nullable = false)
     private String createdAt;
 

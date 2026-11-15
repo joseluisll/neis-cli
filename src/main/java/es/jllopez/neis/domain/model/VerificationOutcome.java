@@ -7,5 +7,11 @@ package es.jllopez.neis.domain.model;
  * response) and a short human-readable detail.
  */
 public record VerificationOutcome(VerificationStatus status, String checkedAt,
-                                  int statusCode, String detail) {
+                                  int statusCode, String detail,
+                                  String webpageType) {
+
+    public VerificationOutcome(VerificationStatus status, String checkedAt,
+                               int statusCode, String detail) {
+        this(status, checkedAt, statusCode, detail, null);
+    }
 }

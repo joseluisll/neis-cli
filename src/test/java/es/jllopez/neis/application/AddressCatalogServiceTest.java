@@ -79,7 +79,7 @@ class AddressCatalogServiceTest {
         catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
                 AddressType.URL_NEWS);
         catalog.updateVerification("ADDR-001", VerificationStatus.VERIFIED,
-                "2026-11-11T12:00:00Z");
+                "2026-11-11T12:00:00Z", null);
 
         Address edited = catalog.update("ADDR-001", "Renamed", null, null, null);
 
@@ -150,7 +150,7 @@ class AddressCatalogServiceTest {
         catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
                 AddressType.URL_NEWS);
         catalog.updateVerification("ADDR-001", VerificationStatus.VERIFIED,
-                "2026-11-11T18:00:00Z");
+                "2026-11-11T18:00:00Z", null);
         catalog.updateCapabilities("ADDR-001",
                 java.util.Set.of(AddressCapability.FILTERING));
 

@@ -136,10 +136,15 @@ public class TaskWorkService {
                 // absent too, extraction is unlimited. US-12.6: an
                 // optional selector override replaces the preconfigured
                 // selector for this run; it is validated (US-12.3)
-                // before anything runs.
-                requireNoParameters(taskCode, parameters, "max-items", "selector");
+                // before anything runs. US-06.5: an optional connector
+                // override pins the retrieval strategy (fixtures/http/
+                // rendered) for this run instead of the address's
+                // webpage type; an unknown value fails the run loud.
+                requireNoParameters(taskCode, parameters, "max-items", "selector",
+                        "connector");
                 yield scrape(address, maxItemsCap(parameters),
-                        parameters.get("selector"), executionId);
+                        parameters.get("selector"), executionId,
+                        parameters.get("connector"));
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
@@ -200,8 +205,8 @@ public class TaskWorkService {
      * matches instead.
      */
     private String scrape(Address address, int maxItems, String selectorOverride,
-                          String executionId) {
-        var scrape = pipeline.scrapePort.scrape(address);
+                          String executionId, String connectorOverride) {
+        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
         PaginationInfo pagination = pipeline.paginationDetector.detect(scrape.html());

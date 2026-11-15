@@ -44,11 +44,11 @@ NEIS is a CLI application organized as a hexagonal architecture
 |---|---|---|
 | `RuntimeInfoPort` | driven | `MavenRuntimeInfoConnector` (Spring Boot build properties) |
 | `AiAssistantPort` | driven | `SpringAiConnector` (Spring AI `ChatClient`, provider-neutral) |
-| `ContentScrapePort` | driven | `ScrapeConnectorRouter` → `StaticScrapeConnector` (default: HTML5 fixtures of issue #62, offline runs) or `HttpScrapeConnector` (`neis.scrape.connector=live`, US-06.1/06.2: java.net.http fetch, Tika content-type/charset handling, jsoup HTML5 normalization, body cap + fetch deadline) |
+| `ContentScrapePort` | driven | `ScrapeConnectorRouter` → `StaticScrapeConnector` (default: HTML5 fixtures of issue #62, offline runs), or — `neis.scrape.connector=live` — PER-TYPE retrieval (US-06.5, issue #71): the address's classified webpage type selects `HttpScrapeConnector` (US-06.1/06.2: java.net.http fetch, Tika content-type/charset handling, jsoup HTML5 normalization, body cap + fetch deadline) for `http` types or `PlaywrightRenderConnector` (browser rendering, lazy: driver + Chromium provision on FIRST USE) for the `rendered` types (spa-*, hybrid); the WEBSCRAPE `connector` parameter overrides per run (`fixtures`/`http`/`rendered`) |
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction, US-12.2: deterministic `Document.select` iteration — title, description, date, detail URL resolved against the address's base URI) |
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
-| `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout) |
+| `AddressVerificationPort` | driven | `HttpClientAddressVerificationConnector` (US-04.2: HEAD with GET fallback, redirects, configurable timeout; US-06.5: the probe also classifies the page into the webpage-type taxonomy — `WebpageTypeClassifier` marker heuristics over a bounded body sample, a null classification never wipes a stored type) |
 | `ExecutionStorePort` | driven | `ExecutionStoreConnector` (US-05.3: execution records + the task-type vocabulary over the SQLite `executions`/`task_types` tables) |
 | `ChainStorePort` | driven | `ChainStoreConnector` (US-08.1: chain definitions over the SQLite `chains`/`chain_tasks` tables) |
 | `ContentStorePort` | driven | `ContentStoreConnector` (US-11: webpage captures + content records over the SQLite `captures`/`content_records` tables) |
@@ -165,6 +165,19 @@ cap.
   `neis.address.verification.timeout-seconds`); the outcome
   (VERIFIED/FAILED + ISO checked-at) persists on the address through
   the catalog.
+- Webpage-type classification (US-06.5, issue #71): the verification
+  probe also classifies the page into the EXTENSIBLE, configuration-
+  driven taxonomy (`WebpageTypeCatalog`: built-ins `static`, `spa`,
+  `spa-angular`, `spa-react`, `spa-vue`, `hybrid`, `other`; new types
+  via `neis.webpage.types.<id>.strategy` — no domain change) using the
+  deterministic `WebpageTypeClassifier` marker heuristics over a
+  bounded body sample (framework markers → `spa-<family>`;
+  markers + `<noscript>` → `hybrid`; non-HTML → `other`; plain HTML →
+  `static`). The type persists on the address and on every capture;
+  `address webpage-type` sets/clears it explicitly, and the retrieval
+  strategy follows from the type in `live` mode (per-run WEBSCRAPE
+  `connector` parameter overrides). An unclassifiable probe NEVER
+  erases a stored type.
 - Eligibility (US-04.3): executors accept only addresses that are
   syntactically valid AND VERIFIED. The executor refuses ineligible
   addresses; batch runs skip them and report the skip count.
