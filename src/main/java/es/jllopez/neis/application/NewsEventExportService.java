@@ -151,7 +151,9 @@ public class NewsEventExportService {
         return out;
     }
 
-    /** RFC 4180: every field quoted, embedded quotes doubled. */
+    /** RFC 4180 quoting: every field quoted, embedded quotes doubled,
+     * LF line endings. A SQL NULL and an empty string both render as
+     * an empty quoted field — JSON preserves the distinction. */
     private static String quote(String value) {
         return "\"" + (value == null ? "" : value.replace("\"", "\"\""))
                 + "\"";
