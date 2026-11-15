@@ -16,7 +16,12 @@ import java.util.List;
  * Driving adapter: Spring Shell commands managing the registered
  * address catalog (US-03.2, issue #19): create, list, show, edit and
  * remove addresses of both types. Thin — delegates to
- * {@link AddressCatalogService}.
+ * {@link AddressCatalogService}. {@code address tui} (US-09.1,
+ * issue #37) opens the interactive address-management screen
+ * ({@link AddressTui}: list/add/edit/remove on the shell's own JLine
+ * terminal, redrawn from live state with the verification status and
+ * the classified webpage type, empty-input-keeps semantics, loud
+ * refusals, explicit removal confirmation, clean EOF exit).
  */
 @Component
 @CommandGroup(name = "Addresses", description = "Address catalog commands")

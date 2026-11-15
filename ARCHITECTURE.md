@@ -287,6 +287,16 @@ cap.
   parsed leniently (ISO and the extractor's human form) by
   `NewsEventQuery.dateInRange`. The same commands inside the
   interactive shell are the repository's TUI view.
+- Address management TUI (US-09.1, issue #37): `address tui` opens an
+  interactive screen over the address catalog (list, add, edit,
+  remove) built on the shell's own JLine terminal — no new dependency.
+  The screen redraws from live state after every operation and shows
+  each address's verification status and classified webpage type (the
+  US-09.2 status view). Empty input keeps the default (auto `ADDR-NNN`
+  id, current value on edit); an invalid value aborts that operation
+  loud without touching the catalog; a removal needs an explicit `y`;
+  EOF (piped input, Ctrl-D) exits cleanly, so the screen is
+  script-verifiable.
 - Mandatory metadata (US-14.4, schema V5): title, description and date
   are the mandatory minimum (publication date for news, event date for
   events); picture and location are optional, captured when the listing
