@@ -50,7 +50,13 @@ public class AddressTuiCommands {
 
         @Override
         public String readLine(String prompt) {
-            return reader.readLine(prompt);
+            try {
+                return reader.readLine(prompt);
+            } catch (org.jline.reader.EndOfFileException e) {
+                // JLine signals EOF by throwing; the ConsoleIO contract is
+                // "null on EOF" (AddressTui exits cleanly on piped input).
+                return null;
+            }
         }
 
         @Override
