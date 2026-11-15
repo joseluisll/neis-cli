@@ -12,7 +12,10 @@ interface ConsoleIO {
 
     /**
      * Reads one line with the given prompt; null on EOF (piped input
-     * exhausted or Ctrl-D) — the TUI exits on it, never spins.
+     * exhausted or Ctrl-D) or on Ctrl-C (JLine throws
+     * UserInterruptException) — an operation the prompt belongs to
+     * aborts, and at the main menu the screen exits; never spins
+     * (US-09.1 review finding: Ctrl-C used to surface uncaught).
      */
     String readLine(String prompt);
 

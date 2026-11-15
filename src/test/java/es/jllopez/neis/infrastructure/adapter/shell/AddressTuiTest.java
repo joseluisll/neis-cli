@@ -133,6 +133,34 @@ class AddressTuiTest {
     }
 
     @Test
+    void addRefusesAnAlreadyRegisteredIdInsteadOfOverwritingIt() {
+        // US-09.1 review finding: the TUI used to silently re-register
+        // (overwrite) an existing id — editing is the explicit path.
+        int before = catalog.list().size();
+        ScriptedConsole io = new ScriptedConsole(
+                "a", "ADDR-001", "Dup", "desc",
+                "https://example.eu/dup", "NEWS", "q");
+
+        new AddressTui(catalog, io).run();
+
+        assertEquals(before, catalog.list().size(), "nothing created");
+        assertTrue(io.transcript().contains("already exists"), io.transcript());
+        assertEquals("https://commission.europa.eu/news-and-media/news_en",
+                catalog.byId("ADDR-001").url(), "the record was not touched");
+    }
+
+    @Test
+    void removeReportsAnUnknownIdWithoutAskingForConfirmation() {
+        // US-09.1 review finding: the confirmation was asked BEFORE the
+        // id was known to exist — the user confirmed a removal that
+        // could not happen.
+        ScriptedConsole io = new ScriptedConsole("r", "ADDR-999", "q");
+        new AddressTui(catalog, io).run();
+        assertTrue(io.transcript().contains("Unknown address id"), io.transcript());
+        assertNotNull(catalog.byId("ADDR-001"), "nothing was removed");
+    }
+
+    @Test
     void editKeepsEveryFieldLeftEmptyAndTheVerificationState() {
         seedVerified();
         ScriptedConsole io = new ScriptedConsole(

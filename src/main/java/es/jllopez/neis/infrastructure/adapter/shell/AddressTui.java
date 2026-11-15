@@ -61,6 +61,22 @@ class AddressTui {
         if (id == null) {
             return;
         }
+        // An EXPLICIT id that already exists is refused here (US-09.1
+        // review finding: create() re-registers idempotently — the
+        // documented US-15.4 behavior the seeders rely on — so the TUI
+        // used to silently overwrite the existing record). Editing is
+        // the explicit path for changing an address.
+        String requestedId = id.trim();
+        if (!requestedId.isEmpty()) {
+            try {
+                catalog.byId(requestedId);
+                io.println("  Refused: " + requestedId
+                        + " already exists — edit it instead ('e'); nothing was created.");
+                return;
+            } catch (IllegalArgumentException unknown) {
+                // a free id — proceed
+            }
+        }
         String name = io.readLine("  name: ");
         if (name == null) {
             return;
@@ -85,13 +101,13 @@ class AddressTui {
         }
         try {
             Address created = catalog.create(
-                    id.isBlank() ? null : id.trim(),
+                    requestedId.isEmpty() ? null : requestedId,
                     name.isBlank() ? "(unnamed)" : name.trim(),
                     description.isBlank() ? null : description.trim(),
                     url.trim(),
                     addressType);
             io.println("  Registered " + created.id() + " -> " + created.url());
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             io.println("  Refused: " + e.getMessage() + " — nothing was created.");
         }
     }
@@ -104,7 +120,7 @@ class AddressTui {
         Address current;
         try {
             current = catalog.byId(id.trim());
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException e) {
             io.println("  " + e.getMessage());
             return;
         }
@@ -141,7 +157,7 @@ class AddressTui {
                     addressType);
             io.println("  Updated " + updated.id() + " (verification state kept: "
                     + updated.verificationStatus() + ").");
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             io.println("  Refused: " + e.getMessage() + " — nothing was changed.");
         }
     }
@@ -151,7 +167,18 @@ class AddressTui {
         if (id == null) {
             return;
         }
-        String confirm = io.readLine("  Remove " + id.trim() + "? [y/N]: ");
+        // The id is resolved BEFORE the confirmation (US-09.1 review
+        // finding: the old flow asked the user to confirm a removal
+        // that could not happen — the id was unknown).
+        Address existing;
+        try {
+            existing = catalog.byId(id.trim());
+        } catch (IllegalArgumentException e) {
+            io.println("  " + e.getMessage());
+            return;
+        }
+        String confirm = io.readLine("  Remove " + existing.id() + " ("
+                + existing.name() + ")? [y/N]: ");
         if (confirm == null) {
             return;
         }
@@ -160,9 +187,9 @@ class AddressTui {
             return;
         }
         try {
-            Address removed = catalog.remove(id.trim());
+            Address removed = catalog.remove(existing.id());
             io.println("  Removed " + removed.id() + " (" + removed.name() + ").");
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             io.println("  Refused: " + e.getMessage());
         }
     }

@@ -56,6 +56,12 @@ public class AddressTuiCommands {
                 // JLine signals EOF by throwing; the ConsoleIO contract is
                 // "null on EOF" (AddressTui exits cleanly on piped input).
                 return null;
+            } catch (org.jline.reader.UserInterruptException e) {
+                // Ctrl-C: the same clean-exit contract as EOF (US-09.1
+                // review finding — it used to surface uncaught and kill
+                // the run with a stack trace). An interrupted operation
+                // aborts; at the menu the screen ends.
+                return null;
             }
         }
 
