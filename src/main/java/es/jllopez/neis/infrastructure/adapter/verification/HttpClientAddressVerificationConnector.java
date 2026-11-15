@@ -37,6 +37,22 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
     private final Duration timeout;
     private final WebpageTypeClassifier classifier = new WebpageTypeClassifier();
 
+    /**
+     * Force-closes the classification stream at the deadline: once the
+     * 200 OK headers arrive, HttpRequest.timeout() is spent and the
+     * body read has NO deadline on any JDK this project runs (the
+     * JDK-8258397 class — the same threat the scrape connector's
+     * watchdog bounds; fa42575 review blocking finding). Without it, a
+     * server that stalls the body after the headers would hang the
+     * verification forever. One daemon thread serves all verifications.
+     */
+    private final java.util.concurrent.ScheduledExecutorService watchdog =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "neis-verification-watchdog");
+                t.setDaemon(true);
+                return t;
+            });
+
     public HttpClientAddressVerificationConnector(
             @Value("${neis.address.verification.timeout-seconds:10}") long timeoutSeconds) {
         this.timeout = Duration.ofSeconds(timeoutSeconds);
@@ -112,7 +128,28 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
             try (java.io.InputStream body = response.body()) {
                 String contentType = response.headers().firstValue("Content-Type")
                         .orElse("");
-                byte[] sample = body.readNBytes(CLASSIFY_SAMPLE_BYTES);
+                // The watchdog bounds the body read: a stalled body
+                // surfaces as the close's IOException -> unclassified,
+                // never a hung verification. The budget starts at the
+                // read (the headers already consumed the request's
+                // HTTP-level timeout).
+                java.io.InputStream stream = body;
+                java.util.concurrent.ScheduledFuture<?> alarm = watchdog.schedule(
+                        () -> {
+                            try {
+                                stream.close();
+                            } catch (java.io.IOException ignored) {
+                                // the close IS the alarm firing
+                            }
+                        },
+                        timeout.toNanos(),
+                        java.util.concurrent.TimeUnit.NANOSECONDS);
+                byte[] sample;
+                try {
+                    sample = body.readNBytes(CLASSIFY_SAMPLE_BYTES);
+                } finally {
+                    alarm.cancel(false);
+                }
                 String type = classifier.classify(contentType,
                         new String(sample, java.nio.charset.StandardCharsets.ISO_8859_1));
                 log.info("Address classification {} -> {} (HTTP {}, {} bytes sampled)",

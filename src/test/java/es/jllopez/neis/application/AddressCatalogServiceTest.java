@@ -88,6 +88,21 @@ class AddressCatalogServiceTest {
     }
 
     @Test
+    void updatePreservesTheStoredWebpageType() {
+        // fa42575 review blocking finding: the edit path rebuilt the
+        // Address with the 8-arg constructor, silently nulling the
+        // stored webpage type on every 'address edit'.
+        catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
+                AddressType.URL_NEWS);
+        catalog.updateWebpageType("ADDR-001", "spa-angular");
+
+        Address edited = catalog.update("ADDR-001", "Renamed", null, null, null);
+
+        assertEquals("spa-angular", edited.webpageType(),
+                "a plain catalog edit never wipes the stored webpage type");
+    }
+
+    @Test
     void byIdIsCaseInsensitiveAndUnknownIdsCarryTheKnownOnes() {
         catalog.create("ADDR-001", "Source A", null, "https://example.eu/a",
                 AddressType.URL_NEWS);

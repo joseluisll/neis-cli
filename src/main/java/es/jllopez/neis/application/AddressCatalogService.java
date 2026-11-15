@@ -98,15 +98,19 @@ public class AddressCatalogService {
                           String url, AddressType type) {
         requireValidUrl(url); // null keeps the current (validated) URL
         Address current = byId(id);
-        // Preserve the loaded verification state (US-04.2): catalog
-        // edits never touch it — only 'address verify' does.
+        // Preserve the loaded verification state (US-04.2) and the
+        // classified webpage type (US-06.5): catalog edits never touch
+        // either — only 'address verify' and 'address webpage-type' do
+        // (fa42575 review blocking finding: the 8-arg rebuild silently
+        // nulled the stored type).
         return catalogPort.save(new Address(current.id(),
                 name != null ? name : current.name(),
                 description != null ? description : current.description(),
                 url != null ? url : current.url(),
                 type != null ? type : current.type(),
                 current.capabilities(),
-                current.verificationStatus(), current.verifiedAt()));
+                current.verificationStatus(), current.verifiedAt(),
+                current.webpageType()));
     }
 
     /**
