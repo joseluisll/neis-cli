@@ -143,21 +143,27 @@ public class NewsCommands {
                     description = "Maximum number of items (logical records) to show") int limit) {
         List<NewsEventItem> items = newsEvents.search(new NewsEventQuery(
                 addressId == null ? null : addressId.trim(), null, null, null, limit));
-        StringBuilder out = new StringBuilder("Sighting history (")
-                .append(items.size()).append(items.size() == 1 ? " item" : " items")
-                .append("):\n");
+        StringBuilder body = new StringBuilder();
+        // Cross-address dedup: rows sharing a canonical id are ONE
+        // logical record — rendered once (US-14.5 review).
+        java.util.Set<String> rendered = new java.util.HashSet<>();
+        int shown = 0;
         for (NewsEventItem item : items) {
+            if (!rendered.add(item.canonicalId())) {
+                continue;
+            }
+            shown++;
             List<NewsEventSighting> sightings = newsEvents.sightings(item.canonicalId());
             long addresses = sightings.stream().map(NewsEventSighting::addressId)
                     .distinct().count();
-            out.append("  ").append(item.canonicalId())
+            body.append("  ").append(item.canonicalId())
                     .append("  [").append(item.addressId()).append("]  ")
                     .append(item.title() == null ? "<no title>" : item.title())
                     .append("  ").append(sightings.size())
                     .append(" sighting(s) across ").append(addresses)
                     .append(" address(es)\n");
             for (NewsEventSighting sighting : sightings) {
-                out.append("    seen in [").append(sighting.addressId()).append("]  ")
+                body.append("    seen in [").append(sighting.addressId()).append("]  ")
                         .append(sighting.seenAt())
                         .append("  {").append(sighting.executionId() == null
                                 ? "-" : sighting.executionId())
@@ -166,10 +172,13 @@ public class NewsCommands {
             }
         }
         if (items.isEmpty()) {
-            out.append("  <no stored news/events")
+            body.append("  <no stored news/events")
                     .append(addressId == null ? "" : " for address " + addressId)
                     .append(">\n");
+            shown = 0;
         }
-        return out.toString();
+        return new StringBuilder("Sighting history (")
+                .append(shown).append(shown == 1 ? " item" : " items")
+                .append("):\n").append(body).toString();
     }
 }

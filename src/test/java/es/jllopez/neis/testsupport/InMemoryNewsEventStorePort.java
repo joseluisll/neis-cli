@@ -33,8 +33,11 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     /** In-memory sighting history (US-14.5): keyed by canonical id —
      * the double's rows have no row ids, so its {@link #sightings}
      * lookup is by canonical id (a faithful stand-in: the real store's
-     * sightings hang off the row whose canonical id is the same). */
-    private final Map<String, List<NewsEventSighting>> sightingHistory =
+     * sightings hang off the row whose canonical id is the same).
+     * Insertion-ordered maps: sightings() returns them NEWEST FIRST
+     * (reversed), and an identical (execution, content) sighting is
+     * idempotent like the real store's deterministic sighting id. */
+    private final Map<String, Map<String, NewsEventSighting>> sightingHistory =
             new HashMap<>();
 
     @Override
@@ -59,16 +62,16 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                     executionId, contentId,
                     !missing.isEmpty(),
                     missing.isEmpty() ? null : String.join(", ", missing),
-                    item.canonicalId());
+                    item.computedCanonicalId());
             store.put(key, row);
             // US-14.5 sighting: one per saveAll that produced the item,
-            // carrying the same provenance (the real connector stores a
-            // row per (item, execution, content) — the double's list
-            // keeps them in order).
-            sightingHistory.computeIfAbsent(row.canonicalId(),
-                            k -> new ArrayList<>())
-                    .add(new NewsEventSighting(row.canonicalId(), addressId,
-                            contentId, executionId, Instant.now()));
+            // carrying the same provenance — idempotent per (execution,
+            // content) triple like the real store's deterministic id.
+            sightingHistory
+                    .computeIfAbsent(row.canonicalId(), k -> new LinkedHashMap<>())
+                    .putIfAbsent(executionId + "|" + contentId,
+                            new NewsEventSighting(row.canonicalId(), addressId,
+                                    contentId, executionId, Instant.now()));
             sequence.put(key, stamp);
             stored++;
         }
@@ -108,7 +111,11 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
 
     @Override
     public List<NewsEventSighting> sightings(String itemId) {
-        return List.copyOf(sightingHistory.getOrDefault(itemId, List.of()));
+        // Newest first, like the real store.
+        List<NewsEventSighting> stored = new ArrayList<>(
+                sightingHistory.getOrDefault(itemId, Map.of()).values());
+        java.util.Collections.reverse(stored);
+        return List.copyOf(stored);
     }
 
     private List<NewsEventItem> newestFirst(

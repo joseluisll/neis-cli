@@ -80,7 +80,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             // US-14.5 dedup: the deterministic canonical id — the same
             // story seen again (later capture, paginated page, other
             // address) lands on the same id without any lookup.
-            entity.setCanonicalId(item.canonicalId());
+            entity.setCanonicalId(item.computedCanonicalId());
             if (isNew) {
                 entity.setCreatedAt(now);
             }

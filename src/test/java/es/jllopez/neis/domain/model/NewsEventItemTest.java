@@ -64,7 +64,7 @@ class NewsEventItemTest {
                 "https://example.eu/story", "2026-11-14");
         var b = new NewsEventItem("ADDR-2", "news", "Title B (different wording)", null,
                 "https://example.eu/story", "2026-11-01");
-        assertEquals(a.canonicalId(), b.canonicalId(),
+        assertEquals(a.computedCanonicalId(), b.computedCanonicalId(),
                 "the stable identifier (URL) groups the rows");
     }
 
@@ -76,8 +76,8 @@ class NewsEventItemTest {
                 "https://example.eu/story#section", "2026-11-14");
         var slash = new NewsEventItem("ADDR-1", "news", "T", "d",
                 "https://example.eu/story/", "2026-11-14");
-        assertEquals(plain.canonicalId(), fragment.canonicalId());
-        assertEquals(plain.canonicalId(), slash.canonicalId());
+        assertEquals(plain.computedCanonicalId(), fragment.computedCanonicalId());
+        assertEquals(plain.computedCanonicalId(), slash.computedCanonicalId());
     }
 
     @Test
@@ -86,7 +86,7 @@ class NewsEventItemTest {
                 null, null, "Dec 3, 2026");
         var iso = new NewsEventItem("ADDR-2", "news", "annual   cybersecurity day",
                 "other description", null, "2026-12-03");
-        assertEquals(human.canonicalId(), iso.canonicalId(),
+        assertEquals(human.computedCanonicalId(), iso.computedCanonicalId(),
                 "title+date baseline: case/whitespace-insensitive title, "
                         + "leniently parsed date, kind-agnostic");
     }
@@ -101,9 +101,9 @@ class NewsEventItemTest {
                 null, "2026-11-15");
         var undated = new NewsEventItem("ADDR-2", "news", "Story", "d",
                 null, null);
-        assertTrue(!base.canonicalId().equals(otherTitle.canonicalId()));
-        assertTrue(!base.canonicalId().equals(otherDate.canonicalId()));
-        assertTrue(!base.canonicalId().equals(undated.canonicalId()),
+        assertTrue(!base.computedCanonicalId().equals(otherTitle.computedCanonicalId()));
+        assertTrue(!base.computedCanonicalId().equals(otherDate.computedCanonicalId()));
+        assertTrue(!base.computedCanonicalId().equals(undated.computedCanonicalId()),
                 "an undated item does not match a dated one");
     }
 
@@ -111,7 +111,22 @@ class NewsEventItemTest {
     void canonicalIdIsStableAcrossRecomputation() {
         var item = new NewsEventItem("ADDR-1", "news", "Story", "d",
                 "https://example.eu/s", "2026-11-14");
-        assertEquals(item.canonicalId(), item.canonicalId());
-        assertTrue(item.canonicalId().startsWith("cn-"));
+        assertEquals(item.computedCanonicalId(), item.computedCanonicalId());
+        assertTrue(item.computedCanonicalId().startsWith("cn-"));
+    }
+
+    @Test
+    void storedCanonicalIdIsTheComponentAccessorNotARecomputation() {
+        // US-14.5 review: the record's canonicalId() component is the
+        // STORED value (what the store wrote); computedCanonicalId()
+        // is the recomputation the stores use on save. Two distinct
+        // accessors, so a future backfill cannot silently disagree
+        // with reads.
+        var stored = new NewsEventItem("ADDR-1", "news", "Story", "d",
+                "https://example.eu/s", "2026-11-14",
+                null, null, null, null, false, null, "cn-storedvalue");
+        assertEquals("cn-storedvalue", stored.canonicalId());
+        assertTrue(!stored.canonicalId()
+                .equals(stored.computedCanonicalId()));
     }
 }

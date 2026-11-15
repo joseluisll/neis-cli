@@ -132,9 +132,13 @@ public record NewsEventItem(
         return "titdate:" + normalize(title) + "|" + dateKey;
     }
 
-    /** The canonical dedup id (US-14.5): a deterministic hash of
-     * {@link #canonicalKey()}. Equal keys, equal id. */
-    public String canonicalId() {
+    /**
+     * The canonical dedup id computed from THIS item's data (US-14.5):
+     * a deterministic hash of {@link #canonicalKey()}. Equal keys,
+     * equal id. This is what the stores write; the record's
+     * {@link #canonicalId()} component is the STORED value read back.
+     */
+    public String computedCanonicalId() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(
