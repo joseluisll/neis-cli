@@ -294,6 +294,16 @@ cap.
   records. `news sightings [--address] [--limit]` shows the appearance
   history grouped by canonical id (one logical record, with the
   addresses it was seen on).
+- Export (US-14.6): `news export --format json|csv [--address] [--kind]
+  [--from] [--to] [--incomplete all|complete|incomplete] [--out <path>]`
+  writes the matching records (default `./news-events.<ext>`,
+  overwritten in place) through `NewsEventExportService`. Records carry
+  the full metadata: US-14.4 mandatory fields, the completeness flag
+  with the missing fields, the US-14.5 canonical id and the US-14.2
+  provenance. Deterministic: records are sorted by natural identity
+  (never write timestamps), JSON keeps a fixed field order and CSV is
+  fully quoted (RFC 4180) — the same data and filters produce
+  byte-identical files.
 
 ## Enforced rules (ArchUnit)
 

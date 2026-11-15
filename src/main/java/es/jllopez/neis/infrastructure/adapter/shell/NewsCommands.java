@@ -1,5 +1,8 @@
 package es.jllopez.neis.infrastructure.adapter.shell;
 
+import es.jllopez.neis.application.NewsEventExportService;
+import es.jllopez.neis.application.NewsEventExportService.Completeness;
+import es.jllopez.neis.application.NewsEventExportService.ExportResult;
 import es.jllopez.neis.application.NewsEventService;
 import es.jllopez.neis.application.NewsEventService.ProvenanceGap;
 import es.jllopez.neis.domain.model.NewsEventItem;
@@ -10,6 +13,7 @@ import org.springframework.shell.core.command.annotation.CommandGroup;
 import org.springframework.shell.core.command.annotation.Option;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
@@ -23,9 +27,12 @@ import java.util.Locale;
 public class NewsCommands {
 
     private final NewsEventService newsEvents;
+    private final NewsEventExportService newsEventExport;
 
-    public NewsCommands(NewsEventService newsEvents) {
+    public NewsCommands(NewsEventService newsEvents,
+                        NewsEventExportService newsEventExport) {
         this.newsEvents = newsEvents;
+        this.newsEventExport = newsEventExport;
     }
 
     @Command(name = {"news", "list"}, group = "News",
@@ -186,5 +193,75 @@ public class NewsCommands {
         return new StringBuilder("Sighting history (")
                 .append(shown).append(shown == 1 ? " item" : " items")
                 .append("):\n").append(body).toString();
+    }
+
+    @Command(name = {"news", "export"}, group = "News",
+            description = "Export the stored news/events to JSON or CSV (US-14.6), "
+                    + "filterable like 'news list' (address, kind, date range) plus "
+                    + "completeness; records carry the mandatory metadata, the "
+                    + "completeness flags and the provenance. Deterministic: the same "
+                    + "data and filters produce the same file.")
+    public String export(
+            @Option(shortName = 'f', longName = "format",
+                    description = "Export format: json or csv") String format,
+            @Option(shortName = 'a', longName = "address",
+                    description = "Address id (omit for every address)") String addressId,
+            @Option(shortName = 'k', longName = "kind",
+                    description = "Item kind: news or event (omit for both)") String kind,
+            @Option(longName = "from",
+                    description = "Items dated on/after this date — ISO (yyyy-MM-dd) or "
+                            + "the extractor's form ('Jul 16, 2026')") String dateFrom,
+            @Option(longName = "to",
+                    description = "Items dated on/before this date (same accepted forms "
+                            + "as --from)") String dateTo,
+            @Option(longName = "incomplete", defaultValue = "all",
+                    description = "Completeness filter (US-14.4): all, complete or "
+                            + "incomplete") String incomplete,
+            @Option(longName = "out",
+                    description = "Output file (default: ./news-events.json or "
+                            + ".csv — overwritten in place, so exports are repeatable)")
+            String out) {
+        for (String[] bound : new String[][] {{"--from", dateFrom}, {"--to", dateTo}}) {
+            if (bound[1] != null && !bound[1].isBlank()
+                    && NewsEventQuery.parseLenient(bound[1]) == null) {
+                return "Invalid " + bound[0] + " date '" + bound[1]
+                        + "' — use ISO (yyyy-MM-dd) or the extractor's form "
+                        + "(e.g. 'Jul 16, 2026')";
+            }
+        }
+        var completeness = parseCompleteness(incomplete);
+        if (completeness == null) {
+            return "Invalid --incomplete value '" + incomplete
+                    + "' — use all, complete or incomplete";
+        }
+        String fmt = format == null ? ""
+                : format.trim().toLowerCase(Locale.ROOT);
+        Path target = out == null || out.isBlank()
+                ? Path.of("news-events." + fmt)
+                : Path.of(out.trim());
+        try {
+            ExportResult result = newsEventExport.export(
+                    new NewsEventQuery(
+                            addressId == null ? null : addressId.trim(),
+                            kind == null ? null : kind.trim().toLowerCase(Locale.ROOT),
+                            dateFrom, dateTo, 1),
+                    completeness, fmt, target);
+            return "Exported " + result.records() + " record(s) to "
+                    + result.file().toAbsolutePath() + " (" + result.format() + ")";
+        } catch (RuntimeException e) {
+            return "Export failed: " + e.getMessage();
+        }
+    }
+
+    private static Completeness parseCompleteness(String value) {
+        if (value == null || value.isBlank()) {
+            return Completeness.ALL;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "all" -> Completeness.ALL;
+            case "complete" -> Completeness.COMPLETE;
+            case "incomplete" -> Completeness.INCOMPLETE;
+            default -> null;
+        };
     }
 }
