@@ -488,12 +488,20 @@ class NewsEventStorePersistenceTest {
                         "ADDR-IT", "news", "A foobar word stands alone",
                         "Description", "https://example.eu/q2", "2026-11-14")),
                 null, null);
-        assertEquals(1, store.search("foo\"bar", new NewsEventQuery(
-                        "ADDR-IT", null, null, null, 20)).size(),
-                "escaped quote = separator: 'foo\"bar' matches 'foo bar'");
+        // The escape semantics are pinned by IDENTITY, not count: with
+        // the old strip code 'foo"bar' also returned exactly one row —
+        // the merged-token item. The phrase foo+bar must match the
+        // foo-bar item, never the foobar one.
+        List<NewsEventItem> phraseHits = store.search("foo\"bar",
+                new NewsEventQuery("ADDR-IT", null, null, null, 20));
+        assertEquals(1, phraseHits.size());
+        assertEquals("The foo bar baz story", phraseHits.get(0).title(),
+                "'foo\"bar' must match the foo bar item, not the merged foobar token");
         // A user term carrying its own quotes still matches: the
         // literal quotes are separators on both sides of the phrase.
-        assertEquals(1, store.search("story \"foo\" bar", new NewsEventQuery(
-                "ADDR-IT", null, null, null, 20)).size());
+        List<NewsEventItem> quotedHits = store.search("story \"foo\" bar",
+                new NewsEventQuery("ADDR-IT", null, null, null, 20));
+        assertEquals(1, quotedHits.size());
+        assertEquals("The foo bar baz story", quotedHits.get(0).title());
     }
 }
