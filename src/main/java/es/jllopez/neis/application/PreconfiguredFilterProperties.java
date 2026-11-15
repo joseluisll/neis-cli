@@ -34,6 +34,12 @@ public record PreconfiguredFilterProperties(List<Entry> preconfigured) {
     public PreconfiguredFilterProperties {
         preconfigured = preconfigured == null ? List.of() : List.copyOf(preconfigured);
         for (Entry entry : preconfigured) {
+            if (entry.address() == null || entry.address().isBlank()) {
+                throw new IllegalArgumentException("A preconfigured filter needs an "
+                        + "address id — entry '" + entry.name()
+                        + "' carries none (US-06.6 review finding: a blank id "
+                        + "would boot fine and silently never apply)");
+            }
             if (entry.name() == null || entry.name().isBlank()) {
                 throw new IllegalArgumentException(
                         "A preconfigured filter needs a name (address "

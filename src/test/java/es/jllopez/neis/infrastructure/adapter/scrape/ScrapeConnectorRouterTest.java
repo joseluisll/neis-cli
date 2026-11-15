@@ -117,6 +117,80 @@ class ScrapeConnectorRouterTest {
                 catalog(), "http"));
     }
 
+    // ===== US-06.6 review queue: the filtered path honors the
+    // connector override, and the URL query-parameter edges are exact =====
+
+    @Test
+    void filteredPathForcesTheHttpStrategyWhenTheRunPinsIt() {
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(),
+                singleProvider(httpUrlStub("http://fetched/with/filters")),
+                singleRendered(renderedStub("rendered-page")), catalog(), "live");
+
+        ScrapeResult result = router.scrapeWithFilters(SPA_ANGULAR,
+                java.util.Map.of("programme", "EU4Health"), "http");
+
+        assertEquals("http://fetched/with/filters", result.html(),
+                "an SPA address fetches over HTTP when the run pins it");
+    }
+
+    @Test
+    void filteredPathForcesTheRenderedStrategyWhenTheRunPinsIt() {
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
+                singleRendered(renderedFilterStub("rendered-filtered")), catalog(), "live");
+
+        assertEquals("rendered-filtered", router.scrapeWithFilters(STATIC,
+                        java.util.Map.of("programme", "EU4Health"), "rendered").html(),
+                "a static-type address renders when the run pins it");
+    }
+
+    @Test
+    void unknownOverrideOnTheFilteredPathFailsTheRun() {
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                catalog(), "live");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> router.scrapeWithFilters(SPA_ANGULAR,
+                        java.util.Map.of("programme", "EU4Health"), "selenium"));
+    }
+
+    @Test
+    void withQueryParamsInsertsTheParametersBeforeTheFragment() {
+        assertEquals("https://x.eu/list?programme=EU4Health#section",
+                ScrapeConnectorRouter.withQueryParams("https://x.eu/list#section",
+                        java.util.Map.of("programme", "EU4Health")));
+    }
+
+    @Test
+    void withQueryParamsAppendsToAnExistingQueryOfOtherKeys() {
+        assertEquals("https://x.eu/list?page=1&programme=EU4Health",
+                ScrapeConnectorRouter.withQueryParams("https://x.eu/list?page=1",
+                        java.util.Map.of("programme", "EU4Health")));
+    }
+
+    @Test
+    void withQueryParamsRefusesAKeyTheUrlAlreadyCarries() {
+        // A duplicated query parameter would make the server-side
+        // filter ambiguous — loud, not silent.
+        assertThrows(IllegalArgumentException.class,
+                () -> ScrapeConnectorRouter.withQueryParams(
+                        "https://x.eu/list?programme=EU",
+                        java.util.Map.of("programme", "EU4Health")));
+        assertThrows(IllegalArgumentException.class,
+                () -> ScrapeConnectorRouter.withQueryParams(
+                        "https://x.eu/list?filter+name=x",
+                        java.util.Map.of("filter name", "y")));
+    }
+
+    @Test
+    void withQueryParamsEncodesNamesAndValues() {
+        assertEquals("https://x.eu/list?filter+name=a+b",
+                ScrapeConnectorRouter.withQueryParams("https://x.eu/list",
+                        java.util.Map.of("filter name", "a b")));
+    }
+
     private static WebpageTypeCatalogPort catalog() {
         return new WebpageTypeCatalog(new WebpageTypeProperties());
     }
@@ -125,6 +199,25 @@ class ScrapeConnectorRouterTest {
         return new HttpScrapeConnector(5, 1024 * 1024) {
             @Override
             public ScrapeResult scrape(Address address) {
+                return new ScrapeResult(body, "text/html", body.length());
+            }
+        };
+    }
+
+    private HttpScrapeConnector httpUrlStub(String body) {
+        return new HttpScrapeConnector(5, 1024 * 1024) {
+            @Override
+            public ScrapeResult scrapeUrl(String url) {
+                return new ScrapeResult(body, "text/html", body.length());
+            }
+        };
+    }
+
+    private PlaywrightRenderConnector renderedFilterStub(String body) {
+        return new PlaywrightRenderConnector(1024 * 1024, 5) {
+            @Override
+            public ScrapeResult scrapeWithFilters(Address address,
+                    java.util.Map<String, String> filters, String connectorOverride) {
                 return new ScrapeResult(body, "text/html", body.length());
             }
         };

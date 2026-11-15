@@ -141,6 +141,13 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
      * its captured filtered responses offline; a feed-classified
      * address is refused loud (feeds are parsed directly, US-06.8).
      * An empty filter set is the plain scrape.
+     *
+     * <p>The per-run {@code connector} override is HONORED here (US-06.6
+     * review finding: the filtered path used to ignore it): {@code
+     * fixtures} serves the offline capture, {@code http} forces the
+     * query-parameter path, {@code rendered} forces the control path —
+     * regardless of the address's classified type; an unknown value
+     * fails the run, the same rule as the unfiltered override.</p>
      */
     @Override
     public ScrapeResult scrapeWithFilters(Address address,
@@ -149,11 +156,19 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
         if (filters == null || filters.isEmpty()) {
             return scrape(address, connectorOverride);
         }
-        if (!live || "fixtures".equalsIgnoreCase(
-                connectorOverride == null ? "" : connectorOverride.trim())) {
+        String override = connectorOverride == null
+                ? "" : connectorOverride.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!live || override.equals("fixtures")) {
             return staticConnector.scrapeWithFilters(address, filters, null);
         }
-        String strategy = strategyFor(address);
+        String strategy = switch (override) {
+            case "" -> strategyFor(address);
+            case "http" -> WebpageType.STRATEGY_HTTP;
+            case "rendered" -> WebpageType.STRATEGY_RENDERED;
+            default -> throw new IllegalArgumentException(
+                    "Unknown connector override '" + connectorOverride
+                            + "' (expected 'fixtures', 'http' or 'rendered')");
+        };
         if (WebpageType.STRATEGY_FEED.equals(strategy)) {
             throw new UnsupportedOperationException(
                     "Filter controls do not apply to feed sources (US-06.6/06.8): "
@@ -175,24 +190,53 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
     /**
      * The static URL with the filter set as query parameters
      * (US-06.6): name=value pairs, URL-encoded, in filter order,
-     * appended after '?' or '&' as the existing URL requires.
+     * appended after '?' or '&' as the existing URL requires. The
+     * fragment is respected (US-06.6 review finding: appending after
+     * {@code #...} would swallow the parameters into the fragment —
+     * they are inserted before it). A key the URL already carries is
+     * refused loud: a duplicated query parameter would make the
+     * server-side filter ambiguous.
      */
     static String withQueryParams(String url, java.util.Map<String, String> filters) {
         if (filters == null || filters.isEmpty()) {
             return url;
+        }
+        String base = url;
+        String fragment = "";
+        int hash = url.indexOf('#');
+        if (hash >= 0) {
+            base = url.substring(0, hash);
+            fragment = url.substring(hash);
+        }
+        if (base.contains("?")) {
+            String existingQuery = base.substring(base.indexOf('?') + 1);
+            for (String pair : existingQuery.split("&")) {
+                String key = pair.contains("=")
+                        ? pair.substring(0, pair.indexOf('=')) : pair;
+                for (String name : filters.keySet()) {
+                    if (key.equals(name) || key.equals(urlEncoded(name))) {
+                        throw new IllegalArgumentException("The URL already carries '"
+                                + key + "' — the filter '" + name
+                                + "' would be applied twice; remove the filter or "
+                                + "fix the address URL (US-06.6)");
+                    }
+                }
+            }
         }
         StringBuilder query = new StringBuilder();
         for (var e : filters.entrySet()) {
             if (query.length() > 0) {
                 query.append('&');
             }
-            query.append(java.net.URLEncoder.encode(e.getKey(),
-                            java.nio.charset.StandardCharsets.UTF_8))
+            query.append(urlEncoded(e.getKey()))
                     .append('=')
-                    .append(java.net.URLEncoder.encode(e.getValue(),
-                            java.nio.charset.StandardCharsets.UTF_8));
+                    .append(urlEncoded(e.getValue()));
         }
-        return url + (url.contains("?") ? "&" : "?") + query;
+        return base + (base.contains("?") ? "&" : "?") + query + fragment;
+    }
+
+    private static String urlEncoded(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     @Override

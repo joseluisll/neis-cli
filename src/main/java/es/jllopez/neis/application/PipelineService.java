@@ -163,6 +163,22 @@ public class PipelineService {
      */
     public PipelineResult run(Address address, int maxItems, int maxPages,
                               FilterSpec filterSpec, String executionId) {
+        return run(address, maxItems, maxPages, filterSpec, executionId,
+                java.util.Map.of());
+    }
+
+    /**
+     * Same, with the SCRAPE stage's filter set (US-06.6 review finding:
+     * PRINT/CHAIN silently ignored the address's preconfigured filter
+     * set). The chain definition carries no per-run {@code filter.*}
+     * parameters, so the preconfigured catalog (passed in by the task
+     * layer) is the only filter source on this path; an empty set is
+     * the plain scrape. The applied set is recorded on the capture
+     * metadata like every other WEBSCRAPE run.
+     */
+    public PipelineResult run(Address address, int maxItems, int maxPages,
+                              FilterSpec filterSpec, String executionId,
+                              java.util.Map<String, String> scrapeFilters) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -176,10 +192,16 @@ public class PipelineService {
                     + address.verificationStatus()
                     + " — verify it first with 'address verify'");
         }
-        // SCRAPE (US-06.1 slice): obtain HTML5 for the address.
-        ScrapeResult scrape = scrapePort.scrape(address);
+        // SCRAPE (US-06.1 slice): obtain HTML5 for the address; with a
+        // filter set (US-06.6), the filters are applied BEFORE the
+        // pipeline consumes the page — the same semantics as the
+        // WEBSCRAPE task's own scrape.
+        ScrapeResult scrape = scrapeFilters == null || scrapeFilters.isEmpty()
+                ? scrapePort.scrape(address)
+                : scrapePort.scrapeWithFilters(address, scrapeFilters, null);
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", scrape.html());
+        captureWithFilters(address, address.url(), scrapeFilters);
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
         SimplifiedContent simplified = simplifyPort.simplify(scrape.html());

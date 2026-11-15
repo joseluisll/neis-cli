@@ -167,6 +167,16 @@ public class TaskWorkService {
                                         + " does not apply to feed sources (US-06.6/06.8) — the feed of "
                                         + address.id() + " is parsed directly; remove the parameter");
                     }
+                    // A FEED address's preconfigured set is dead
+                    // configuration (US-06.6 review finding: it was
+                    // silently ignored) — refuse it loud, the same rule
+                    // as the per-run filter refusal above.
+                    if (preconfiguredFilters.find(address.id()).isPresent()) {
+                        throw new IllegalArgumentException("Address " + address.id()
+                                + " has preconfigured WEBSCRAPE filters, but its feed "
+                                + "source is parsed directly (US-06.6/06.8) — filters "
+                                + "do not apply to feeds; remove the preconfigured set");
+                    }
                     yield feedScrape(address, maxItemsCap(parameters), executionId);
                 }
                 yield scrape(address, maxItemsCap(parameters),
@@ -236,6 +246,7 @@ public class TaskWorkService {
     private Map<String, String> filterSet(Address address,
                                           Map<String, String> parameters) {
         Map<String, String> overrides = new java.util.LinkedHashMap<>();
+        java.util.Set<String> seenNames = new java.util.HashSet<>();
         for (var e : parameters.entrySet()) {
             if (e.getKey().startsWith("filter.") && e.getKey().length() > "filter.".length()) {
                 String name = e.getKey().substring("filter.".length()).trim();
@@ -249,10 +260,17 @@ public class TaskWorkService {
                             + "' has an empty value — remove the parameter instead of "
                             + "filtering to nothing (US-06.6)");
                 }
-                if (overrides.putIfAbsent(name, e.getValue().trim()) != null) {
+                // Case-INSENSITIVE duplicate detection (US-06.6 review
+                // finding: the old putIfAbsent could never fire — two
+                // per-run parameters necessarily carry different map
+                // keys, so only a case difference can collide, and the
+                // map keys keep their case). The name itself keeps its
+                // original case in the applied set.
+                if (!seenNames.add(name.toLowerCase(java.util.Locale.ROOT))) {
                     throw new IllegalArgumentException("Duplicate filter '" + name
                             + "' (case differs only) — refused (US-12.3 rule)");
                 }
+                overrides.put(name, e.getValue().trim());
             }
         }
         if (!overrides.isEmpty()) {
@@ -663,8 +681,14 @@ public class TaskWorkService {
         }
         int maxItems = intParameter(parameters, "max-items", 50, 1, 10_000);
         int maxPages = intParameter(parameters, "max-pages", 10, 1, 100);
+        // US-06.6 (review finding): the chain's SCRAPE stage consults
+        // the address's preconfigured filter set — PRINT/CHAIN used to
+        // silently ignore it. The chain whitelist above admits no
+        // filter.* parameters, so the preconfigured catalog is the only
+        // filter source on this path.
         PipelineResult result = pipeline.run(address, maxItems, maxPages,
-                chainFilterSpec, executionId);
+                chainFilterSpec, executionId,
+                preconfiguredFilters.find(address.id()).orElse(java.util.Map.of()));
         String report = PipelineReport.render(
                 chainName != null ? chainName : "PRINT", result);
         Path reportArtifact = pipeline.writeArtifact(address, "PRINT", "report",

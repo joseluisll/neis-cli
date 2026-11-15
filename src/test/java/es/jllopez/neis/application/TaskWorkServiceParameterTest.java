@@ -52,7 +52,8 @@ class TaskWorkServiceParameterTest {
 
     private PipelineService pipelineReturning(PipelineResult result) {
         PipelineService pipeline = mock(PipelineService.class);
-        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any(), any())).thenReturn(result);
+        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any(), any(),
+                any())).thenReturn(result);
         return pipeline;
     }
 
@@ -63,7 +64,7 @@ class TaskWorkServiceParameterTest {
         String outcome = service(pipeline).execute("PRINT", address,
                 Map.of("max-items", "5", "max-pages", "2"));
 
-        verify(pipeline).run(address, 5, 2, null, null);
+        verify(pipeline).run(address, 5, 2, null, null, java.util.Map.of());
         assertTrue(outcome.startsWith("CHAIN:"));
     }
 
@@ -102,7 +103,32 @@ class TaskWorkServiceParameterTest {
 
         service(pipeline).execute("PRINT", address, Map.of());
 
-        verify(pipeline).run(address, 50, 10, null, null);
+        verify(pipeline).run(address, 50, 10, null, null, java.util.Map.of());
+    }
+
+    @Test
+    void printConsultsTheAddressPreconfiguredFilterSet() {
+        // US-06.6 review finding: PRINT/CHAIN used to silently ignore
+        // the address's preconfigured filter set — the chain's SCRAPE
+        // stage now receives it (chains admit no filter.* parameters,
+        // so the preconfigured catalog is the only filter source here).
+        PipelineService pipeline = pipelineReturning(result());
+        PreconfiguredFilters preconfigured = new PreconfiguredFilters(
+                new PreconfiguredFilterProperties(List.of(
+                        new PreconfiguredFilterProperties.Entry(
+                                "ADDR-001", "programme", "EU4Health"))));
+        TaskWorkService work = new TaskWorkService(pipeline,
+                mock(AddressCatalogService.class),
+                new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort(),
+                new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576),
+                new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
+                        new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties()),
+                preconfigured, null);
+
+        work.execute("PRINT", address, Map.of());
+
+        verify(pipeline).run(address, 50, 10, null, null,
+                java.util.Map.of("programme", "EU4Health"));
     }
 
     @Test

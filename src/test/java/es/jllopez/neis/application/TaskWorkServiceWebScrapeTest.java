@@ -117,6 +117,13 @@ class TaskWorkServiceWebScrapeTest {
 
     private TaskWorkService serviceWithFeedSource(PreconfiguredSelectors preconfigured,
                                                   es.jllopez.neis.domain.port.FeedSourcePort source) {
+        return serviceWithFilters(preconfigured, source,
+                new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())));
+    }
+
+    private TaskWorkService serviceWithFilters(PreconfiguredSelectors preconfigured,
+                                               es.jllopez.neis.domain.port.FeedSourcePort source,
+                                               PreconfiguredFilters filters) {
         PipelineService pipeline = new PipelineService(new StaticScrapeConnector(),
                 new JsoupSimplifyConnector(), new JsoupSelectorConnector(),
                 new SelectorStorePort() {
@@ -137,7 +144,7 @@ class TaskWorkServiceWebScrapeTest {
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
-                source, webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null);
+                source, webpageTypes(), filters, null);
     }
 
     private PreconfiguredSelectors catalog(
@@ -651,6 +658,41 @@ class TaskWorkServiceWebScrapeTest {
                         java.util.Map.of("filter.category", "human"),
                         null, null, null));
         assertTrue(e.getMessage().contains("does not apply to feed sources"), e.getMessage());
+    }
+
+    @Test
+    void caseDifferingFilterParametersAreRefusedAsDuplicates() {
+        // US-06.6 review finding: the duplicate check was DEAD — two
+        // per-run parameters necessarily carry different map keys, so
+        // only a case difference can collide and putIfAbsent is
+        // case-sensitive. Detection is now case-insensitive (the
+        // applied name keeps its original case).
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> serviceWithFeedSource(catalog(List.of()), feedSource()).execute(
+                        "WEBSCRAPE", catalog.byId("ADDR-006"),
+                        java.util.Map.ofEntries(
+                                java.util.Map.entry("filter.programme", "EU4Health"),
+                                java.util.Map.entry("filter.Programme", "Horizon")),
+                        null, null, null));
+        assertTrue(e.getMessage().contains("Duplicate filter"), e.getMessage());
+    }
+
+    @Test
+    void preconfiguredFiltersAreRefusedOnFeeds() {
+        // US-06.6 review finding: a feed address's preconfigured set
+        // was silently ignored (dead configuration, the run proceeded
+        // unfiltered) — refused loud, the same rule as per-run filters.
+        catalog.updateWebpageType("ADDR-001", "feed");
+        PreconfiguredFilters filters = new PreconfiguredFilters(
+                new PreconfiguredFilterProperties(List.of(
+                        new PreconfiguredFilterProperties.Entry(
+                                "ADDR-001", "programme", "EU4Health"))));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> serviceWithFilters(catalog(List.of()), feedSource(), filters)
+                        .execute("WEBSCRAPE", catalog.byId("ADDR-001"),
+                                java.util.Map.of(), null, null, null));
+        assertTrue(e.getMessage().contains("preconfigured WEBSCRAPE filters"),
+                e.getMessage());
     }
 
     private Path firstFileMatching(String fileName) {

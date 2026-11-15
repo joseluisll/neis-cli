@@ -106,12 +106,17 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                             .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)
                             .setTimeout(timeoutSeconds * 1000L));
             boolean filtersApplied = false;
+            com.microsoft.playwright.Locator firstControl = null;
             for (var filter : filters.entrySet()) {
-                applyFilterControl(page, filter.getKey(), filter.getValue(), url);
+                var control = applyFilterControl(page, filter.getKey(),
+                        filter.getValue(), url);
+                if (firstControl == null) {
+                    firstControl = control;
+                }
                 filtersApplied = true;
             }
             if (filtersApplied) {
-                submitFilterZone(page, url);
+                submitFilterZone(page, firstControl, url);
                 page.waitForLoadState(
                         com.microsoft.playwright.options.LoadState.NETWORKIDLE);
             }
@@ -145,13 +150,19 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
      * (US-06.6): the control is located by name/id/aria-label/data
      * attributes (case-insensitive on the attribute VALUE). A select
      * gets the option chosen by value first, then by visible label; a
-     * text/search/date-like input gets the value filled; a checkbox or
-     * radio gets checked. No matching control, or a select that does
-     * not offer the value, fails loud — a silently unfiltered listing
-     * would poison the repository.
+     * text/search/date-like input gets the value filled; a checkbox is
+     * checked only when its declared value matches the filter value; a
+     * radio picks the group member whose value (or visible label)
+     * matches. No matching control, a value the control does not
+     * offer, or a mismatched checkbox value fails loud — a silently
+     * unfiltered listing would poison the repository.
+     *
+     * @return the matched control (the submit heuristic scopes itself
+     *         to the control's own form first)
      */
-    private void applyFilterControl(com.microsoft.playwright.Page page,
-                                    String name, String value, String url) {
+    private com.microsoft.playwright.Locator applyFilterControl(
+            com.microsoft.playwright.Page page,
+            String name, String value, String url) {
         String attr = name.replace("\"", "");
         String controlSelector = "[name=\"" + attr + "\" i], [id=\"" + attr + "\" i], "
                 + "[aria-label=\"" + attr + "\" i], [data-filter=\"" + attr + "\" i], "
@@ -173,9 +184,10 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                         || type.equalsIgnoreCase("email")
                         || type.equalsIgnoreCase("date")) {
                     control.fill(value);
-                } else if (type.equalsIgnoreCase("checkbox")
-                        || type.equalsIgnoreCase("radio")) {
-                    control.check();
+                } else if (type.equalsIgnoreCase("checkbox")) {
+                    checkCheckbox(control, name, value, url);
+                } else if (type.equalsIgnoreCase("radio")) {
+                    checkRadio(page, control, name, value, url);
                 } else {
                     throw new IllegalStateException("Filter control for '" + name
                             + "' has unsupported input type '" + type + "' on " + url
@@ -187,6 +199,7 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                     + "' is <" + tag + "> — unsupported for filtering on " + url
                     + " (US-06.6)");
         }
+        return control;
     }
 
     /** Selects by value first, then by visible label; loud on neither. */
@@ -209,15 +222,93 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
     }
 
     /**
+     * A checkbox carries a value the server reads when checked
+     * (default 'on' when the attribute is absent, the HTML rule):
+     * checking it with a MISMATCHED filter value would silently filter
+     * by the wrong thing (US-06.6 addendum review finding — the old
+     * code ignored the value) — refused loud.
+     */
+    private void checkCheckbox(com.microsoft.playwright.Locator control,
+                               String name, String value, String url) {
+        String declared = control.getAttribute("value");
+        String effective = declared == null || declared.isBlank()
+                ? "on" : declared.trim();
+        if (!effective.equalsIgnoreCase(value.trim())) {
+            throw new IllegalStateException("The checkbox filter '" + name
+                    + "' declares value '" + effective + "', not '" + value.trim()
+                    + "' on " + url + " (US-06.6) — the run is aborted");
+        }
+        control.check();
+    }
+
+    /**
+     * A radio group takes ONE member: the one whose value (then whose
+     * visible label) matches the filter value (US-06.6 addendum review
+     * finding — the old code checked the first group member and
+     * ignored the value). No member matches: refused loud.
+     */
+    private void checkRadio(com.microsoft.playwright.Page page,
+                            com.microsoft.playwright.Locator control,
+                            String name, String value, String url) {
+        String group = control.getAttribute("name");
+        if (group == null || group.isBlank()) {
+            String declared = control.getAttribute("value");
+            if (declared == null || !declared.trim().equalsIgnoreCase(value.trim())) {
+                throw new IllegalStateException("The radio filter '" + name
+                        + "' declares value '"
+                        + (declared == null ? "<none>" : declared.trim())
+                        + "', not '" + value.trim() + "' on " + url
+                        + " (US-06.6) — the run is aborted");
+            }
+            control.check();
+            return;
+        }
+        var radios = page.locator("input[type=radio][name=\""
+                + group.replace("\"", "") + "\"]");
+        for (var radio : radios.all()) {
+            String declared = radio.getAttribute("value");
+            if (declared != null && declared.trim().equalsIgnoreCase(value.trim())) {
+                radio.check();
+                return;
+            }
+        }
+        for (var radio : radios.all()) {
+            String label = radio.evaluate("el => Array.from(el.labels || [])"
+                    + ".map(l => l.textContent.trim()).join(' ')").toString();
+            if (!label.isBlank() && label.equalsIgnoreCase(value.trim())) {
+                radio.check();
+                return;
+            }
+        }
+        throw new IllegalStateException("The radio group '" + group
+                + "' (filter '" + name + "') offers no option '" + value.trim()
+                + "' on " + url + " (US-06.6) — the run is aborted");
+    }
+
+    /**
      * Submits the filter zone when the page has an explicit
      * submit/apply control; pages whose filters auto-apply need no
-     * click (best-effort, never fails the run).
+     * click (best-effort, never fails the run). The FIRST scope tried
+     * is the applied control's own form (US-06.6 review finding: the
+     * page-wide first-submit heuristic could click an unrelated
+     * form's button); with no matching button there, or no form, the
+     * page-wide scan remains the fallback.
      */
-    private void submitFilterZone(com.microsoft.playwright.Page page, String url) {
-        for (String selector : new String[] {
-                "button[type=submit]", "input[type=submit]",
-                "button:has-text(\"Apply\")", "button:has-text(\"Filter\")",
-                "button:has-text(\"Search\")"}) {
+    private void submitFilterZone(com.microsoft.playwright.Page page,
+                                  com.microsoft.playwright.Locator control,
+                                  String url) {
+        var formScope = control == null ? null
+                : control.locator("xpath=ancestor::form[1]");
+        if (formScope != null && formScope.count() > 0) {
+            for (String selector : SUBMIT_SELECTORS) {
+                var button = formScope.locator(selector).first();
+                if (button.count() > 0) {
+                    button.click();
+                    return;
+                }
+            }
+        }
+        for (String selector : SUBMIT_SELECTORS) {
             var button = page.locator(selector).first();
             if (button.count() > 0) {
                 button.click();
@@ -225,6 +316,12 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
             }
         }
     }
+
+    /** The submit/apply selectors, tried in order within each scope. */
+    private static final String[] SUBMIT_SELECTORS = {
+            "button[type=submit]", "input[type=submit]",
+            "button:has-text(\"Apply\")", "button:has-text(\"Filter\")",
+            "button:has-text(\"Search\")"};
 
     /** Deterministic shutdown of the provisioned browser and driver
      * (US-06.5 review note): without it, closing the JVM relied on

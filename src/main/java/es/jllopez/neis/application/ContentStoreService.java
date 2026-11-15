@@ -75,29 +75,19 @@ public class ContentStoreService {
     /**
      * The capture folder of a webpage of the address, creating and
      * recording the capture (idempotently) and its fetch record under
-     * {@code metadata/}.
+     * {@code metadata/}. A task output's applied filter set is NOT
+     * recorded here: the filter-recording path is
+     * {@link PipelineService#captureWithFilters} (US-06.6) — this
+     * method predates it and is the plain, filter-less capture.
      */
     public Path captureDir(Address address, String url) {
-        return captureDir(address, url, null);
-    }
-
-    /**
-     * As {@link #captureDir(Address, String)} with the applied filter
-     * set recorded in the capture metadata (US-06.6, issue #73): the
-     * JSON rendering goes onto the capture row; a filter-less capture
-     * stores null and never wipes a stored set (the webpage-type
-     * rule).
-     */
-    public Path captureDir(Address address, String url, java.util.Map<String, String> filters) {
         String captureId = captureId(url);
         if (store.findCapture(address.id(), captureId).isEmpty()) {
             store.saveCapture(new Capture(address.id(), captureId, url,
-                    Instant.now(), address.webpageType(), filtersJson(filters)));
-            log.info("Content store: capture {} of {} recorded ({}, type {}{})",
+                    Instant.now(), address.webpageType(), null));
+            log.info("Content store: capture {} of {} recorded ({}, type {})",
                     captureId, address.id(), url,
-                    address.webpageType() == null ? "unclassified" : address.webpageType(),
-                    filters == null || filters.isEmpty() ? ""
-                            : ", filters " + filters.size());
+                    address.webpageType() == null ? "unclassified" : address.webpageType());
         }
         Path dir = ensureDir(addressDir(address).resolve(captureId));
         writeFetchRecord(dir, address, url, captureId);
