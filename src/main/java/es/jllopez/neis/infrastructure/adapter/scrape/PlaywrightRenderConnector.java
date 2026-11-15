@@ -69,12 +69,12 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
     @Override
     public ScrapeResult scrapeUrl(String url) {
         long start = System.nanoTime();
-        com.microsoft.playwright.Page page = null;
+        com.microsoft.playwright.BrowserContext context = null;
         try {
-            com.microsoft.playwright.BrowserContext context =
-                    browser().newContext(new com.microsoft.playwright.Browser.NewContextOptions()
+            context = browser().newContext(
+                    new com.microsoft.playwright.Browser.NewContextOptions()
                             .setTimezoneId("UTC"));
-            page = context.newPage();
+            com.microsoft.playwright.Page page = context.newPage();
             page.setDefaultTimeout(timeoutSeconds * 1000L);
             // NETWORKIDLE: wait until the client-side application has
             // settled — the point of rendering. A page that never goes
@@ -97,8 +97,13 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                     e.getClass().getSimpleName(), (System.nanoTime() - start) / 1_000_000);
             throw e;
         } finally {
-            if (page != null) {
-                page.context().close();
+            // Close the CONTEXT, not the page: if newPage() itself
+            // throws, the page reference never exists and a page-only
+            // cleanup would leak one context per failed navigation
+            // (fa42575 review finding). Closing the context always
+            // releases both.
+            if (context != null) {
+                context.close();
             }
         }
     }
