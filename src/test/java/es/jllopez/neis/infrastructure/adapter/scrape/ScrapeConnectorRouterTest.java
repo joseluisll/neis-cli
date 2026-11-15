@@ -191,6 +191,56 @@ class ScrapeConnectorRouterTest {
                         java.util.Map.of("filter name", "a b")));
     }
 
+    @Test
+    void staticModeFilteredPathStillForcesTheOverride() {
+        // Blocking review finding on the queue-fix commit: static mode
+        // used to short-circuit to the fixtures BEFORE the override was
+        // read — connector=http + filters silently served fixtures, and
+        // an unknown override never failed loud. The override wins in
+        // every mode, the same rule as the unfiltered path.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                staticFilterStub(),
+                singleProvider(httpUrlStub("http://fetched/with/filters")),
+                singleRendered(renderedFilterStub("rendered-filtered")),
+                catalog(), "static");
+
+        assertEquals("http://fetched/with/filters", router.scrapeWithFilters(SPA_ANGULAR,
+                        java.util.Map.of("programme", "EU4Health"), "http").html(),
+                "static mode honors the http override — no silent fixtures");
+        assertEquals("rendered-filtered", router.scrapeWithFilters(SPA_ANGULAR,
+                        java.util.Map.of("programme", "EU4Health"), "rendered").html(),
+                "static mode honors the rendered override");
+    }
+
+    @Test
+    void staticModeFilteredPathFailsLoudOnAnUnknownOverride() {
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                catalog(), "static");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> router.scrapeWithFilters(SPA_ANGULAR,
+                        java.util.Map.of("programme", "EU4Health"), "selenium"));
+    }
+
+    @Test
+    void staticModeFilteredPathDefaultsToTheFixtures() {
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                staticFilterStub(), emptyProvider(), emptyRendered(), catalog(), "static");
+
+        assertEquals("static-filtered", router.scrapeWithFilters(SPA_ANGULAR,
+                        java.util.Map.of("programme", "EU4Health"), null).html(),
+                "no override in static mode is the offline filtered capture");
+    }
+
+    @Test
+    void withQueryParamsRefusesAPercentEncodedDuplicateKey() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ScrapeConnectorRouter.withQueryParams(
+                        "https://x.eu/list?filter%20name=x",
+                        java.util.Map.of("filter name", "y")));
+    }
+
     private static WebpageTypeCatalogPort catalog() {
         return new WebpageTypeCatalog(new WebpageTypeProperties());
     }
@@ -219,6 +269,16 @@ class ScrapeConnectorRouterTest {
             public ScrapeResult scrapeWithFilters(Address address,
                     java.util.Map<String, String> filters, String connectorOverride) {
                 return new ScrapeResult(body, "text/html", body.length());
+            }
+        };
+    }
+
+    private StaticScrapeConnector staticFilterStub() {
+        return new StaticScrapeConnector() {
+            @Override
+            public ScrapeResult scrapeWithFilters(Address address,
+                    java.util.Map<String, String> filters, String connectorOverride) {
+                return new ScrapeResult("static-filtered", "text/html", 15);
             }
         };
     }

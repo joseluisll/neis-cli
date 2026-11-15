@@ -146,8 +146,9 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
      * review finding: the filtered path used to ignore it): {@code
      * fixtures} serves the offline capture, {@code http} forces the
      * query-parameter path, {@code rendered} forces the control path —
-     * regardless of the address's classified type; an unknown value
-     * fails the run, the same rule as the unfiltered override.</p>
+     * regardless of the address's classified type AND of the
+     * {@code neis.scrape.connector} mode; an unknown value fails the
+     * run, the same rule as the unfiltered override.</p>
      */
     @Override
     public ScrapeResult scrapeWithFilters(Address address,
@@ -158,17 +159,38 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
         }
         String override = connectorOverride == null
                 ? "" : connectorOverride.trim().toLowerCase(java.util.Locale.ROOT);
-        if (!live || override.equals("fixtures")) {
+        // The override is resolved BEFORE the mode short-circuit
+        // (blocking review finding on the queue-fix commit: the old
+        // !live check ran first, so static mode silently served the
+        // fixtures for an http/rendered override — and an unknown
+        // override never failed loud). The same values mean the same
+        // thing in every mode: 'fixtures' is the offline capture;
+        // 'http'/'rendered' force the live connector, exactly like the
+        // unfiltered scrape(address, override).
+        switch (override) {
+            case "fixtures" -> {
+                return staticConnector.scrapeWithFilters(address, filters, null);
+            }
+            case "http" -> {
+                return httpConnector.getObject()
+                        .scrapeUrl(withQueryParams(address.url(), filters));
+            }
+            case "rendered" -> {
+                return renderedConnector.getObject()
+                        .scrapeWithFilters(address, filters, null);
+            }
+            default -> {
+                if (!override.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Unknown connector override '" + connectorOverride
+                                    + "' (expected 'fixtures', 'http' or 'rendered')");
+                }
+            }
+        }
+        if (!live) {
             return staticConnector.scrapeWithFilters(address, filters, null);
         }
-        String strategy = switch (override) {
-            case "" -> strategyFor(address);
-            case "http" -> WebpageType.STRATEGY_HTTP;
-            case "rendered" -> WebpageType.STRATEGY_RENDERED;
-            default -> throw new IllegalArgumentException(
-                    "Unknown connector override '" + connectorOverride
-                            + "' (expected 'fixtures', 'http' or 'rendered')");
-        };
+        String strategy = strategyFor(address);
         if (WebpageType.STRATEGY_FEED.equals(strategy)) {
             throw new UnsupportedOperationException(
                     "Filter controls do not apply to feed sources (US-06.6/06.8): "
@@ -214,7 +236,13 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
                 String key = pair.contains("=")
                         ? pair.substring(0, pair.indexOf('=')) : pair;
                 for (String name : filters.keySet()) {
-                    if (key.equals(name) || key.equals(urlEncoded(name))) {
+                    // The key is matched raw, in its URL-encoded form,
+                    // and URL-DECODED (a '%20'-encoded key must be
+                    // caught too — review finding; decode failures
+                    // leave the raw key, which the raw comparison
+                    // still sees).
+                    if (key.equals(name) || key.equals(urlEncoded(name))
+                            || urlDecoded(key).equals(name)) {
                         throw new IllegalArgumentException("The URL already carries '"
                                 + key + "' — the filter '" + name
                                 + "' would be applied twice; remove the filter or "
@@ -237,6 +265,15 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
 
     private static String urlEncoded(String value) {
         return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** The URL-decoded query key, or the raw key when it does not decode. */
+    private static String urlDecoded(String key) {
+        try {
+            return java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return key;
+        }
     }
 
     @Override

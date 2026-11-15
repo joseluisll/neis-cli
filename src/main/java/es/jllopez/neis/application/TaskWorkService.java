@@ -261,11 +261,13 @@ public class TaskWorkService {
                             + "filtering to nothing (US-06.6)");
                 }
                 // Case-INSENSITIVE duplicate detection (US-06.6 review
-                // finding: the old putIfAbsent could never fire — two
-                // per-run parameters necessarily carry different map
-                // keys, so only a case difference can collide, and the
-                // map keys keep their case). The name itself keeps its
-                // original case in the applied set.
+                // finding: the old putIfAbsent almost never fired — two
+                // per-run parameters carry different map keys, so a
+                // collision needed keys that TRIM to the same name
+                // ('filter.x' vs 'filter.x '), and case-differing keys
+                // ('filter.X' vs 'filter.x') slipped through). The
+                // check is now case-insensitive; the name itself keeps
+                // its original case in the applied set.
                 if (!seenNames.add(name.toLowerCase(java.util.Locale.ROOT))) {
                     throw new IllegalArgumentException("Duplicate filter '" + name
                             + "' (case differs only) — refused (US-12.3 rule)");
