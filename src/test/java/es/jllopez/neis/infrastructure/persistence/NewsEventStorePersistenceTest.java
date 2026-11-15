@@ -374,4 +374,101 @@ class NewsEventStorePersistenceTest {
         assertEquals(2, store.sightings(canonicalId).stream()
                 .map(NewsEventSighting::addressId).distinct().count());
     }
+
+    @Test
+    void fullTextSearchMatchesTitleDescriptionAndLocation() {
+        // US-14.7: terms match title, description and location; results
+        // combined with the kind/address filters.
+        seedAddress("ADDR-NJ");
+        store.saveAll("ADDR-NJ", "news", List.of(new NewsEventItem(
+                "ADDR-NJ", "news", "Cybersecurity workshop announced",
+                "Hands-on sessions on threat modelling",
+                "https://example.eu/fts1", "2026-11-14")), null, null);
+        store.saveAll("ADDR-NJ", "event", List.of(NewsEventItem.extracted(
+                "ADDR-NJ", "event", "Annual meet-up", "Networking evening",
+                "https://example.eu/fts2", "2026-12-01",
+                null, "Brussels")), null, null);
+        store.saveAll("ADDR-NJ", "news", List.of(new NewsEventItem(
+                "ADDR-NJ", "news", "Unrelated item", "Nothing to see here",
+                "https://example.eu/fts3", "2026-11-15")), null, null);
+
+        // Title match.
+        assertEquals(1, store.search("cybersecurity", new NewsEventQuery(
+                "ADDR-NJ", null, null, null, 20)).size());
+        // Description match.
+        assertEquals(1, store.search("threat", new NewsEventQuery(
+                "ADDR-NJ", null, null, null, 20)).size());
+        // Location (optional metadata) match.
+        assertEquals(1, store.search("brussels", new NewsEventQuery(
+                "ADDR-NJ", null, null, null, 20)).size());
+        // Combined with kind and address filters.
+        assertEquals(0, store.search("brussels", new NewsEventQuery(
+                "ADDR-NJ", "news", null, null, 20)).size(),
+                "the location hit is an event — kind filter excludes it");
+        // All terms must match (AND).
+        assertEquals(1, store.search("cybersecurity workshop", new NewsEventQuery(
+                "ADDR-NJ", null, null, null, 20)).size());
+        assertEquals(0, store.search("cybersecurity brussels", new NewsEventQuery(
+                "ADDR-NJ", null, null, null, 20)).size());
+        // Date range combines on top (lenient).
+        assertEquals(1, store.search("annual", new NewsEventQuery(
+                "ADDR-NJ", null, "2026-11-30", null, 20)).size());
+    }
+
+    @Test
+    void ftsIndexStaysConsistentWithTheRepository() {
+        // US-14.7: new, updated and removed records are reflected by
+        // the index (V7 triggers) — this test runs on the real SQLite
+        // connector, so the triggers are exercised.
+        seedAddress("ADDR-NK");
+        store.saveAll("ADDR-NK", "news", List.of(new NewsEventItem(
+                "ADDR-NK", "news", "Quantum computing briefing",
+                "Description", "https://example.eu/q1", "2026-11-14")),
+                null, null);
+        assertEquals(1, store.search("quantum", new NewsEventQuery(
+                "ADDR-NK", null, null, null, 20)).size(),
+                "a new record is searchable");
+
+        // Updated record: the replaced token no longer matches, the new
+        // one does (note: 'Post-quantum' still contains the token
+        // 'quantum' — the hyphen splits tokens — so the replaced token
+        // probed here is 'computing').
+        store.saveAll("ADDR-NK", "news", List.of(new NewsEventItem(
+                "ADDR-NK", "news", "Post-quantum cryptography briefing",
+                "Description", "https://example.eu/q1", "2026-11-14")),
+                null, null);
+        assertEquals(0, store.search("computing", new NewsEventQuery(
+                "ADDR-NK", null, null, null, 20)).size());
+        assertEquals(1, store.search("cryptography", new NewsEventQuery(
+                "ADDR-NK", null, null, null, 20)).size());
+
+        // Removed record: direct SQL deletes exercise the delete
+        // trigger (the sightings rows go first — the sightings FK
+        // references the item).
+        jdbcTemplate.update(
+                "DELETE FROM news_event_sightings WHERE address_id = 'ADDR-NK'");
+        jdbcTemplate.update("DELETE FROM news_events WHERE address_id = 'ADDR-NK'");
+        assertEquals(0, store.search("post-quantum", new NewsEventQuery(
+                "ADDR-NK", null, null, null, 20)).size(),
+                "a removed record leaves the index");
+    }
+
+    @Test
+    void ftsSyntaxInUserTermsCannotInjectOrCrashTheMatch() {
+        seedAddress("ADDR-NL");
+        store.saveAll("ADDR-NL", "news", List.of(new NewsEventItem(
+                "ADDR-NL", "news", "Wallet roadmap discussion",
+                "Description", "https://example.eu/w1", "2026-11-14")),
+                null, null);
+        // FTS5 operators and column filters in user terms are quoted
+        // away: a punctuation-laden term becomes one quoted PHRASE, so
+        // it can neither inject syntax nor crash the match — it simply
+        // matches nothing (the plain term 'wallet' still finds the row).
+        assertEquals(1, store.search("wallet", new NewsEventQuery(
+                "ADDR-NL", null, null, null, 20)).size());
+        assertEquals(0, store.search("(wallet) OR title:wallet",
+                new NewsEventQuery("ADDR-NL", null, null, null, 20)).size());
+        assertEquals(0, store.search("NEAR(a b, 3)", new NewsEventQuery(
+                "ADDR-NL", null, null, null, 20)).size());
+    }
 }

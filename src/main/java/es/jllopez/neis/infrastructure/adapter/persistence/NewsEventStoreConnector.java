@@ -8,13 +8,16 @@ import es.jllopez.neis.infrastructure.persistence.NewsEventEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventJpaRepository;
 import es.jllopez.neis.infrastructure.persistence.NewsEventSightingEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventSightingJpaRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Connector (driven adapter) implementing the news/events repository
@@ -31,11 +34,14 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
 
     private final NewsEventJpaRepository jpa;
     private final NewsEventSightingJpaRepository sightingJpa;
+    private final JdbcTemplate jdbc;
 
     public NewsEventStoreConnector(NewsEventJpaRepository jpa,
-                                   NewsEventSightingJpaRepository sightingJpa) {
+                                   NewsEventSightingJpaRepository sightingJpa,
+                                   JdbcTemplate jdbc) {
         this.jpa = jpa;
         this.sightingJpa = sightingJpa;
+        this.jdbc = jdbc;
     }
 
     @Override
@@ -125,6 +131,56 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    @Override
+    public List<NewsEventItem> search(String text, NewsEventQuery filters) {
+        // FTS5 (US-14.7): rank-ordered row ids from the index (kept
+        // consistent by the V7 triggers), the US-14.3 kind/address
+        // filters in SQL, the lenient date range in Java, the limit
+        // last — a dated-out row must not eat a ranked slot.
+        String match = ftsMatchExpression(text);
+        if (match == null) {
+            return List.of();
+        }
+        List<String> ids = jdbc.query(
+                """
+                select e.id from news_events_fts f
+                join news_events e on e.rowid = f.rowid
+                where news_events_fts match ?
+                  and (? is null or e.address_id = ?)
+                  and (? is null or e.kind = ?)
+                order by rank
+                """,
+                (rs, n) -> rs.getString(1),
+                match,
+                blankToNull(filters.addressId()), blankToNull(filters.addressId()),
+                blankToNull(filters.kind()), blankToNull(filters.kind()));
+        // Rank order is the SQL order: keep it through the id -> item
+        // mapping (findAllById would lose it), then date-filter/limit.
+        return ids.stream()
+                .map(id -> jpa.findById(id).map(NewsEventStoreConnector::toItem)
+                        .orElse(null))
+                .filter(item -> item != null
+                        && filters.dateInRange(item.date()))
+                .limit(filters.limit())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * The user's free text as an FTS5 MATCH expression: every
+     * whitespace-separated term becomes a quoted phrase (AND
+     * semantics), so user punctuation can neither inject FTS syntax
+     * (parens, operators, column filters) nor crash the match.
+     */
+    private static String ftsMatchExpression(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String phrases = java.util.Arrays.stream(text.trim().split("\\s+"))
+                .map(term -> "\"" + term.replace("\"", "") + "\"")
+                .collect(Collectors.joining(" "));
+        return phrases.isBlank() ? null : phrases;
     }
 
     @Override

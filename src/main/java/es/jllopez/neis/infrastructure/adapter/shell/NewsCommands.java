@@ -195,6 +195,63 @@ public class NewsCommands {
                 .append("):\n").append(body).toString();
     }
 
+    @Command(name = {"news", "search"}, group = "News",
+            description = "Full-text search over the stored news/events (US-14.7, "
+                    + "SQLite FTS5): terms match title, description and location, "
+                    + "results are ranked by relevance and combinable with the "
+                    + "US-14.3 filters (kind, address, date range).")
+    public String search(
+            @Option(shortName = 'q', longName = "query",
+                    description = "Space-separated search terms (all must match)")
+            String query,
+            @Option(shortName = 'a', longName = "address",
+                    description = "Address id (omit for every address)") String addressId,
+            @Option(shortName = 'k', longName = "kind",
+                    description = "Item kind: news or event (omit for both)") String kind,
+            @Option(longName = "from",
+                    description = "Items dated on/after this date — ISO (yyyy-MM-dd) or "
+                            + "the extractor's form ('Jul 16, 2026')") String dateFrom,
+            @Option(longName = "to",
+                    description = "Items dated on/before this date (same accepted forms "
+                            + "as --from)") String dateTo,
+            @Option(longName = "limit", defaultValue = "20",
+                    description = "Maximum number of results to show") int limit) {
+        if (query == null || query.isBlank()) {
+            return "Empty query — give --q with the terms to search for";
+        }
+        for (String[] bound : new String[][] {{"--from", dateFrom}, {"--to", dateTo}}) {
+            if (bound[1] != null && !bound[1].isBlank()
+                    && NewsEventQuery.parseLenient(bound[1]) == null) {
+                return "Invalid " + bound[0] + " date '" + bound[1]
+                        + "' — use ISO (yyyy-MM-dd) or the extractor's form "
+                        + "(e.g. 'Jul 16, 2026')";
+            }
+        }
+        List<NewsEventItem> items = newsEvents.search(query, new NewsEventQuery(
+                addressId == null ? null : addressId.trim(),
+                kind == null ? null : kind.trim().toLowerCase(Locale.ROOT),
+                dateFrom, dateTo, limit));
+        StringBuilder out = new StringBuilder("Full-text search for '")
+                .append(query).append("' — ").append(items.size())
+                .append(" result(s), ranked:\n");
+        int rank = 1;
+        for (NewsEventItem item : items) {
+            out.append("  #").append(rank++)
+                    .append("  ").append(item.date() == null ? "????-??-??" : item.date())
+                    .append("  ").append(item.kind() == null ? "-" : item.kind())
+                    .append("  [").append(item.addressId()).append("]  ")
+                    .append(item.title() == null ? "<no title>" : item.title())
+                    .append(item.url() == null ? "" : "  <" + item.url() + ">")
+                    .append("\n");
+        }
+        if (items.isEmpty()) {
+            out.append("  <no stored news/events match the terms")
+                    .append(addressId == null ? "" : " for address " + addressId)
+                    .append(">\n");
+        }
+        return out.toString();
+    }
+
     @Command(name = {"news", "export"}, group = "News",
             description = "Export the stored news/events to JSON or CSV (US-14.6), "
                     + "filterable like 'news list' (address, kind, date range) plus "

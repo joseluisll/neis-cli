@@ -304,6 +304,18 @@ cap.
   (never write timestamps), JSON keeps a fixed field order and CSV is
   fully quoted (RFC 4180) — the same data and filters produce
   byte-identical files.
+- Full-text search (US-14.7, schema V7-V9): `news search --query <terms>
+  [--address] [--kind] [--from] [--to] [--limit]` matches the terms
+  against title, description and location through an FTS5
+  external-content index (`news_events_fts`) kept consistent with the
+  repository by INSERT/UPDATE/DELETE triggers; results come ranked by
+  relevance (FTS5 bm25 `rank`) with the US-14.3 filters combined on
+  top. User terms are quoted into FTS5 phrases, so syntax injection
+  cannot crash or redirect the match. The index is backfilled from the
+  existing rows at migration time (V9 uses the documented 'rebuild'
+  command — the V8 INSERT...SELECT variant was a no-op, because an
+  external-content table answers `SELECT rowid` from its content
+  table).
 
 ## Enforced rules (ArchUnit)
 

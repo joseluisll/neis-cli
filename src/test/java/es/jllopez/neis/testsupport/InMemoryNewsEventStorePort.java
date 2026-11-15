@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.time.Instant;
 
@@ -116,6 +117,42 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                 sightingHistory.getOrDefault(itemId, Map.of()).values());
         java.util.Collections.reverse(stored);
         return List.copyOf(stored);
+    }
+
+    @Override
+    public List<NewsEventItem> search(String text, NewsEventQuery filters) {
+        // Double fidelity note (US-14.7): the real store matches via
+        // SQLite FTS5 (token-based, ranked by bm25); the double matches
+        // whole-term substrings over title/description/location and
+        // returns hits NEWEST FIRST — no ranking. Term splitting and
+        // the filter/limit semantics are the same.
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        List<String> terms = java.util.Arrays.stream(text.trim().split("\\s+"))
+                .map(t -> t.toLowerCase(Locale.ROOT))
+                .toList();
+        return newestFirst(store.entrySet().stream()
+                .filter(e -> {
+                    NewsEventItem item = e.getValue();
+                    String haystack = (nullSafe(item.title()) + " "
+                            + nullSafe(item.description()) + " "
+                            + nullSafe(item.location())).toLowerCase(Locale.ROOT);
+                    return terms.stream().allMatch(haystack::contains);
+                }))
+                .stream()
+                .filter(item -> filters.addressId() == null
+                        || filters.addressId().isBlank()
+                        || filters.addressId().trim().equals(item.addressId()))
+                .filter(item -> filters.kind() == null || filters.kind().isBlank()
+                        || filters.kind().equals(item.kind()))
+                .filter(item -> filters.dateInRange(item.date()))
+                .limit(filters.limit())
+                .toList();
+    }
+
+    private static String nullSafe(String value) {
+        return value == null ? "" : value;
     }
 
     private List<NewsEventItem> newestFirst(

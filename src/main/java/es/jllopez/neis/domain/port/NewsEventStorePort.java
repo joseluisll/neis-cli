@@ -74,4 +74,13 @@ public interface NewsEventStorePort {
      * other addresses) add sightings — never records.
      */
     List<NewsEventSighting> sightings(String canonicalId);
+
+    /**
+     * Full-text search over the repository's textual metadata (US-14.7,
+     * issue #85): the terms match against title, description and
+     * location, results come RANKED (most relevant first — the ranking
+     * is the storage's, not recency), and the US-14.3 filters (kind,
+     * address, lenient date range) plus the limit combine on top.
+     */
+    List<NewsEventItem> search(String text, NewsEventQuery filters);
 }

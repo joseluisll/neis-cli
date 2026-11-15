@@ -82,4 +82,13 @@ public class NewsEventService {
     public List<NewsEventSighting> sightings(String canonicalId) {
         return newsEventStore.sightings(canonicalId);
     }
+
+    /**
+     * Full-text search over the repository's textual metadata (US-14.7):
+     * terms match title/description/location, results are ranked
+     * (storage-defined), and the US-14.3 filters combine on top.
+     */
+    public List<NewsEventItem> search(String text, NewsEventQuery filters) {
+        return newsEventStore.search(text, filters);
+    }
 }
