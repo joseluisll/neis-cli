@@ -249,15 +249,21 @@ public class NewsCommands {
             return "Exported " + result.records() + " record(s) to "
                     + result.file().toAbsolutePath() + " (" + result.format() + ")";
         } catch (RuntimeException e) {
-            // The service's message already names the output; add only
-            // the cause (e.g. NoSuchFileException for a missing --out
-            // directory) instead of stacking the same prefix twice.
+            // The CLI owns the 'Export failed:' prefix (the service's
+            // message does not carry one); append the cause chain's
+            // deepest message (e.g. NoSuchFileException for a missing
+            // --out directory).
             String message = e.getMessage() == null ? "" : e.getMessage();
-            String cause = e.getCause() == null ? ""
-                    : " (" + e.getCause().getClass().getSimpleName()
-                            + (e.getCause().getMessage() == null ? ""
-                                    : ": " + e.getCause().getMessage()) + ")";
-            return "Export failed: " + message + cause;
+            Throwable deepest = e;
+            while (deepest.getCause() != null) {
+                deepest = deepest.getCause();
+            }
+            String cause = deepest == e ? ""
+                    : " (" + deepest.getClass().getSimpleName()
+                            + (deepest.getMessage() == null ? ""
+                                    : ": " + deepest.getMessage()) + ")";
+            String rendered = ("Export failed: " + message + cause).stripTrailing();
+            return rendered.endsWith(":") ? rendered + " (no detail)" : rendered;
         }
     }
 

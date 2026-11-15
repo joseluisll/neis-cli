@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.io.UncheckedIOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -151,5 +152,20 @@ class NewsEventExportServiceTest {
                 NewsEventQuery.everything(),
                 NewsEventExportService.Completeness.ALL, "xml",
                 tempDir.resolve("out.xml")));
+    }
+
+    @Test
+    void ioFailureMessageCarriesNoPrefixTheAdapterOwnsTheWording() {
+        // US-14.6 re-review: the service must not prefix its IO failure
+        // with 'Export failed' — the driving adapter owns the user-facing
+        // failure message; a doubled prefix survived a first fix attempt.
+        seed();
+        Path missing = tempDir.resolve("no/such/dir/out.json");
+        var e = assertThrows(UncheckedIOException.class, () -> export.export(
+                NewsEventQuery.everything(),
+                NewsEventExportService.Completeness.ALL, "json", missing));
+        assertTrue(!e.getMessage().startsWith("Export failed"),
+                "no CLI prefix in the service message: " + e.getMessage());
+        assertTrue(e.getMessage().contains(missing.toString()));
     }
 }

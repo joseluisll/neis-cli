@@ -77,7 +77,10 @@ public class NewsEventExportService {
                     : writeCsv(items, out);
             return new ExportResult(file, items.size(), fmt);
         } catch (IOException e) {
-            throw new UncheckedIOException("Export failed: " + out, e);
+            // No 'Export failed' prefix here: the driving adapter owns
+            // the user-facing failure message (US-14.6 re-review — the
+            // doubled prefix survived a first fix attempt).
+            throw new UncheckedIOException("Failed to write the export to " + out, e);
         }
     }
 
