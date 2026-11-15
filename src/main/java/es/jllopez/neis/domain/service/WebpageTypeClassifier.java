@@ -142,6 +142,11 @@ public final class WebpageTypeClassifier {
         if (!head.startsWith("<" + name)) {
             return false;
         }
+        // A truncated sample ending exactly at the element name has no
+        // delimiter: not a recognizable document, never a crash.
+        if (head.length() <= 1 + name.length()) {
+            return false;
+        }
         char next = head.charAt(1 + name.length());
         return next == '>' || next == '/' || Character.isWhitespace(next);
     }

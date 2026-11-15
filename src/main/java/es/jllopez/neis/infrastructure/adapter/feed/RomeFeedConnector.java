@@ -90,7 +90,7 @@ public class RomeFeedConnector implements FeedSourcePort {
                         + " returned HTTP " + response.statusCode());
             }
             response.headers().firstValue("Content-Length")
-                    .map(Long::parseLong)
+                    .map(RomeFeedConnector::parseDeclaredLength)
                     .filter(declared -> declared > maxBytes)
                     .ifPresent(declared -> {
                         closeQuietly(response.body());
@@ -203,6 +203,20 @@ public class RomeFeedConnector implements FeedSourcePort {
                 entry.getLink() != null ? entry.getLink() : null,
                 date != null ? DateTimeFormatter.ISO_LOCAL_DATE.format(
                         date.toInstant().atZone(ZoneOffset.UTC).toLocalDate()) : null);
+    }
+
+    /**
+     * Parses a declared Content-Length header: unparseable (broken or
+     * hostile) values are treated as absent so the streamed-read cap
+     * below stays the authority — a raw NumberFormatException here
+     * would also bypass the body close.
+     */
+    private static Long parseDeclaredLength(String value) {
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static void closeQuietly(InputStream stream) {

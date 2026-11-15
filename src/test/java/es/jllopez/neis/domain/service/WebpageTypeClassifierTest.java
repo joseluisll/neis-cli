@@ -65,6 +65,17 @@ class WebpageTypeClassifierTest {
     }
 
     @Test
+    void truncatedSamplesNeverCrashClassification() {
+        // Review finding (2026-11-15): a body sample of exactly '<feed'
+        // has no delimiter after the element name — unclassifiable as a
+        // feed, never an exception.
+        assertEquals("static", classifier.classify("text/html", "<feed"));
+        assertEquals("static", classifier.classify("text/html", "<rss"));
+        assertNull(classifier.classify("text/html", ""));
+        assertNull(classifier.classify("text/html", null));
+    }
+
+    @Test
     void nonHtmlContentIsOther() {
         assertEquals("other", classifier.classify("application/json",
                 "{\"items\": []}"));
