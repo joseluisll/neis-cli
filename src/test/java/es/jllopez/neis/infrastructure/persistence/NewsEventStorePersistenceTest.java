@@ -471,4 +471,29 @@ class NewsEventStorePersistenceTest {
         assertEquals(0, store.search("NEAR(a b, 3)", new NewsEventQuery(
                 "ADDR-NL", null, null, null, 20)).size());
     }
+
+    @Test
+    void embeddedQuotesInUserTermsStayTokenSeparators() {
+        // US-14.7 review nit: embedded double quotes are ESCAPED by
+        // doubling (FTS5 string syntax), never stripped. A quote is a
+        // token separator, so stripping would merge the tokens around
+        // it: 'foo"bar' must search the phrase foo+bar (matching
+        // 'foo bar') — not one merged token 'foobar'.
+        seedAddress("ADDR-IT");
+        store.saveAll("ADDR-IT", "news", List.of(new NewsEventItem(
+                        "ADDR-IT", "news", "The foo bar baz story",
+                        "Description", "https://example.eu/q1", "2026-11-14")),
+                null, null);
+        store.saveAll("ADDR-IT", "news", List.of(new NewsEventItem(
+                        "ADDR-IT", "news", "A foobar word stands alone",
+                        "Description", "https://example.eu/q2", "2026-11-14")),
+                null, null);
+        assertEquals(1, store.search("foo\"bar", new NewsEventQuery(
+                        "ADDR-IT", null, null, null, 20)).size(),
+                "escaped quote = separator: 'foo\"bar' matches 'foo bar'");
+        // A user term carrying its own quotes still matches: the
+        // literal quotes are separators on both sides of the phrase.
+        assertEquals(1, store.search("story \"foo\" bar", new NewsEventQuery(
+                "ADDR-IT", null, null, null, 20)).size());
+    }
 }

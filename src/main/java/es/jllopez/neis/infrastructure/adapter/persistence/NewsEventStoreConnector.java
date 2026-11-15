@@ -172,13 +172,17 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
      * whitespace-separated term becomes a quoted phrase (AND
      * semantics), so user punctuation can neither inject FTS syntax
      * (parens, operators, column filters) nor crash the match.
+     * Embedded double quotes are ESCAPED by doubling them (FTS5
+     * string syntax), never stripped — a quote is a token separator,
+     * so stripping would MERGE the tokens around it ('foo"bar' would
+     * search one token 'foobar' instead of the phrase foo+bar).
      */
     private static String ftsMatchExpression(String text) {
         if (text == null || text.isBlank()) {
             return null;
         }
         String phrases = java.util.Arrays.stream(text.trim().split("\\s+"))
-                .map(term -> "\"" + term.replace("\"", "") + "\"")
+                .map(term -> "\"" + term.replace("\"", "\"\"") + "\"")
                 .collect(Collectors.joining(" "));
         return phrases.isBlank() ? null : phrases;
     }
