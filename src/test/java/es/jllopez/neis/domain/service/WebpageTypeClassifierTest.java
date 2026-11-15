@@ -37,6 +37,34 @@ class WebpageTypeClassifierTest {
     }
 
     @Test
+    void feedDocumentsClassifyAsFeed() {
+        // US-06.8: a feed document is its own source type — detected
+        // by content type or by the root element.
+        assertEquals("feed", classifier.classify("application/rss+xml",
+                "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel/></rss>"));
+        assertEquals("feed", classifier.classify("application/atom+xml",
+                "<?xml version=\"1.0\"?><feed xmlns=\"...\"><entry/></feed>"));
+        // Served without a proper content type (or as text/html): the
+        // root element decides.
+        assertEquals("feed", classifier.classify("text/html",
+                "<rss version=\"2.0\"><channel/></rss>"));
+        assertEquals("feed", classifier.classify(null,
+                "<feed xmlns=\"...\"><entry/></feed>"));
+    }
+
+    @Test
+    void elementsExtendingTheFeedNameAreNotFeeds() {
+        // Review finding (2026-11-15): '<feedback>' must not match
+        // '<feed'. An HTML page about feedback is NOT a feed — Rome
+        // would fail loud downstream, but the classification must be
+        // right in the first place.
+        assertEquals("static", classifier.classify("text/html",
+                "<html><body><feedback-form>Please tell us</feedback-form></body></html>"));
+        assertEquals("other", classifier.classify("text/xml",
+                "<?xml version=\"1.0\"?><feedback><message>hi</message></feedback>"));
+    }
+
+    @Test
     void nonHtmlContentIsOther() {
         assertEquals("other", classifier.classify("application/json",
                 "{\"items\": []}"));

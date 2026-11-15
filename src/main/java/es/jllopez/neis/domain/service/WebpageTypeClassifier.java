@@ -119,7 +119,7 @@ public final class WebpageTypeClassifier {
      * case-insensitive on the element name, tolerant of leading
      * whitespace.
      */
-    private static boolean isFeedDocument(String bodySample) {
+    private boolean isFeedDocument(String bodySample) {
         String head = bodySample.trim().toLowerCase(Locale.ROOT);
         if (head.startsWith("<?xml")) {
             int end = head.indexOf("?>");
@@ -129,6 +129,20 @@ public final class WebpageTypeClassifier {
             int end = head.indexOf("-->");
             head = end >= 0 ? head.substring(end + 3).trim() : head;
         }
-        return head.startsWith("<rss") || head.startsWith("<feed");
+        return isRootElementNamed(head, "rss") || isRootElementNamed(head, "feed");
+    }
+
+    /**
+     * Whether the trimmed head starts with a root element of exactly
+     * the given name: the name must be followed by a delimiter
+     * (whitespace, '&gt;' or '/'), so {@code <feedback>} is never a
+     * match for {@code feed}.
+     */
+    private static boolean isRootElementNamed(String head, String name) {
+        if (!head.startsWith("<" + name)) {
+            return false;
+        }
+        char next = head.charAt(1 + name.length());
+        return next == '>' || next == '/' || Character.isWhitespace(next);
     }
 }

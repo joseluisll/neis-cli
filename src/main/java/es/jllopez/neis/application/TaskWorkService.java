@@ -244,10 +244,15 @@ public class TaskWorkService {
      * without any HTML scraping when the feed suffices.
      */
     private String feedScrape(Address address, int maxItems, String executionId) {
-        String xml = feedSource.fetch(address);
+        // The raw bytes travel to the parse verbatim: an XML document
+        // carries its own charset declaration, so decoding for the
+        // artifact happens with that declaration honored
+        // (toDocumentText), and Rome re-detects it for the parse.
+        byte[] feedBytes = feedSource.fetch(address);
+        String xml = feedSource.toDocumentText(feedBytes);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "feed-xml",
                 "feed.xml", xml);
-        List<NewsEventItem> items = feedSource.parse(xml, address.id(),
+        List<NewsEventItem> items = feedSource.parse(feedBytes, address.id(),
                 address.itemKind(), maxItems, address.url());
         if (items.isEmpty()) {
             throw new IllegalArgumentException("Feed " + address.url()

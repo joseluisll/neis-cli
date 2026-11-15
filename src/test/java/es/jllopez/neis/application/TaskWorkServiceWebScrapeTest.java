@@ -48,10 +48,14 @@ class TaskWorkServiceWebScrapeTest {
 
     /** A feed source whose fetch serves the given document. */
     private es.jllopez.neis.domain.port.FeedSourcePort feedSource() {
+        return feedSource(FEED_DOC.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private es.jllopez.neis.domain.port.FeedSourcePort feedSource(byte[] document) {
         return new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576) {
             @Override
-            public String fetch(Address address) {
-                return FEED_DOC;
+            public byte[] fetch(Address address) {
+                return document;
             }
         };
     }
@@ -103,6 +107,31 @@ class TaskWorkServiceWebScrapeTest {
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
                 feedSource(), webpageTypes(), configuredMaxItems);
+    }
+
+    private TaskWorkService serviceWithFeedSource(PreconfiguredSelectors preconfigured,
+                                                  es.jllopez.neis.domain.port.FeedSourcePort source) {
+        PipelineService pipeline = new PipelineService(new StaticScrapeConnector(),
+                new JsoupSimplifyConnector(), new JsoupSelectorConnector(),
+                new SelectorStorePort() {
+                    @Override
+                    public Optional<StoredSelectors> load(String addressId) {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public void save(StoredSelectors selectors) {
+                        // not exercised by the WEBSCRAPE step
+                    }
+                },
+                new PaginationDetector(),
+                new es.jllopez.neis.domain.service.ExposedFilterDetector(),
+                new ObjectProviderStub(), catalog, new UrlSyntaxValidator(),
+                preconfigured, newsEventStore,
+                new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                workDir.toString());
+        return new TaskWorkService(pipeline, catalog, newsEventStore,
+                source, webpageTypes(), null);
     }
 
     private PreconfiguredSelectors catalog(
@@ -504,6 +533,48 @@ class TaskWorkServiceWebScrapeTest {
         assertTrue(outcome.startsWith("WEBSCRAPE (feed): 1 item(s)"), outcome);
         assertTrue(outcome.contains("cap 1"), outcome);
         assertEquals(1, newsEventStore.byAddress("ADDR-001").size());
+    }
+
+    @Test
+    void nonUtf8FeedIsDecodedPerItsXmlDeclaration() {
+        // Review finding (2026-11-15): decoding the document
+        // unconditionally as UTF-8 corrupted any non-UTF-8 feed before
+        // Rome saw it (mojibake persisted, no error). The bytes must
+        // travel verbatim to the parse; the XML declaration's charset
+        // decides. The title contains 'ã' (U+00E3) — mojibake would
+        // surface as U+FFFD.
+        String latin1Doc = """
+                <?xml version="1.0" encoding="ISO-8859-1"?>
+                <rss version="2.0"><channel>
+                  <title>News feed</title>
+                  <item><title>Aministra\u00e7\u00e3o p\u00fablica aprova plano</title>
+                    <description>Conte\u00fado com acentua\u00e7\u00e3o.</description>
+                    <link>https://example.eu/feed/1</link>
+                    <pubDate>Tue, 10 Nov 2026 10:00:00 GMT</pubDate></item>
+                </channel></rss>
+                """;
+        catalog.updateWebpageType("ADDR-001", "feed");
+
+        String outcome = serviceWithFeedSource(catalog(List.of()),
+                feedSource(latin1Doc.getBytes(
+                        java.nio.charset.StandardCharsets.ISO_8859_1)))
+                .execute("WEBSCRAPE", catalog.byId("ADDR-001"), java.util.Map.of(),
+                        null, null, "EXEC-feed-l1");
+
+        assertTrue(outcome.startsWith("WEBSCRAPE (feed): 1 item(s)"), outcome);
+        var stored = newsEventStore.byAddress("ADDR-001");
+        assertEquals(1, stored.size());
+        assertEquals("Aministração pública aprova plano", stored.get(0).title());
+        assertFalse(stored.get(0).title().contains("\uFFFD"),
+                "replacement character means the bytes were double-mangled");
+        // The artifact holds the document decoded per its declaration
+        // (storage is UTF-8).
+        try {
+            String artifact = Files.readString(firstFileMatching("feed.xml"));
+            assertTrue(artifact.contains("Aministração pública"), artifact);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

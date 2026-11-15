@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -67,7 +68,7 @@ public class RomeFeedConnector implements FeedSourcePort {
     }
 
     @Override
-    public String fetch(Address address) {
+    public byte[] fetch(Address address) {
         long start = System.nanoTime();
         String url = address.url().trim();
         try {
@@ -81,6 +82,10 @@ public class RomeFeedConnector implements FeedSourcePort {
             HttpResponse<InputStream> response = client.send(request,
                     HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                // With BodyHandlers.ofInputStream the connection stays
+                // pinned until the stream is closed: release it on the
+                // non-2xx path too (review finding 2026-11-15).
+                closeQuietly(response.body());
                 throw new IllegalStateException("Feed fetch " + url
                         + " returned HTTP " + response.statusCode());
             }
@@ -109,10 +114,9 @@ public class RomeFeedConnector implements FeedSourcePort {
                 throw new IllegalStateException("Feed fetch " + url
                         + " exceeds the " + maxBytes + " byte cap");
             }
-            String xml = new String(body, StandardCharsets.UTF_8);
             log.info("FEED fetch {} -> {} bytes ({} ms)", url, body.length,
                     (System.nanoTime() - start) / 1_000_000);
-            return xml;
+            return body;
         } catch (RuntimeException e) {
             log.info("FEED fetch {} -> FAILED ({} , {} ms)", url,
                     e.getClass().getSimpleName(),
@@ -128,21 +132,40 @@ public class RomeFeedConnector implements FeedSourcePort {
     }
 
     @Override
-    public List<NewsEventItem> parse(String feedXml, String addressId,
+    public List<NewsEventItem> parse(byte[] feedXml, String addressId,
                                      String itemKind, int maxItems, String baseUrl) {
-        if (feedXml == null || feedXml.isBlank()) {
+        if (feedXml == null || feedXml.length == 0) {
             throw new IllegalArgumentException("The feed document of " + addressId
                     + " is empty — nothing to parse");
         }
-        com.rometools.rome.feed.synd.SyndFeed feed;
+        // Rome's XmlReader detects the charset from the BOM and the
+        // XML declaration — the byte document is handed over verbatim
+        // so a non-UTF-8 feed (ISO-8859-1 etc.) parses correctly.
         try (var reader = new com.rometools.rome.io.XmlReader(
-                new java.io.ByteArrayInputStream(feedXml.getBytes(StandardCharsets.UTF_8)))) {
-            feed = new com.rometools.rome.io.SyndFeedInput().build(reader);
+                new java.io.ByteArrayInputStream(feedXml))) {
+            var feed = new com.rometools.rome.io.SyndFeedInput().build(reader);
+            return parse(feed, addressId, itemKind, maxItems, baseUrl);
         } catch (Exception e) {
             throw new IllegalStateException("The feed document of " + addressId
                     + " does not parse as a feed: " + e.getMessage(), e);
         }
-        return parse(feed, addressId, itemKind, maxItems, baseUrl);
+    }
+
+    @Override
+    public String toDocumentText(byte[] feedBytes) {
+        try (var reader = new com.rometools.rome.io.XmlReader(
+                new java.io.ByteArrayInputStream(feedBytes))) {
+            String encoding = reader.getEncoding();
+            Charset charset = encoding != null
+                    ? Charset.forName(encoding)
+                    : StandardCharsets.UTF_8;
+            return new String(feedBytes, charset);
+        } catch (Exception e) {
+            // Undecodable for display: fall back to the lossless
+            // representation — artifacts are about evidence, and the
+            // parse path reports its own errors.
+            return new String(feedBytes, StandardCharsets.UTF_8);
+        }
     }
 
     /** Visible for tests: parse an already-loaded Rome feed. */

@@ -17,10 +17,21 @@ public interface FeedSourcePort {
     /**
      * Fetches the raw feed document of a feed address with the same
      * fetch discipline as the HTTP scrape connector (timeout, size
-     * cap, watchdog on the body read). The returned text is the XML
-     * document, recorded as an artifact and the items' provenance.
+     * cap, watchdog on the body read). The returned bytes are the
+     * XML document, recorded as an artifact and the items'
+     * provenance — the ENCODING is left to the parse: an XML
+     * document carries its own charset declaration, and decoding
+     * here (e.g. unconditionally as UTF-8) would silently corrupt
+     * any non-UTF-8 feed.
      */
-    String fetch(Address address);
+    byte[] fetch(Address address);
+
+    /**
+     * Decodes the fetched document for artifact storage and display,
+     * honoring the XML declaration's charset (BOM/declaration
+     * detection, UTF-8 fallback).
+     */
+    String toDocumentText(byte[] feedBytes);
 
     /**
      * Parses a feed document into standard news/event items, newest
@@ -28,10 +39,11 @@ public interface FeedSourcePort {
      * Rome normalizes RSS 2.0 and Atom (and other formats it
      * detects) into one entry model; the mapping is deterministic:
      * title, description (or content), link and the published date
-     * (ISO-8601) when the feed carries one — an entry without a
+     * (ISO-8601) when the feed carries one (the updated date only
+     * as the published date's fallback) — an entry without a
      * title/link is still mapped (the store flags its completeness,
      * US-14.4), never silently dropped.
      */
-    List<NewsEventItem> parse(String feedXml, String addressId,
+    List<NewsEventItem> parse(byte[] feedXml, String addressId,
                               String itemKind, int maxItems, String baseUrl);
 }
