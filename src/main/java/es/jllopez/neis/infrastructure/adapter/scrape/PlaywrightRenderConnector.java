@@ -108,13 +108,55 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
         }
     }
 
+    /**
+     * Deterministic shutdown of the provisioned browser and driver
+     * (US-06.5 review note): without it, closing the JVM relied on
+     * Playwright's thread characteristics. Idempotent — a connector
+     * that never rendered has nothing to close. Also the remedy for a
+     * launch failure orphan: if chromium().launch() throws after the
+     * driver was provisioned, the driver instance is closed instead of
+     * being left unreferenced for the JVM to reap.
+     */
+    @jakarta.annotation.PreDestroy
+    public synchronized void shutdown() {
+        if (browser != null) {
+            try {
+                browser.close();
+            } catch (RuntimeException ignored) {
+                // best effort: the process teardown continues
+            }
+            browser = null;
+        }
+        if (playwright != null) {
+            try {
+                playwright.close();
+            } catch (RuntimeException ignored) {
+                // best effort: the process teardown continues
+            }
+            playwright = null;
+        }
+    }
+
     /** The lazily provisioned browser: driver + binaries on first use. */
     private synchronized com.microsoft.playwright.Browser browser() {
         if (browser == null) {
             log.info("RENDER strategy first use: provisioning the Playwright "
                     + "driver and Chromium (one-time download on this host)");
-            playwright = com.microsoft.playwright.Playwright.create();
-            browser = playwright.chromium().launch();
+            com.microsoft.playwright.Playwright created =
+                    com.microsoft.playwright.Playwright.create();
+            try {
+                browser = created.chromium().launch();
+            } catch (RuntimeException e) {
+                // A launch failure must not orphan the provisioned
+                // driver: close it so the next call provisions cleanly.
+                try {
+                    created.close();
+                } catch (RuntimeException ignored) {
+                    // best effort on the failure path
+                }
+                throw e;
+            }
+            playwright = created;
         }
         return browser;
     }
