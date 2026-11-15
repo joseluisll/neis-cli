@@ -45,6 +45,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `RuntimeInfoPort` | driven | `MavenRuntimeInfoConnector` (Spring Boot build properties) |
 | `AiAssistantPort` | driven | `SpringAiConnector` (Spring AI `ChatClient`, provider-neutral) |
 | `ContentScrapePort` | driven | `ScrapeConnectorRouter` → `StaticScrapeConnector` (default: HTML5 fixtures of issue #62, offline runs), or — `neis.scrape.connector=live` — PER-TYPE retrieval (US-06.5, issue #71): the address's classified webpage type selects `HttpScrapeConnector` (US-06.1/06.2: java.net.http fetch, Tika content-type/charset handling, jsoup HTML5 normalization, body cap + fetch deadline) for `http` types or `PlaywrightRenderConnector` (browser rendering, lazy: driver + Chromium provision on FIRST USE) for the `rendered` types (spa-*, hybrid); the WEBSCRAPE `connector` parameter overrides per run (`fixtures`/`http`/`rendered`) |
+| `FeedSourcePort` | driven | `RomeFeedConnector` (US-06.8, issue #86: a feed-classified webpage type routes WEBSCRAPE to the feed path — the RSS/Atom document is fetched with the HTTP scrape discipline (timeout, size cap, watchdog) and parsed with Rome into standard news/event records; no HTML scraping when the feed suffices; same repository persistence, provenance and `max-items` cap as the scrape path; a selector override is refused loud) |
 | `SimplifyPort` | driven | `JsoupSimplifyConnector` (jsoup cleansing, 100 KB cap) |
 | `SelectorExtractionPort` | driven | `JsoupSelectorConnector` (jsoup selector-based item extraction, US-12.2: deterministic `Document.select` iteration — title, description, date, detail URL resolved against the address's base URI) |
 | `AddressCatalogPort` | driven | `AddressCatalogConnector` (US-03: the registered address catalog over the SQLite `addresses` table) |
@@ -172,9 +173,11 @@ cap.
   via `neis.webpage.types.<id>.strategy` — no domain change) using the
   deterministic `WebpageTypeClassifier` marker heuristics over a
   bounded body sample (framework markers → `spa-<family>`;
-  markers + `<noscript>` → `hybrid`; non-HTML → `other`; plain HTML →
-  `static`). The type persists on the address and on every capture;
-  `address webpage-type` sets/clears it explicitly, and the retrieval
+  markers + `<noscript>` fallback → `hybrid`; an RSS/Atom document —
+  feed content type or `<rss>`/`<feed>` root element — → `feed`;
+  non-HTML → `other`; plain HTML → `static`; a null classification
+  never wipes a stored type). The type persists on the address and on
+  every capture; `address webpage-type` sets/clears it explicitly, and the retrieval
   strategy follows from the type in `live` mode (per-run WEBSCRAPE
   `connector` parameter overrides). An unclassifiable probe NEVER
   erases a stored type.

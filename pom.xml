@@ -25,6 +25,7 @@
         <jsoup.version>1.24.1</jsoup.version>
         <tika.version>4.2.0</tika.version>
         <playwright.version>1.65.0</playwright.version>
+        <rome.version>2.1.0</rome.version>
     </properties>
 
     <dependencies>
@@ -64,6 +65,15 @@
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
+        </dependency>
+
+        <!-- US-06.8 (issue #86): RSS/Atom feed sources — the proven
+             open-source JVM feed parser the requirement names
+             (Apache 2.0), behind the same ports. -->
+        <dependency>
+            <groupId>com.rometools</groupId>
+            <artifactId>rome</artifactId>
+            <version>${rome.version}</version>
         </dependency>
 
         <!-- Persistence layer (US-02, epic #2): ORM over SQLite3. All DB

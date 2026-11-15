@@ -43,16 +43,22 @@ public class TaskWorkService {
     private final PipelineService pipeline;
     private final AddressCatalogService addressCatalog;
     private final NewsEventStorePort newsEventStore;
+    private final es.jllopez.neis.domain.port.FeedSourcePort feedSource;
+    private final es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes;
     /** Externalized default cap (US-12.5): null = no limit. */
     private final Integer configuredMaxItems;
 
     public TaskWorkService(PipelineService pipeline, AddressCatalogService addressCatalog,
                            NewsEventStorePort newsEventStore,
+                           es.jllopez.neis.domain.port.FeedSourcePort feedSource,
+                           es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes,
                            @org.springframework.beans.factory.annotation.Value(
                                    "${neis.extraction.max-items:}") String configuredMaxItems) {
         this.pipeline = pipeline;
         this.addressCatalog = addressCatalog;
         this.newsEventStore = newsEventStore;
+        this.feedSource = feedSource;
+        this.webpageTypes = webpageTypes;
         this.configuredMaxItems = parseMaxItems(configuredMaxItems);
     }
 
@@ -140,8 +146,20 @@ public class TaskWorkService {
                 // override pins the retrieval strategy (fixtures/http/
                 // rendered) for this run instead of the address's
                 // webpage type; an unknown value fails the run loud.
+                // US-06.8: a FEED-classified address is parsed directly
+                // (no selector, no HTML scraping when the feed
+                // suffices).
                 requireNoParameters(taskCode, parameters, "max-items", "selector",
                         "connector");
+                if (isFeedSource(address)) {
+                    if (parameters.get("selector") != null) {
+                        throw new IllegalArgumentException(
+                                "A selector override does not apply to feed sources "
+                                        + "(US-06.8) — the feed of " + address.id()
+                                        + " is parsed directly; remove the parameter");
+                    }
+                    yield feedScrape(address, maxItemsCap(parameters), executionId);
+                }
                 yield scrape(address, maxItemsCap(parameters),
                         parameters.get("selector"), executionId,
                         parameters.get("connector"));
@@ -204,6 +222,51 @@ public class TaskWorkService {
      * strategy (AI/heuristic re-identification) and tolerates empty
      * matches instead.
      */
+    /**
+     * Whether this address resolves to the FEED retrieval strategy
+     * (US-06.8): its classified webpage type maps to the feed strategy
+     * in the taxonomy. An unclassified address is never a feed source
+     * (it takes the ordinary scrape path); the per-run connector
+     * override does not re-route feeds — the feed IS the retrieval.
+     */
+    private boolean isFeedSource(Address address) {
+        return webpageTypes.byId(address.webpageType())
+                .map(type -> es.jllopez.neis.domain.model.WebpageType.STRATEGY_FEED
+                        .equals(type.strategy()))
+                .orElse(false);
+    }
+
+    /**
+     * The feed retrieval path (US-06.8, issue #86): fetch the feed
+     * document, write it as the run's artifact and provenance source,
+     * parse the entries into standard records and persist them — the
+     * same repository path, provenance and cap as the scrape path,
+     * without any HTML scraping when the feed suffices.
+     */
+    private String feedScrape(Address address, int maxItems, String executionId) {
+        String xml = feedSource.fetch(address);
+        Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "feed-xml",
+                "feed.xml", xml);
+        List<NewsEventItem> items = feedSource.parse(xml, address.id(),
+                address.itemKind(), maxItems, address.url());
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("Feed " + address.url()
+                    + " yielded no entries — WEBSCRAPE over " + address.id()
+                    + " aborted");
+        }
+        Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
+                "items-json", "items.json", itemsJson(items));
+        // US-14.1/14.2: the same repository persistence and provenance
+        // as the scrape path — the feed document is the content record
+        // the items came from.
+        newsEventStore.saveAll(address.id(), address.itemKind(), items,
+                executionId,
+                pipeline.contentRecordId(address, "WEBSCRAPE", "feed.xml"));
+        String capNote = maxItems == Integer.MAX_VALUE ? "no cap" : "cap " + maxItems;
+        return "WEBSCRAPE (feed): " + items.size() + " item(s) -> " + itemsArtifact
+                + "; feed document -> " + artifact + "; " + capNote;
+    }
+
     private String scrape(Address address, int maxItems, String selectorOverride,
                           String executionId, String connectorOverride) {
         var scrape = pipeline.scrapePort.scrape(address, connectorOverride);

@@ -43,12 +43,42 @@ class TaskWorkServiceWebScrapeTest {
     @TempDir
     Path workDir;
 
+    private final es.jllopez.neis.testsupport.InMemoryNewsEventStorePort newsEventStore =
+            new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort();
+
+    /** A feed source whose fetch serves the given document. */
+    private es.jllopez.neis.domain.port.FeedSourcePort feedSource() {
+        return new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576) {
+            @Override
+            public String fetch(Address address) {
+                return FEED_DOC;
+            }
+        };
+    }
+
+    private es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes() {
+        return new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
+                new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties());
+    }
+
+    private static final String FEED_DOC = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0"><channel>
+              <title>News feed</title>
+              <item><title>Feed item one</title>
+                <description>First item description</description>
+                <link>https://example.eu/feed/1</link>
+                <pubDate>Tue, 10 Nov 2026 10:00:00 GMT</pubDate></item>
+              <item><title>Feed item two</title>
+                <description>Second item description</description>
+                <link>https://example.eu/feed/2</link>
+                <pubDate>Wed, 11 Nov 2026 10:00:00 GMT</pubDate></item>
+            </channel></rss>
+            """;
+
     private TaskWorkService service(PreconfiguredSelectors preconfigured) {
         return service(preconfigured, null);
     }
-
-    private final es.jllopez.neis.testsupport.InMemoryNewsEventStorePort newsEventStore =
-            new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort();
 
     private TaskWorkService service(PreconfiguredSelectors preconfigured,
                                     String configuredMaxItems) {
@@ -71,7 +101,8 @@ class TaskWorkServiceWebScrapeTest {
                 preconfigured, newsEventStore,
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                 workDir.toString());
-        return new TaskWorkService(pipeline, catalog, newsEventStore, configuredMaxItems);
+        return new TaskWorkService(pipeline, catalog, newsEventStore,
+                feedSource(), webpageTypes(), configuredMaxItems);
     }
 
     private PreconfiguredSelectors catalog(
@@ -271,7 +302,8 @@ class TaskWorkServiceWebScrapeTest {
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                     workDir.toString());
 
-            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore, null)
+            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
+                        feedSource(), webpageTypes(), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"));
 
             assertTrue(outcome.contains("items extracted: 4"), outcome);
@@ -345,7 +377,8 @@ class TaskWorkServiceWebScrapeTest {
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
                     workDir.toString());
 
-            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore, null)
+            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
+                        feedSource(), webpageTypes(), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"),
                             java.util.Map.of("max-items", "3"));
 
@@ -424,6 +457,66 @@ class TaskWorkServiceWebScrapeTest {
                 () -> es.jllopez.neis.infrastructure.adapter.shell.ExecutionCommands
                         .parseParams(List.of("max-items=3", "max-items=5")));
         assertTrue(e.getMessage().contains("Duplicate"), e.getMessage());
+    }
+
+    @Test
+    void feedSourceIsParsedDirectlyWithoutAnyScraping() {
+        // US-06.8 (issue #86): a feed-classified address goes through
+        // the feed path — the document is fetched and parsed with Rome,
+        // no selector and no HTML scraping when the feed suffices. The
+        // records carry the same repository persistence and provenance.
+        catalog.updateWebpageType("ADDR-001", "feed");
+        // A selector override would silently do nothing on a feed:
+        // refused loud.
+        IllegalArgumentException refused = assertThrows(
+                IllegalArgumentException.class, () -> service(null).execute(
+                        "WEBSCRAPE", catalog.byId("ADDR-001"),
+                        java.util.Map.of("selector", "ul li"), null, null, "EXEC-feed-1"));
+        assertTrue(refused.getMessage().contains("does not apply to feed sources"),
+                refused.getMessage());
+
+        String outcome = service(null).execute("WEBSCRAPE",
+                catalog.byId("ADDR-001"), java.util.Map.of(), null, null, "EXEC-feed-1");
+
+        assertTrue(outcome.startsWith("WEBSCRAPE (feed): 2 item(s)"), outcome);
+        assertTrue(outcome.contains("; no cap"), outcome);
+        // The records landed in the repository with feed provenance.
+        var stored = newsEventStore.byAddress("ADDR-001");
+        assertEquals(2, stored.size());
+        assertEquals("Feed item one", stored.get(0).title());
+        assertEquals("https://example.eu/feed/1", stored.get(0).url());
+        assertEquals("2026-11-10", stored.get(0).date(), "pubDate mapped to ISO");
+        assertEquals("EXEC-feed-1", stored.get(0).executionId());
+        // The feed document is the provenance content: items.json and
+        // feed.xml artifacts exist under the capture folder.
+        assertTrue(Files.exists(firstFileMatching("feed.xml")), "feed.xml artifact");
+        assertTrue(Files.exists(firstFileMatching("items.json")), "items.json artifact");
+    }
+
+    @Test
+    void feedCapStopsTheExtraction() {
+        catalog.updateWebpageType("ADDR-001", "feed");
+
+        String outcome = service(null).execute("WEBSCRAPE",
+                catalog.byId("ADDR-001"),
+                java.util.Map.of("max-items", "1"), null, null, "EXEC-feed-2");
+
+        assertTrue(outcome.startsWith("WEBSCRAPE (feed): 1 item(s)"), outcome);
+        assertTrue(outcome.contains("cap 1"), outcome);
+        assertEquals(1, newsEventStore.byAddress("ADDR-001").size());
+    }
+
+    @Test
+    void unclassifiedAddressNeverTakesTheFeedPath() {
+        // No webpage type: the ordinary scrape path runs (and skips
+        // extraction loudly at the selector, never silently
+        // feed-parsing).
+        String outcome = service(catalog(List.of())).execute("WEBSCRAPE",
+                catalog.byId("ADDR-001"));
+
+        assertTrue(outcome.contains("no preconfigured selector"), outcome);
+        assertFalse(Files.exists(firstFileMatching("feed.xml")),
+                "no feed path for an unclassified address");
     }
 
     private Path firstFileMatching(String fileName) {

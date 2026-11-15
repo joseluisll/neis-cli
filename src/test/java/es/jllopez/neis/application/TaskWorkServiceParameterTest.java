@@ -43,7 +43,11 @@ class TaskWorkServiceParameterTest {
 
     private TaskWorkService service(PipelineService pipeline) {
         return new TaskWorkService(pipeline, mock(AddressCatalogService.class),
-                new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort(), null);
+                new es.jllopez.neis.testsupport.InMemoryNewsEventStorePort(),
+                new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576),
+                new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
+                        new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties()),
+                null);
     }
 
     private PipelineService pipelineReturning(PipelineResult result) {

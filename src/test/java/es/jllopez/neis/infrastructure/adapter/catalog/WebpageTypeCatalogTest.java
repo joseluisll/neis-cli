@@ -29,7 +29,7 @@ class WebpageTypeCatalogTest {
             assertEquals(WebpageType.STRATEGY_RENDERED,
                     catalog.byId(id).orElseThrow().strategy(), id);
         }
-        assertEquals(7, catalog.all().size());
+        assertEquals(8, catalog.all().size());
     }
 
     @Test
@@ -46,7 +46,7 @@ class WebpageTypeCatalogTest {
 
         assertEquals("rendered", catalog.byId("spa-svelte").orElseThrow().strategy());
         assertEquals("http", catalog.byId("wcm").orElseThrow().strategy());
-        assertEquals(9, catalog.all().size());
+        assertEquals(10, catalog.all().size());
     }
 
     @Test

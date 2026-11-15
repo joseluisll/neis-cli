@@ -39,15 +39,24 @@ public record WebpageType(String id, String strategy) {
     /** Retrieval strategy: render the page in a browser (Playwright). */
     public static final String STRATEGY_RENDERED = "rendered";
 
+    /**
+     * Retrieval strategy: the source is an RSS/Atom feed (US-06.8,
+     * issue #86) — fetch the feed document and parse its structured
+     * items; no HTML scraping when the feed suffices.
+     */
+    public static final String STRATEGY_FEED = "feed";
+
     public WebpageType {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Webpage type id is required");
         }
-        if (!STRATEGY_HTTP.equals(strategy) && !STRATEGY_RENDERED.equals(strategy)) {
+        if (!STRATEGY_HTTP.equals(strategy)
+                && !STRATEGY_RENDERED.equals(strategy)
+                && !STRATEGY_FEED.equals(strategy)) {
             throw new IllegalArgumentException("Unknown retrieval strategy '"
                     + strategy + "' for webpage type '" + id
-                    + "' (expected '" + STRATEGY_HTTP + "' or '"
-                    + STRATEGY_RENDERED + "')");
+                    + "' (expected '" + STRATEGY_HTTP + "', '"
+                    + STRATEGY_RENDERED + "' or '" + STRATEGY_FEED + "')");
         }
     }
 }

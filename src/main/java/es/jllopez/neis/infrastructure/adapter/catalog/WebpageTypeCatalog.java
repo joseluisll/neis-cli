@@ -23,8 +23,10 @@ import java.util.Optional;
  * <p>Built-in strategy mapping: every {@code spa-*} type and
  * {@code hybrid} render in a browser ({@link WebpageType#STRATEGY_RENDERED});
  * {@code static} and {@code other} fetch over plain HTTP
- * ({@link WebpageType#STRATEGY_HTTP}) — an API-only source needs no
- * rendering, and a mislabeled one can be re-mapped through
+ * ({@link WebpageType#STRATEGY_HTTP}); {@code feed} sources are
+ * fetched and parsed as RSS/Atom documents
+ * ({@link WebpageType#STRATEGY_FEED}, US-06.8) — an API-only source
+ * needs no rendering, and a mislabeled one can be re-mapped through
  * configuration or overridden per run.</p>
  */
 @Component
@@ -41,6 +43,7 @@ public class WebpageTypeCatalog implements WebpageTypeCatalogPort {
             "spa-react", WebpageType.STRATEGY_RENDERED,
             "spa-vue", WebpageType.STRATEGY_RENDERED,
             "hybrid", WebpageType.STRATEGY_RENDERED,
+            "feed", WebpageType.STRATEGY_FEED,
             "other", WebpageType.STRATEGY_HTTP);
 
     private final Map<String, WebpageType> types;

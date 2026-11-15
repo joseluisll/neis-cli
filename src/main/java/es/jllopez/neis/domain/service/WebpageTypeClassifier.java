@@ -20,6 +20,9 @@ import java.util.Map;
  *       client-rendered hints are present);</li>
  *   <li>framework markers AND a {@code <noscript>} fallback classify
  *       as {@code hybrid} (server-rendered base + client widgets);</li>
+ *   <li>an RSS/Atom feed document (feed content type, or the
+ *       {@code <rss>}/{@code <feed>} root elements) classifies as
+ *       {@code feed} (US-06.8);</li>
  *   <li>HTML without markers classifies as {@code static}.</li>
  * </ol>
  *
@@ -65,11 +68,21 @@ public final class WebpageTypeClassifier {
         if (bodySample == null || bodySample.isBlank()) {
             return null;
         }
-        boolean html = contentType == null
-                || contentType.isBlank()
-                || contentType.toLowerCase(Locale.ROOT).contains("html");
+        String type = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        boolean html = type.isBlank() || type.contains("html");
         if (!html) {
+            // US-06.8 (issue #86): a feed document is its own source
+            // type — fetched and parsed, never rendered.
+            if (type.contains("rss") || type.contains("atom")
+                    || (type.contains("xml") && isFeedDocument(bodySample))) {
+                return "feed";
+            }
             return "other";
+        }
+        if (isFeedDocument(bodySample)) {
+            // A feed served as text/xml (or mislabeled text/html): the
+            // root element decides, before any HTML heuristics.
+            return "feed";
         }
         String body = bodySample.toLowerCase(Locale.ROOT);
         String framework = null;
@@ -97,5 +110,25 @@ public final class WebpageTypeClassifier {
             return candidate;
         }
         return current;
+    }
+
+    /**
+     * Whether the body sample opens like an RSS or Atom document: the
+     * root element (after any XML declaration/comments) is
+     * {@code <rss>} or {@code <feed>}. Checked on the raw sample —
+     * case-insensitive on the element name, tolerant of leading
+     * whitespace.
+     */
+    private static boolean isFeedDocument(String bodySample) {
+        String head = bodySample.trim().toLowerCase(Locale.ROOT);
+        if (head.startsWith("<?xml")) {
+            int end = head.indexOf("?>");
+            head = end >= 0 ? head.substring(end + 2).trim() : head;
+        }
+        while (head.startsWith("<!--")) {
+            int end = head.indexOf("-->");
+            head = end >= 0 ? head.substring(end + 3).trim() : head;
+        }
+        return head.startsWith("<rss") || head.startsWith("<feed");
     }
 }
