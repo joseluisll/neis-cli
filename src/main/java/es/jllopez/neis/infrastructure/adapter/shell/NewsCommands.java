@@ -14,8 +14,11 @@ import org.springframework.shell.core.command.annotation.Option;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Driving adapter: Spring Shell commands inspecting the news/events
@@ -148,23 +151,16 @@ public class NewsCommands {
                     description = "Address id (omit for every address)") String addressId,
             @Option(longName = "limit", defaultValue = "20",
                     description = "Maximum number of items (logical records) to show") int limit) {
-        List<NewsEventItem> items = newsEvents.search(new NewsEventQuery(
-                addressId == null ? null : addressId.trim(), null, null, null, limit));
+        List<NewsEventItem> items = logicalRecordsUpTo(
+                addressId == null ? null : addressId.trim(), limit);
         StringBuilder body = new StringBuilder();
         // Cross-address dedup: rows sharing a canonical id are ONE
-        // logical record — rendered once (US-14.5 review). Rows without
-        // a canonical id (pre-V6, documented policy) are their own
-        // record: keyed on the row's natural identity, never null.
-        java.util.Set<String> rendered = new java.util.HashSet<>();
+        // logical record — logicalRecordsUpTo grouped them already
+        // (US-14.5 review). Rows without a canonical id (pre-V6,
+        // documented policy) are their own record: keyed on the row's
+        // natural identity, never null.
         int shown = 0;
         for (NewsEventItem item : items) {
-            if (!rendered.add(item.canonicalId() != null
-                    ? item.canonicalId()
-                    : "row:" + item.addressId() + "|"
-                            + (item.url() != null ? item.url()
-                                    : "title:" + item.title()))) {
-                continue;
-            }
             shown++;
             List<NewsEventSighting> sightings = newsEvents.sightings(item.canonicalId());
             long addresses = sightings.stream().map(NewsEventSighting::addressId)
@@ -193,6 +189,56 @@ public class NewsCommands {
         return new StringBuilder("Sighting history (")
                 .append(shown).append(shown == 1 ? " item" : " items")
                 .append("):\n").append(body).toString();
+    }
+
+    /**
+     * Up to {@code limit} logical records (rows grouped by canonical
+     * id, US-14.5), newest first. The store's limit counts stored
+     * ROWS, so a page full of duplicates of the same logical record
+     * would under-fill the request (US-14.5 review finding): the
+     * fetch grows in bounded doubling rounds — the newest-first order
+     * is stable, so a bigger page only appends rows — until the limit
+     * holds logical records or the store is exhausted (a page smaller
+     * than asked). Rows without a canonical id (pre-V6, documented
+     * policy) are their own record: keyed on the row's natural
+     * identity, never null.
+     */
+    private List<NewsEventItem> logicalRecordsUpTo(String addressId, int limit) {
+        List<NewsEventItem> logical = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int fetch = Math.max(limit, NewsEventQuery.DEFAULT_LIMIT);
+        for (int round = 0; round < 5 && logical.size() < limit; round++) {
+            List<NewsEventItem> page = newsEvents.search(new NewsEventQuery(
+                    addressId, null, null, null, fetch));
+            seen.clear();
+            logical.clear();
+            for (NewsEventItem item : page) {
+                if (seen.add(logicalKey(item))) {
+                    logical.add(item);
+                    if (logical.size() == limit) {
+                        break;
+                    }
+                }
+            }
+            if (page.size() < fetch) {
+                break; // the store has no more rows to offer
+            }
+            fetch *= 2;
+        }
+        return logical;
+    }
+
+    /**
+     * The record key of a row: its canonical id, or — for rows
+     * without one (pre-V6) — the row's natural identity. Shared by
+     * the grouping fetch and the rendering so the two cannot drift.
+     */
+    private static String logicalKey(NewsEventItem item) {
+        return item.canonicalId() != null
+                ? item.canonicalId()
+                : "row:" + item.addressId() + "|"
+                        + (item.url() != null ? item.url()
+                                : "title:" + item.title());
     }
 
     @Command(name = {"news", "search"}, group = "News",
