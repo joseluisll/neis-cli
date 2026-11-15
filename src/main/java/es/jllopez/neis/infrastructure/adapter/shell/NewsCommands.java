@@ -204,6 +204,12 @@ public class NewsCommands {
      * identity, never null.
      */
     private List<NewsEventItem> logicalRecordsUpTo(String addressId, int limit) {
+        // Same documented coercion as the store query (NewsEventQuery):
+        // a non-positive limit falls back to the default of 20 instead
+        // of rendering a misleading empty page (20dc27b review finding).
+        if (limit <= 0) {
+            limit = NewsEventQuery.DEFAULT_LIMIT;
+        }
         List<NewsEventItem> logical = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         int fetch = Math.max(limit, NewsEventQuery.DEFAULT_LIMIT);

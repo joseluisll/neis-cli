@@ -70,6 +70,20 @@ class NewsCommandsTest {
     }
 
     @Test
+    void nonPositiveLimitFallsBackToTheDefaultInsteadOfAnEmptyPage() {
+        // 20dc27b review finding: limit 0 used to render 'Sighting
+        // history (0 items)' with a misleading <no stored news/events>
+        // note while data existed — it now coerces to the store query's
+        // documented default (20), like news list/search do.
+        seedDuplicatesOnTop();
+
+        String out = commands.sightings(null, 0);
+
+        assertTrue(out.startsWith("Sighting history (7 items):\n"),
+                "limit 0 shows the store's content, got: " + out.lines().findFirst());
+    }
+
+    @Test
     void exhaustingTheStoreRendersEveryLogicalRecordRegardlessOfLimit() {
         seedDuplicatesOnTop();
 
