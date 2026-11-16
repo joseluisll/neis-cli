@@ -102,6 +102,53 @@ class ScrapeConnectorRouterTest {
     }
 
     @Test
+    void staticModePlainPathStillForcesTheOverride() {
+        // US-06.10 P9 test gap: the plain scrape path's override had no
+        // static-mode coverage (the filtered path did). The override
+        // wins in EVERY mode — an explicit connector=http/rendered run
+        // parameter is the live opt-in; only the no-override case keys
+        // on the mode.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
+                singleRendered(renderedStub("rendered-page")), catalog(), "static");
+
+        assertEquals("http-page", router.scrape(SPA_ANGULAR, "http").html(),
+                "static mode honors the http override — no silent fixtures");
+        assertEquals("rendered-page", router.scrape(SPA_ANGULAR, "rendered").html(),
+                "static mode honors the rendered override");
+        assertEquals("text/html; charset=UTF-8",
+                router.scrape(SPA_ANGULAR, "fixtures").contentType(),
+                "the fixtures stay reachable per run in static mode too");
+    }
+
+    @Test
+    void staticModePlainPathFailsLoudOnAnUnknownOverride() {
+        // US-06.10 P9 test gap: an unknown override must fail the run
+        // in static mode as well, never silently serve the fixtures.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                catalog(), "static");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> router.scrape(SPA_ANGULAR, "selenium"));
+    }
+
+    @Test
+    void staticModePlainPathWithoutOverrideServesTheFixtures() {
+        // The counterpart rule: with NO override, static mode never
+        // touches a live connector (the providers here throw if asked).
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                catalog(), "static");
+
+        assertEquals("text/html; charset=UTF-8",
+                router.scrape(SPA_ANGULAR, null).contentType());
+        assertEquals("text/html; charset=UTF-8",
+                router.scrape(SPA_ANGULAR, "  ").contentType(),
+                "a blank override resolves to the mode default");
+    }
+
+    @Test
     void defaultModeIsStatic() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
