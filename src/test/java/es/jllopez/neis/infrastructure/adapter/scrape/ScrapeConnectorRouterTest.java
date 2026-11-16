@@ -143,9 +143,14 @@ class ScrapeConnectorRouterTest {
 
         assertEquals("text/html; charset=UTF-8",
                 router.scrape(SPA_ANGULAR, null).contentType());
+        ScrapeResult noOverride = router.scrape(SPA_ANGULAR, null);
+        assertTrue(noOverride.html().contains("<"),
+                "the fixture HTML body, not a stub marker");
         assertEquals("text/html; charset=UTF-8",
                 router.scrape(SPA_ANGULAR, "  ").contentType(),
                 "a blank override resolves to the mode default");
+        assertTrue(router.scrape(SPA_ANGULAR, "  ").html().contains("<"),
+                "the blank form serves the fixture body too");
     }
 
     @Test
