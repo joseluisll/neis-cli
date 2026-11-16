@@ -6,7 +6,7 @@ import es.jllopez.neis.infrastructure.adapter.scrape.ScrapeConnectorRouter;
 import es.jllopez.neis.infrastructure.adapter.verification.HttpClientAddressVerificationConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -41,8 +41,19 @@ public class SettingsOverrideApplier {
         this.verification = verification;
     }
 
-    /** Boot: apply every stored override, key order stable. */
-    @EventListener(ApplicationReadyEvent.class)
+    /**
+     * Boot: apply every stored override, key order stable. Bound to
+     * {@link ApplicationStartedEvent} — published after the context is
+     * refreshed (every bean ready) but BEFORE the application runners:
+     * Spring Shell 4's runner executes the whole CLI session (every
+     * command, the interactive {@code manage} screen included) inside
+     * an ApplicationRunner, so an override bound to the ready event
+     * would only fire at session END — after the user interaction it
+     * must govern (US-16.5 review blocking finding on 227b4dc). Each
+     * key is isolated: a poisoned (hand-edited) stored value is logged
+     * loud and skipped, never aborting the remaining overrides.
+     */
+    @EventListener(ApplicationStartedEvent.class)
     public void applyStoredOverridesAtBoot() {
         Map<String, String> overrides = settings.overrides();
         if (overrides.isEmpty()) {
@@ -50,7 +61,14 @@ public class SettingsOverrideApplier {
         }
         log.info("CONFIG: applying {} stored override(s) over the boot configuration",
                 overrides.size());
-        overrides.forEach(this::apply);
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+            try {
+                apply(entry.getKey(), entry.getValue());
+            } catch (RuntimeException e) {
+                log.error("CONFIG override '{}' = '{}' could not be applied ({}), skipped",
+                        entry.getKey(), entry.getValue(), e.toString());
+            }
+        }
     }
 
     /**
