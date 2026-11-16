@@ -500,6 +500,45 @@ class ManagementTuiTest {
     }
 
     @Test
+    void reRunResubmitsTheOriginalParametersAndTriggerType() {
+        // US-16.3 review finding #97: a re-run that dropped the original
+        // run's parameters (resubmitting with defaults) or always marked
+        // the re-run MANUAL was not a faithful re-run. The V12-persisted
+        // parameter map makes faithfulness possible; this pins it.
+        seedVerifiedAddress();
+        executions.submit("WEBSCRAPE", "ADDR-001", TriggerType.SCHEDULED,
+                java.util.Map.of("selector", "ul.items > li", "max-items", "5"));
+        int recordsBefore = executions.list().size();
+        ScriptedConsole io = new ScriptedConsole("e", "r", "1", "b", "q");
+
+        tui(io).run();
+
+        assertEquals(recordsBefore + 1, executions.list().size(),
+                "the re-run leaves its own execution record");
+        TaskExecution reRun = executions.list().get(0); // newest first
+        assertEquals(TriggerType.SCHEDULED, reRun.triggerType(),
+                "the re-run keeps the original trigger type");
+        assertEquals(java.util.Map.of("selector", "ul.items > li", "max-items", "5"),
+                reRun.parameters(), "the re-run carries the original parameters");
+        assertTrue(io.transcript().contains("same parameters"), io.transcript());
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void executionDetailShowsTheRunParameters() {
+        seedVerifiedAddress();
+        executions.submit("WEBSCRAPE", "ADDR-001", TriggerType.MANUAL,
+                java.util.Map.of("selector", "ul.items > li"));
+        ScriptedConsole io = new ScriptedConsole("e", "1", "b", "q");
+
+        tui(io).run();
+
+        assertTrue(io.transcript().contains("params   : {selector=ul.items > li}"),
+                io.transcript());
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
     void reRunRefusesARecordThatIsStillRunning() throws Exception {
         seedVerifiedAddress();
         // a task that blocks until the test releases it: the record

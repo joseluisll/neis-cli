@@ -5,10 +5,13 @@ import es.jllopez.neis.domain.port.ExecutionStorePort;
 import es.jllopez.neis.infrastructure.persistence.ExecutionEntity;
 import es.jllopez.neis.infrastructure.persistence.ExecutionJpaRepository;
 import es.jllopez.neis.infrastructure.persistence.TaskTypeJpaRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -20,6 +23,9 @@ import java.util.Optional;
  */
 @Component
 public class ExecutionStoreConnector implements ExecutionStorePort {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final TypeReference<Map<String, String>> PARAMS = new TypeReference<>() {};
 
     private final ExecutionJpaRepository executions;
     private final TaskTypeJpaRepository taskTypes;
@@ -46,6 +52,7 @@ public class ExecutionStoreConnector implements ExecutionStorePort {
         entity.setFinishedAt(execution.finishedAt() == null
                 ? null : execution.finishedAt().toString());
         entity.setOutcome(execution.outcome());
+        entity.setParameters(toJson(execution.parameters()));
         return toDomain(executions.save(entity));
     }
 
@@ -74,6 +81,36 @@ public class ExecutionStoreConnector implements ExecutionStorePort {
                 e.getTriggerType(), e.getStatus(),
                 e.getStartedAt() == null ? null : Instant.parse(e.getStartedAt()),
                 e.getFinishedAt() == null ? null : Instant.parse(e.getFinishedAt()),
-                e.getOutcome());
+                e.getOutcome(),
+                fromJson(e.getParameters()));
+    }
+
+    /** Parameters to the V12 JSON column; null for an empty map (the
+     * column stays NULL, matching the pre-V12 rows). */
+    private static String toJson(Map<String, String> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return null;
+        }
+        try {
+            return JSON.writeValueAsString(parameters);
+        } catch (com.fasterxml.jackson.core.JacksonException e) {
+            // Parameters are plain string->string values; serialization
+            // cannot fail in practice, and a lost detail column must
+            // never fail the lifecycle save (the run itself continues).
+            return null;
+        }
+    }
+
+    /** The V12 JSON column back to the parameter map; an unreadable
+     * value degrades to an empty map, never a failed read. */
+    private static Map<String, String> fromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return JSON.readValue(json, PARAMS);
+        } catch (com.fasterxml.jackson.core.JacksonException e) {
+            return Map.of();
+        }
     }
 }

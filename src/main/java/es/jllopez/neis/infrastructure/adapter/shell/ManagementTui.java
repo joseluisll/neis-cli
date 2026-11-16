@@ -461,6 +461,9 @@ class ManagementTui {
         }
         out.append("  trigger  : ").append(e.triggerType()).append("\n");
         out.append("  status   : ").append(e.status()).append("\n");
+        if (!e.parameters().isEmpty()) {
+            out.append("  params   : ").append(e.parameters()).append("\n");
+        }
         out.append("  started  : ").append(e.startedAt() == null ? "-" : TS.format(e.startedAt())).append("\n");
         out.append("  finished : ").append(e.finishedAt() == null ? "-" : TS.format(e.finishedAt())).append("\n");
         out.append("  outcome  : ").append(e.outcome() == null ? "-" : e.outcome()).append("\n");
@@ -479,11 +482,15 @@ class ManagementTui {
     }
 
     /** Re-run (US-16.3): resubmits the same task or chain over the
-     * same address. Only FAILED or finished (SUCCESS) records are
-     * re-runnable (US-16.3); a PENDING/RUNNING record is refused —
-     * it is still in flight, and re-running it would queue a duplicate.
-     * Idempotent by platform rules (US-15.4): the run itself is
-     * idempotent, the new record is a separate attempt. */
+     * same address with the ORIGINAL parameters and trigger type (the
+     * V12-persisted parameter map — a re-run that silently dropped the
+     * parameters or downgraded a SCHEDULED trigger to MANUAL would not
+     * be a faithful re-run; US-16.3 review finding #97). Only FAILED
+     * or finished (SUCCESS) records are re-runnable (US-16.3); a
+     * PENDING/RUNNING record is refused — it is still in flight, and
+     * re-running it would queue a duplicate. Idempotent by platform
+     * rules (US-15.4): the run itself is idempotent, the new record is
+     * a separate attempt. */
     private void reRun(List<TaskExecution> records) {
         if (records.isEmpty()) {
             io.println("  Nothing to re-run — no executions listed.");
@@ -509,7 +516,7 @@ class ManagementTui {
         if (original.chainId() != null) {
             try {
                 TaskExecution submitted = executions.submitChain(
-                        original.chainId(), original.addressId(), es.jllopez.neis.domain.model.TriggerType.MANUAL);
+                        original.chainId(), original.addressId(), original.triggerType());
                 io.println("  Re-submitted chain run: " + submitted.id());
             } catch (IllegalArgumentException | IllegalStateException e) {
                 io.println("  Refused: " + e.getMessage());
@@ -519,9 +526,10 @@ class ManagementTui {
         try {
             TaskExecution submitted = executions.submit(
                     original.taskCode(), original.addressId(),
-                    es.jllopez.neis.domain.model.TriggerType.MANUAL);
+                    original.triggerType(), original.parameters());
             io.println("  Re-submitted " + submitted.id() + ": "
-                    + submitted.taskCode() + " over " + submitted.addressId());
+                    + submitted.taskCode() + " over " + submitted.addressId()
+                    + " (" + submitted.triggerType() + ", same parameters)");
         } catch (IllegalArgumentException | IllegalStateException e) {
             io.println("  Refused: " + e.getMessage());
         }

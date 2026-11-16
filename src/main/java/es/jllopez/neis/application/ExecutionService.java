@@ -94,12 +94,13 @@ public class ExecutionService {
         TaskExecution record = new TaskExecution(
                 "EXEC-" + UUID.randomUUID(),
                 taskCode, address.id(), null,
-                trigger, ExecutionStatus.PENDING, Instant.now(), null, null);
+                trigger, ExecutionStatus.PENDING, Instant.now(), null, null,
+                safeParams);
         store.save(record);
         log.info("Execution {} submitted: {} over {} ({})", record.id(), taskCode,
                 address.id(),
                 trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
-        CompletableFuture.runAsync(() -> run(record, address, safeParams), executor)
+        CompletableFuture.runAsync(() -> run(record, address), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.error("Execution {} runner failed: {}", record.id(), e.toString());
@@ -124,12 +125,13 @@ public class ExecutionService {
         TaskExecution record = new TaskExecution(
                 "EXEC-" + UUID.randomUUID(),
                 "CHAIN", address.id(), chain.id(),
-                trigger, ExecutionStatus.PENDING, Instant.now(), null, null);
+                trigger, ExecutionStatus.PENDING, Instant.now(), null, null,
+                Map.of());
         store.save(record);
         log.info("Execution {} submitted: chain '{}' ({} tasks) over {} ({})",
                 record.id(), chain.name(), chain.tasks().size(), address.id(),
                 trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
-        CompletableFuture.runAsync(() -> run(record, address, Map.of()), executor)
+        CompletableFuture.runAsync(() -> run(record, address), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.error("Execution {} runner failed: {}", record.id(), e.toString());
@@ -174,8 +176,8 @@ public class ExecutionService {
         return store.taskTypes();
     }
 
-    private void run(TaskExecution record, Address address,
-                     Map<String, String> parameters) {
+    private void run(TaskExecution record, Address address) {
+        Map<String, String> parameters = record.parameters();
         // Every store failure below is caught and logged: the lifecycle
         // must never strand the record — a failure at the RUNNING
         // transition used to escape run() and lose the outcome forever

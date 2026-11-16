@@ -51,6 +51,19 @@ public class ExecutionEntity {
     @Column(length = 4096)
     private String outcome;
 
+    /** JSON object of the run's input parameters (V12, US-16.3
+     * review finding #97); null for runs without parameters. */
+    @Column(name = "parameters")
+    private String parameters;
+
+    public String getParameters() {
+        return parameters;
+    }
+
+    public void setParameters(String parameters) {
+        this.parameters = parameters;
+    }
+
     public String getId() {
         return id;
     }
