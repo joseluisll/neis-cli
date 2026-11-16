@@ -58,6 +58,8 @@ class ManagementTui {
     private final es.jllopez.neis.domain.port.SelectorStorePort selectorStore;
     private final es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors;
     private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
+    private final es.jllopez.neis.application.SettingsService settings;
+    private final es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier;
     private final ConsoleIO io;
 
     ManagementTui(AddressCatalogService catalog,
@@ -72,6 +74,25 @@ class ManagementTui {
                   es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
                   es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
                   ConsoleIO io) {
+        this(catalog, chains, executions, newsEvents, contentStore, info, schedules,
+                ai, selectorStore, preconfiguredSelectors, preconfiguredFilters, io,
+                null, null);
+    }
+
+    ManagementTui(AddressCatalogService catalog,
+                  ChainService chains,
+                  ExecutionService executions,
+                  NewsEventService newsEvents,
+                  ContentStoreService contentStore,
+                  ManagementInfoService info,
+                  ScheduleProperties schedules,
+                  AiAssistantService ai,
+                  es.jllopez.neis.domain.port.SelectorStorePort selectorStore,
+                  es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
+                  es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
+                  ConsoleIO io,
+                  es.jllopez.neis.application.SettingsService settings,
+                  es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier) {
         this.catalog = catalog;
         this.chains = chains;
         this.executions = executions;
@@ -83,6 +104,8 @@ class ManagementTui {
         this.selectorStore = selectorStore;
         this.preconfiguredSelectors = preconfiguredSelectors;
         this.preconfiguredFilters = preconfiguredFilters;
+        this.settings = settings;
+        this.settingsApplier = settingsApplier;
         this.io = io;
     }
 
@@ -1125,7 +1148,7 @@ class ManagementTui {
     private void configSection() {
         while (true) {
             ConsoleIO.printSection(io, "CONFIGURATION (US-16.5)", configText(),
-                    "[l]ist config  [s]electors of an address  [b]ack");
+                    "[l]ist config  [s]electors of an address  [e]dit a setting  [b]ack");
             String line = io.readLine("config> ");
             if (line == null) {
                 return;
@@ -1139,20 +1162,31 @@ class ManagementTui {
                     return;
                 }
                 case "s", "selectors" -> showSelectors();
+                case "e", "edit" -> editSetting();
                 default -> io.println("Unknown command '" + line.trim()
-                        + "' — choose l / s / b.");
+                        + "' — choose l / s / e / b.");
             }
         }
     }
 
     /** The configuration overview (US-16.5): every configurable element
-     * the system exposes, shown read-only — the externalized
-     * configuration (US-15.1, application.yml) stays the source of
-     * record, edited there; the section makes the effective state
-     * visible. Editing from the TUI is a later slice (tracked in the
-     * review-findings issue #97). */
+     * the system exposes. The externalized configuration (US-15.1,
+     * application.yml) stays the source of record; persisted overrides
+     * (V13) layer over it and are marked inline. The EDIT path covers
+     * the runtime-safe allowlist (scrape connector, extraction cap,
+     * verification timeout — consumers that read the value at use
+     * time); the AI provider and boot-critical paths rebuild with the
+     * context and are edited in application.yml — the section shows
+     * them read-only instead of pretending an edit would apply. */
     private String configText() {
         StringBuilder out = new StringBuilder();
+        var overrides = settings == null ? java.util.Map.<String, String>of()
+                : settings.overrides();
+        out.append("Overrides (persisted, applied over application.yml): ")
+                .append(overrides.isEmpty() ? "<none>" : overrides.size() + " stored").append("\n");
+        for (var entry : overrides.entrySet()) {
+            out.append("    ").append(entry.getKey()).append(" = ").append(entry.getValue()).append("\n");
+        }
         out.append("General settings (US-15.1):\n");
         out.append("  Work dir (content root) : ").append(contentStore.root()).append("\n");
         out.append("  Database                : ").append(System.getProperty("neis.db.path", "./neis.db")).append("\n");
@@ -1198,6 +1232,64 @@ class ManagementTui {
             out.append("    <none configured (neis.schedule.entries)>\n");
         }
         return out.toString();
+    }
+
+    /** Edit a setting (US-16.5): the validated, persisted edit path.
+     * The allowlist lives in {@link es.jllopez.neis.application.SettingsService};
+     * a typo'd value is refused BEFORE anything is written, an empty
+     * value clears the stored override (the application.yml value
+     * applies again), and a saved override is applied to the live
+     * consumers immediately (and at every boot from the store). */
+    private void editSetting() {
+        if (settings == null || settingsApplier == null) {
+            io.println("  Editing is unavailable in this context "
+                    + "(no settings service wired).");
+            return;
+        }
+        StringBuilder menu = new StringBuilder("  Editable settings (validated before save; "
+                + "an empty value clears the override):\n");
+        for (int i = 0; i < es.jllopez.neis.application.SettingsService.EDITABLE_KEYS.size(); i++) {
+            String key = es.jllopez.neis.application.SettingsService.EDITABLE_KEYS.get(i);
+            String override = settings.overrideOf(key).orElse(null);
+            menu.append("    ").append(i + 1).append(". ").append(key)
+                    .append("  current: ").append(settings.effective(key).isBlank()
+                            ? "(unset/default)" : settings.effective(key))
+                    .append(override == null ? "" : "  [override: " + override + "]")
+                    .append("\n");
+        }
+        io.println(menu.toString());
+        String line = io.readLine("  number of the setting to edit (empty = back): ");
+        if (line == null || line.trim().isEmpty()) {
+            return;
+        }
+        Integer index = parseIndex(line.trim(),
+                es.jllopez.neis.application.SettingsService.EDITABLE_KEYS.size());
+        if (index == null) {
+            io.println("  Refused: pick a listed setting number (1-"
+                    + es.jllopez.neis.application.SettingsService.EDITABLE_KEYS.size() + ").");
+            return;
+        }
+        String key = es.jllopez.neis.application.SettingsService.EDITABLE_KEYS.get(index);
+        String value = io.readLine("  new value for " + key
+                + " (empty = clear the override): ");
+        if (value == null) {
+            return;
+        }
+        try {
+            settings.set(key, value);
+        } catch (IllegalArgumentException e) {
+            io.println("  Refused: " + e.getMessage());
+            return;
+        }
+        // The override is stored; make it live in this process too.
+        try {
+            settingsApplier.apply(key, value);
+            io.println("  Saved and applied: " + key + " = " + (value.isBlank()
+                    ? "(override cleared)" : value.trim()));
+        } catch (RuntimeException e) {
+            io.println("  Saved, but applying it to the running process failed: "
+                    + e.getMessage() + " — it applies at the next start.");
+        }
     }
 
     /** The stored selectors and filter catalogue of one address

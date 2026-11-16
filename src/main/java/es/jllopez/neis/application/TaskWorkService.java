@@ -7,6 +7,8 @@ import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PaginationInfo;
 import es.jllopez.neis.domain.model.ScrapeResult;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
@@ -37,6 +39,8 @@ import java.util.Optional;
 @Service
 public class TaskWorkService {
 
+    private static final Logger log = LoggerFactory.getLogger(TaskWorkService.class);
+
     /** Safety guard for the pagination iteration (US-12.4). */
     private static final int MAX_PAGES = 10;
 
@@ -46,8 +50,9 @@ public class TaskWorkService {
     private final es.jllopez.neis.domain.port.FeedSourcePort feedSource;
     private final es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes;
     private final PreconfiguredFilters preconfiguredFilters;
-    /** Externalized default cap (US-12.5): null = no limit. */
-    private final Integer configuredMaxItems;
+    /** Externalized default cap (US-12.5): null = no limit. Volatile:
+     * the US-16.5 edit path may update it while runs use it. */
+    private volatile Integer configuredMaxItems;
 
     public TaskWorkService(PipelineService pipeline, AddressCatalogService addressCatalog,
                            NewsEventStorePort newsEventStore,
@@ -63,6 +68,22 @@ public class TaskWorkService {
         this.webpageTypes = webpageTypes;
         this.preconfiguredFilters = preconfiguredFilters;
         this.configuredMaxItems = parseMaxItems(configuredMaxItems);
+    }
+
+    /**
+     * Applies a persisted/live override of {@code
+     * neis.extraction.max-items} (US-16.5 edit path): the same rules as
+     * the boot configuration — null clears the cap, a present value
+     * must be a positive integer. Takes effect for every subsequent
+     * extraction in this process.
+     */
+    public void updateMaxItems(Integer maxItems) {
+        if (maxItems != null && maxItems < 1) {
+            throw new IllegalArgumentException(
+                    "neis.extraction.max-items must be >= 1, got: " + maxItems);
+        }
+        this.configuredMaxItems = maxItems;
+        log.info("EXTRACTION cap override applied: {}", maxItems == null ? "none" : maxItems);
     }
 
     /**

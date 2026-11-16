@@ -55,7 +55,7 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
     private final ObjectProvider<HttpScrapeConnector> httpConnector;
     private final ObjectProvider<PlaywrightRenderConnector> renderedConnector;
     private final WebpageTypeCatalogPort webpageTypes;
-    private final boolean live;
+    private volatile boolean live;
 
     public ScrapeConnectorRouter(StaticScrapeConnector staticConnector,
                                  ObjectProvider<HttpScrapeConnector> httpConnector,
@@ -76,6 +76,27 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             case "live" -> log.info("SCRAPE connector: live per-type retrieval "
                     + "(neis.scrape.connector=live) — http or browser rendering "
                     + "by the address's webpage type");
+            default -> throw new IllegalArgumentException(
+                    "Unknown neis.scrape.connector mode '" + mode
+                            + "' (expected 'static' or 'live')");
+        }
+        this.live = normalized.equals("live");
+    }
+
+    /**
+     * Applies a persisted/live override of {@code neis.scrape.connector}
+     * (US-16.5 edit path): the same validation as the boot constructor —
+     * an unknown value is refused loud, never half-applied. Takes effect
+     * for every subsequent scrape in this process.
+     */
+    public void updateMode(String mode) {
+        String normalized = mode == null ? "" : mode.trim();
+        if (normalized.isEmpty()) {
+            normalized = "static";
+        }
+        switch (normalized) {
+            case "static" -> log.info("SCRAPE connector override applied: static fixtures");
+            case "live" -> log.info("SCRAPE connector override applied: live per-type retrieval");
             default -> throw new IllegalArgumentException(
                     "Unknown neis.scrape.connector mode '" + mode
                             + "' (expected 'static' or 'live')");

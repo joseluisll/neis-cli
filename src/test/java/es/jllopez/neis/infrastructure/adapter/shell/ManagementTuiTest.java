@@ -10,6 +10,7 @@ import es.jllopez.neis.application.NewsEventService;
 import es.jllopez.neis.application.PreconfiguredFilterProperties;
 import es.jllopez.neis.application.PreconfiguredFilters;
 import es.jllopez.neis.application.ScheduleProperties;
+import es.jllopez.neis.application.SettingsService;
 import es.jllopez.neis.application.TaskWorkService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
@@ -26,6 +27,7 @@ import es.jllopez.neis.testsupport.InMemoryChainStorePort;
 import es.jllopez.neis.testsupport.InMemoryContentStorePort;
 import es.jllopez.neis.testsupport.InMemoryExecutionStorePort;
 import es.jllopez.neis.testsupport.InMemoryNewsEventStorePort;
+import es.jllopez.neis.testsupport.InMemorySettingsStorePort;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
@@ -653,6 +655,57 @@ class ManagementTuiTest {
         assertTrue(transcript.contains("EU4Health"), transcript);
         assertTrue(transcript.contains("Stored selectors for ADDR-001"), transcript);
         assertTrue(transcript.contains("filter catalogue"), transcript);
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void configEditValidatesSavesAndAppliesOverrides() {
+        // US-16.5 review finding #97 (blocking): the configuration was
+        // view-only while the requirement says "viewed and edited". The
+        // edit path validates before save (a typo stores nothing),
+        // persists the override and applies it live.
+        seedVerifiedAddress();
+        InMemorySettingsStorePort settingsStore = new InMemorySettingsStorePort();
+        SettingsService settings = new SettingsService(settingsStore);
+        es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier applier =
+                mock(es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier.class);
+        ScriptedConsole io = new ScriptedConsole(
+                "g",
+                "e",
+                "1",            // neis.scrape.connector
+                "live",         // valid value -> saved and applied
+                "e",
+                "2",            // neis.extraction.max-items
+                "many",         // invalid value -> refused, nothing stored
+                "e",
+                "1",
+                "",             // empty value -> override cleared
+                "b",
+                "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info(), new ScheduleProperties(List.of()),
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io, settings, applier);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("Saved and applied: neis.scrape.connector = live"),
+                transcript);
+        assertTrue(transcript.contains("Refused: 'many' is not a positive integer"),
+                transcript);
+        assertTrue(transcript.contains("Saved and applied: neis.scrape.connector = (override cleared)"),
+                transcript);
+        // The invalid attempt stored nothing; the valid one was stored
+        // and then cleared.
+        assertTrue(settingsStore.all().isEmpty(), settingsStore.all().toString());
+        org.mockito.Mockito.verify(applier)
+                .apply(SettingsService.SCRAPE_CONNECTOR, "live");
+        org.mockito.Mockito.verify(applier, org.mockito.Mockito.never())
+                .apply(SettingsService.EXTRACTION_MAX_ITEMS, "many");
         assertTrue(io.fedAllInputs());
     }
 

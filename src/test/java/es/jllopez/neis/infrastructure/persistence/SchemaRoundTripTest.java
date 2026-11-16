@@ -79,11 +79,12 @@ class SchemaRoundTripTest {
         // columns (US-14.4); V6 = the dedup canonical id + sightings
         // (US-14.5); V7 = the FTS5 full-text index (US-14.7); V8/V9 =
         // its backfill (V8 proved a no-op, V9 uses the 'rebuild'
-        // V10 = the webpage-type columns (US-06.5); V11 = the capture
-        // filters column (US-06.6); V12 = the execution parameters
-        // column (US-16.3, issue #97).
-        assertEquals(12, applied.size(),
-                "the V1..V12 migrations should be applied");
+        // command); V10 = the webpage-type columns (US-06.5); V11 = the
+        // capture filters column (US-06.6); V12 = the execution
+        // parameters column (US-16.3, issue #97); V13 = the settings
+        // overrides table (US-16.5 edit path, issue #97).
+        assertEquals(13, applied.size(),
+                "the V1..V13 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.

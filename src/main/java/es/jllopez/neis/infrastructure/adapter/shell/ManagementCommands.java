@@ -41,6 +41,8 @@ public class ManagementCommands {
     private final SelectorStorePort selectorStore;
     private final es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors;
     private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
+    private final es.jllopez.neis.application.SettingsService settings;
+    private final es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier;
     private final Terminal terminal;
 
     public ManagementCommands(AddressCatalogService catalog,
@@ -54,6 +56,8 @@ public class ManagementCommands {
                               SelectorStorePort selectorStore,
                               es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
                               es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
+                              es.jllopez.neis.application.SettingsService settings,
+                              es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier,
                               Terminal terminal) {
         this.catalog = catalog;
         this.chains = chains;
@@ -66,6 +70,8 @@ public class ManagementCommands {
         this.selectorStore = selectorStore;
         this.preconfiguredSelectors = preconfiguredSelectors;
         this.preconfiguredFilters = preconfiguredFilters;
+        this.settings = settings;
+        this.settingsApplier = settingsApplier;
         this.terminal = terminal;
     }
 
@@ -79,6 +85,7 @@ public class ManagementCommands {
         new ManagementTui(catalog, chains, executions, newsEvents, contentStore,
                 info, schedules, ai, selectorStore,
                 preconfiguredSelectors, preconfiguredFilters,
-                new AddressTuiCommands.JLineConsoleIO(reader)).run();
+                new AddressTuiCommands.JLineConsoleIO(reader),
+                settings, settingsApplier).run();
     }
 }

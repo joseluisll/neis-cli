@@ -34,7 +34,9 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
             LoggerFactory.getLogger(HttpClientAddressVerificationConnector.class);
 
     private final HttpClient client;
-    private final Duration timeout;
+    /** The verification probe deadline (request and watchdog). Volatile:
+     * the US-16.5 edit path may update it while verifications run. */
+    private volatile Duration timeout;
     private final WebpageTypeClassifier classifier = new WebpageTypeClassifier();
 
     /**
@@ -60,6 +62,23 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(timeout)
                 .build();
+    }
+
+    /**
+     * Applies a persisted/live override of {@code
+     * neis.address.verification.timeout-seconds} (US-16.5 edit path):
+     * the request and watchdog deadline takes effect for every
+     * subsequent verification. The CLIENT's connect timeout keeps its
+     * boot value (the HttpClient is built once) — a changed connect
+     * budget needs a restart, documented in the config section.
+     */
+    public void updateTimeout(Duration newTimeout) {
+        if (newTimeout == null || newTimeout.isZero() || newTimeout.isNegative()) {
+            throw new IllegalArgumentException(
+                    "The verification timeout must be a positive duration, got: " + newTimeout);
+        }
+        this.timeout = newTimeout;
+        log.info("VERIFICATION timeout override applied: {} s", newTimeout.toSeconds());
     }
 
     @Override

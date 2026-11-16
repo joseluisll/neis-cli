@@ -55,6 +55,7 @@ NEIS is a CLI application organized as a hexagonal architecture
 | `ContentStorePort` | driven | `ContentStoreConnector` (US-11: webpage captures + content records over the SQLite `captures`/`content_records` tables) |
 | `NewsEventStorePort` | driven | `NewsEventStoreConnector` (US-14: the news/events repository over the SQLite `news_events` table — upsert on a deterministic id, US-14.2 provenance columns, US-14.3 filtered search) |
 | `SelectorStorePort` | driven | `FileSelectorStoreConnector` (per-address validated selectors as JSON under `<work dir>/selectors`) |
+| `SettingsStorePort` | driven | `SettingsStoreConnector` (V13 `settings` table, US-16.5 edit path from #97: persisted configuration overrides, validated against the key's allowlist rule BEFORE saving — `SettingsService` — and layered over application.yml; `SettingsOverrideApplier` applies every stored override at boot and pushes an edit into the live consumers that read at use time — scrape-connector mode, extraction cap, verification timeout; the AI provider and boot-critical paths stay read-only, edited in application.yml) |
 
 The SSAFP pipeline (WEBSCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT,
 ex the MVP chain, issue #90 + US-17) lives in `PipelineService` behind
