@@ -333,6 +333,21 @@ public class TaskWorkService {
     }
 
     /**
+     * Whether this address resolves to the RENDERED retrieval strategy
+     * (US-06.5). Used by the pagination loop to flag the documented
+     * SPA next-page gap (US-06.10 review finding): next pages always
+     * fetch over plain HTTP, which on a client-rendered listing serves
+     * the unrendered shell — the run must record that, not fail
+     * silently.
+     */
+    private boolean isRenderedSource(Address address) {
+        return webpageTypes.byId(address.webpageType())
+                .map(type -> es.jllopez.neis.domain.model.WebpageType.STRATEGY_RENDERED
+                        .equals(type.strategy()))
+                .orElse(false);
+    }
+
+    /**
      * The feed retrieval path (US-06.8, issue #86): fetch the feed
      * document, write it as the run's artifact and provenance source,
      * parse the entries into standard records and persist them — the
@@ -440,6 +455,7 @@ public class TaskWorkService {
                 ? pipeline.extractionPort.nextPageUrl(scrape.html(), currentUrl)
                 : null;
         boolean truncatedByGuard = false;
+        boolean warnedSpaNextPage = false;
         while (nextUrl != null && items.size() < maxItems && pages < MAX_PAGES) {
             // The self-page check FIRST: the visited guard would
             // mislabel a self-referencing pager as a loop (review
@@ -457,6 +473,21 @@ public class TaskWorkService {
                 break;
             }
             ScrapeResult page;
+            if (!warnedSpaNextPage && isRenderedSource(address)) {
+                // US-06.10 review finding: the next-page fetch is the
+                // documented SPA gap — scrapeUrl always goes over plain
+                // HTTP, so a client-rendered listing serves its
+                // unrendered shell. The run must RECORD it, not just
+                // document it in the router javadoc.
+                warnedSpaNextPage = true;
+                log.warn("WEBSCRAPE {}: address classified '{}' (rendered) but SPA "
+                                + "next-page fetching is unsupported — page {} is fetched "
+                                + "over plain HTTP and may return the unrendered shell",
+                        address.id(), address.webpageType(), pages + 1);
+                notes.add("SPA next page fetched over plain HTTP (address is "
+                        + address.webpageType() + ", rendered pagination unsupported) "
+                        + "— content may be an unrendered shell");
+            }
             try {
                 page = pipeline.scrapePort.scrapeUrl(nextUrl);
             } catch (UnsupportedOperationException e) {

@@ -436,6 +436,87 @@ class TaskWorkServiceWebScrapeTest {
     }
 
     @Test
+    void spaNextPageFetchRecordsTheRenderedGapWarning() throws Exception {
+        // US-06.10 review finding: the next-page fetch is the documented
+        // SPA gap (scrapeUrl always goes over plain HTTP), but a run
+        // hitting it recorded no warning. A rendered-classified address
+        // paginating over HTTP must note the gap in the run outcome —
+        // the iteration itself still works on the fetched pages.
+        com.sun.net.httpserver.HttpServer server =
+                com.sun.net.httpserver.HttpServer.create(
+                        new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        String page1 = "<html><body><ul class='news-list'>"
+                + "<li><a href='/items/a1'>Item A1</a></li>"
+                + "<li><a href='/items/a2'>Item A2</a></li></ul>"
+                + "<nav class='pagination'><a rel='next' href='/page2'>Next</a></nav>"
+                + "</body></html>";
+        String page2 = "<html><body><ul class='news-list'>"
+                + "<li><a href='/items/b1'>Item B1</a></li>"
+                + "<li><a href='/items/b2'>Item B2</a></li></ul>"
+                + "</body></html>";
+        server.createContext("/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            byte[] body = (path.equals("/page2") ? page2 : page1)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
+            exchange.sendResponseHeaders(200, body.length);
+            try (var out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        int port = server.getAddress().getPort();
+        try {
+            Address spa = new Address("ADDR-SPA", "SPA listing", null,
+                    "http://127.0.0.1:" + port + "/page1", AddressType.URL_NEWS,
+                    java.util.Set.of(), es.jllopez.neis.domain.model.VerificationStatus.VERIFIED,
+                    null, "spa-react");
+            AddressCatalogService liveCatalog = new AddressCatalogService(
+                    new InMemoryAddressCatalogPort(List.of(spa)),
+                    new UrlSyntaxValidator());
+            PreconfiguredSelectors configured = new PreconfiguredSelectors(
+                    new PreconfiguredSelectorProperties(List.of(
+                            new PreconfiguredSelectorProperties.Entry("ADDR-SPA", "news",
+                                    "ul.news-list li"))),
+                    new JsoupSelectorConnector());
+            PipelineService livePipeline = new PipelineService(
+                    new es.jllopez.neis.infrastructure.adapter.scrape.HttpScrapeConnector(5,
+                            1024 * 1024),
+                    new JsoupSimplifyConnector(), new JsoupSelectorConnector(),
+                    new SelectorStorePort() {
+                        @Override
+                        public Optional<StoredSelectors> load(String addressId) {
+                            return Optional.empty();
+                        }
+
+                        @Override
+                        public void save(StoredSelectors selectors) {
+                        }
+                    },
+                    new PaginationDetector(),
+                    new es.jllopez.neis.domain.service.ExposedFilterDetector(),
+                    new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
+                    configured, newsEventStore,
+                    new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                    workDir.toString());
+
+            String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
+                        feedSource(), webpageTypes(),
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
+                    .execute("WEBSCRAPE", liveCatalog.byId("ADDR-SPA"));
+
+            assertTrue(outcome.contains("SPA next page fetched over plain HTTP"), outcome);
+            assertTrue(outcome.contains("rendered pagination unsupported"), outcome);
+            // The gap warning does not change the iteration result.
+            assertTrue(outcome.contains("items extracted: 4"), outcome);
+            assertTrue(outcome.contains("pages: 2"), outcome);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void preconfiguredSelectorMatchingNothingAborts() {
         // US-12.3: the 0-match abort applies to preconfigured selectors
         // too — a scheduled run whose site markup drifts ends FAILED
