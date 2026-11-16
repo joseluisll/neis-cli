@@ -96,11 +96,17 @@ class PreconfiguredFilterAddressCheckTest {
                         new PreconfiguredFilterProperties.Entry("addr-006",
                                 "PROGRAMME", "Horizon"))));
         // Different names for the same (case-variant) address still merge.
-        assertDoesNotThrow(() -> new PreconfiguredFilterProperties(List.of(
-                new PreconfiguredFilterProperties.Entry("ADDR-006",
-                        "programme", "EU4Health"),
-                new PreconfiguredFilterProperties.Entry("addr-006",
-                        "lang", "en"))));
+        PreconfiguredFilters merging = new PreconfiguredFilters(
+                new PreconfiguredFilterProperties(List.of(
+                        new PreconfiguredFilterProperties.Entry("ADDR-006",
+                                "programme", "EU4Health"),
+                        new PreconfiguredFilterProperties.Entry("addr-006",
+                                "lang", "en"))));
+        var merged = merging.find("ADDR-006").orElseThrow();
+        assertEquals(2, merged.size());
+        assertEquals("EU4Health", merged.get("programme"));
+        assertEquals("en", merged.get("lang"),
+                "both entries served for one address, config order");
     }
 
     @Test
