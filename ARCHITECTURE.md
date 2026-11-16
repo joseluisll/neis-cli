@@ -297,6 +297,49 @@ cap.
   loud without touching the catalog; a removal needs an explicit `y`;
   EOF (piped input, Ctrl-D) exits cleanly, so the screen is
   script-verifiable.
+
+## Management UI (US-16)
+
+- The unified management interface (US-16, epic #77) is one
+  interactive TUI opened by the `manage` command
+  (`ManagementCommands` -> `ManagementTui`, same JLine-terminal
+  pattern as `address tui`, no new dependency). One main screen with
+  the sections as numbered entries; every section redraws from live
+  state after every operation, and EOF/Ctrl-C exit cleanly at every
+  level (script-verifiable like the address screen).
+- The dashboard (US-16.2, issue #79) IS the main screen's content:
+  `ManagementInfoService` (application layer) aggregates catalog
+  health (US-03/US-04 verification counts), chain definitions
+  (US-08), execution records with the last run (US-05.3), the
+  repository size (US-14) and the configured schedules (US-05.2) plus
+  the AI availability (US-15.3) into one snapshot recomputed per
+  redraw.
+- Address management (US-16.1's US-09 part, issue #78): the section
+  re-enters the existing `AddressTui` screen — one address
+  management implementation, no duplicate logic.
+- Execution management (US-16.3, issue #80): the section lists the
+  records newest first, shows a run's detail (task, address, chain
+  link, trigger, status, timestamps, outcome) with the produced
+  content records linked to their US-11.4 storage-tree paths, and
+  re-runs a record (its task, or its chain when the record carries
+  `chainId`) — the re-run goes through the same `ExecutionService`
+  submit path, so the eligibility gate (US-04.3) and idempotency
+  (US-15.4) apply unchanged.
+- Repository browsing (US-16.4, issue #81): news/events listed newest
+  first with the incompleteness flag visible (US-14.4), an item
+  detail with every metadata field and its US-14.2 provenance, and
+  the content tree rendered from the content records
+  (address / capture / task paths) with the content root shown.
+- Configuration management (US-16.5, issue #82): the section shows
+  the effective operational configuration read-only — content root,
+  AI status, the schedule entries, and per-address stored selectors
+  with the filter catalogue (US-12.1/12.6 visibility). The
+  externalized configuration (US-15.1, application.yml) stays the
+  source of record: the section validates what it shows is loadable
+  (an unknown address or a load failure is reported loud) but does
+  not edit configuration files; editable-through-the-TUI
+  configuration is a later slice.
+
 - Mandatory metadata (US-14.4, schema V5): title, description and date
   are the mandatory minimum (publication date for news, event date for
   events); picture and location are optional, captured when the listing

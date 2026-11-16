@@ -46,4 +46,30 @@ interface ConsoleIO {
         }
         return out.toString();
     }
+
+    /**
+     * One management-UI section screen (US-16.1): the section title,
+     * its live-rendered state and its menu, framed by blanks. Same
+     * contract as {@link #printScreen(ConsoleIO, String)} — the screen
+     * redraws from live state on every loop iteration.
+     */
+    static void printSection(ConsoleIO io, String title, String state, String menu) {
+        io.println("");
+        io.println(title);
+        io.println(state);
+        io.println("");
+        io.println("Commands: " + menu);
+    }
+
+    /**
+     * The management main screen (US-16.1): the dashboard state
+     * (US-16.2) plus the section menu, framed by blanks.
+     */
+    static void printManagementScreen(ConsoleIO io, String dashboard) {
+        io.println("");
+        io.println(dashboard);
+        io.println("");
+        io.println("Sections: [d]ashboard  [a]ddresses  [c]hains  [e]xecutions"
+                + "  [r]epository  co[n]fig  [q]uit");
+    }
 }
