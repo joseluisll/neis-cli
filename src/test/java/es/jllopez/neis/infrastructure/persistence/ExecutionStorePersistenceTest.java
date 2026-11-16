@@ -1,5 +1,6 @@
 package es.jllopez.neis.infrastructure.persistence;
 
+import com.zaxxer.hikari.HikariDataSource;
 import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
@@ -7,8 +8,10 @@ import es.jllopez.neis.domain.model.Chain;
 import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.port.ChainStorePort;
 import es.jllopez.neis.domain.port.ExecutionStorePort;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +41,23 @@ class ExecutionStorePersistenceTest {
     static void datasourceProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url",
                 () -> "jdbc:sqlite:" + tempDir.resolve("executions.db"));
+    }
+
+    /**
+     * US-02.4 (issue #98): the Hikari pool holds the SQLite file open
+     * after the test class, so on Windows JUnit's @TempDir cleanup
+     * cannot delete it and the extension teardown errors (invisible on
+     * Linux, where unlink-while-open succeeds). Closing the pool here
+     * releases the file BEFORE the @TempDir deletion — JUnit runs
+     * @AfterAll methods before extension cleanup. The context is
+     * per-class (its datasource URL points at this class's temp dir),
+     * so closing the pool disturbs no other test class.
+     */
+    @AfterAll
+    static void releaseDatabaseFile(@Autowired DataSource dataSource) {
+        if (dataSource instanceof HikariDataSource pool && !pool.isClosed()) {
+            pool.close();
+        }
     }
 
     @Autowired
