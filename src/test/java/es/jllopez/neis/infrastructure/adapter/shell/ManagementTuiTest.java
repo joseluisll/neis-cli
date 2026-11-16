@@ -539,6 +539,124 @@ class ManagementTuiTest {
     }
 
     @Test
+    void nestedAddressScreenQuitDoesNotClaimAnExit() {
+        // US-16.1 review finding #97: quitting the nested address screen
+        // printed 'Bye.' — an exit that did not happen (control returns
+        // to the management menu). The nested quit is now silent; only
+        // the management screen's own quit says goodbye.
+        seedVerifiedAddress();
+        ScriptedConsole io = new ScriptedConsole("a", "q", "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("Address management (US-09.1)"), transcript);
+        assertEquals(1, transcript.split("Bye\\.", -1).length - 1,
+                "exactly one 'Bye.' — the management screen's own quit:\n" + transcript);
+        assertTrue(transcript.contains("Sections: [d]ashboard"), transcript);
+    }
+
+    @Test
+    void chainsSectionRefusesARecordNumberWhenNothingIsListed() {
+        // US-16.1 review observation #97: a number typed into an empty
+        // list used to answer "Unknown command '5'" instead of a
+        // nothing-listed refusal.
+        ScriptedConsole io = new ScriptedConsole("c", "5", "b", "q");
+
+        tui(io).run();
+
+        assertTrue(io.transcript().contains("Nothing listed — no chains defined yet"),
+                io.transcript());
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void dashboardRendersActiveAndFailedBucketsFromTheRecords() {
+        // US-16.2 review coverage gap #97: the failed/active buckets were
+        // untested (the dashboard test seeded only a SUCCESS run).
+        seedVerifiedAddress();
+        executionStore.save(new TaskExecution("EXEC-RUN-1", "WEBSCRAPE", "ADDR-001",
+                null, TriggerType.SCHEDULED, ExecutionStatus.RUNNING,
+                java.time.Instant.now(), null, null));
+        executionStore.save(new TaskExecution("EXEC-FAIL-1", "PRINT", "ADDR-001",
+                null, TriggerType.MANUAL, ExecutionStatus.FAILED,
+                java.time.Instant.now(), java.time.Instant.now(),
+                "IllegalStateException: printer on fire"));
+        ScriptedConsole io = new ScriptedConsole("d", "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("1 active, 1 failed"), transcript);
+        assertTrue(transcript.contains("Failed run"), transcript);
+        assertTrue(transcript.contains("printer on fire"), transcript);
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void dashboardWithNoExecutionsRendersZeroBuckets() {
+        // US-16.2 review coverage gap #97: the no-execution path.
+        ScriptedConsole io = new ScriptedConsole("d", "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("0 records (0 active, 0 failed)"), transcript);
+        assertFalse(transcript.contains("Last run"), transcript);
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void configSectionRendersSchedulesStoredSelectorsAndPreconfiguredSets() {
+        // US-16.5 review coverage gap #97: schedules rendered, stored
+        // selectors displayed and preconfigured config shown were
+        // untested.
+        seedVerifiedAddress();
+        es.jllopez.neis.domain.port.SelectorStorePort selectorStore =
+                mock(es.jllopez.neis.domain.port.SelectorStorePort.class);
+        when(selectorStore.load("ADDR-001")).thenReturn(java.util.Optional.of(
+                new es.jllopez.neis.domain.model.StoredSelectors("ADDR-001", "news",
+                        "ul.items > li", "form.filters",
+                        List.of(new es.jllopez.neis.domain.model.FilterDefinition(
+                                "programme", List.of("EU4Health", "Horizon"))),
+                        "ai", "2026-11-16", "test fixture")));
+        ScheduleProperties schedules = new ScheduleProperties(List.of(
+                new ScheduleProperties.Entry("nightly-scrape", "WEBSCRAPE",
+                        "ADDR-001", "0 5 3 * * *")));
+        es.jllopez.neis.application.PreconfiguredSelectorProperties selectorSets =
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(
+                        List.of(new es.jllopez.neis.application.PreconfiguredSelectorProperties
+                                .Entry("ADDR-001", "news", "ul.items > li")));
+        es.jllopez.neis.application.PreconfiguredFilterProperties filterSets =
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(
+                        List.of(new es.jllopez.neis.application.PreconfiguredFilterProperties
+                                .Entry("ADDR-001", "programme", "EU4Health")));
+        ManagementInfoService info = new ManagementInfoService(catalog, chains,
+                executions, newsEvents, schedules, mock(AiAssistantService.class));
+        ScriptedConsole io = new ScriptedConsole(
+                "g",
+                "s", "ADDR-001",            // the stored selectors of ADDR-001
+                "b",
+                "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info, schedules, mock(AiAssistantService.class),
+                selectorStore, selectorSets, filterSets, io);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("Schedules (1)"), transcript);
+        assertTrue(transcript.contains("nightly-scrape"), transcript);
+        assertTrue(transcript.contains("Preconfigured selectors"), transcript);
+        assertTrue(transcript.contains("Preconfigured filters"), transcript);
+        assertTrue(transcript.contains("EU4Health"), transcript);
+        assertTrue(transcript.contains("Stored selectors for ADDR-001"), transcript);
+        assertTrue(transcript.contains("filter catalogue"), transcript);
+        assertTrue(io.fedAllInputs());
+    }
+
+    @Test
     void reRunRefusesARecordThatIsStillRunning() throws Exception {
         seedVerifiedAddress();
         // a task that blocks until the test releases it: the record

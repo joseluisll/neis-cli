@@ -23,10 +23,21 @@ class AddressTui {
 
     private final AddressCatalogService catalog;
     private final ConsoleIO io;
+    /** True when re-entered from the management screen (US-16.1): quit
+     * then means 'back to the management menu' and must NOT print
+     * 'Bye.' — that would claim an exit that did not happen (US-16.1
+     * review finding #97). The standalone 'address tui' command keeps
+     * the exit message. */
+    private final boolean nested;
 
     AddressTui(AddressCatalogService catalog, ConsoleIO io) {
+        this(catalog, io, false);
+    }
+
+    AddressTui(AddressCatalogService catalog, ConsoleIO io, boolean nested) {
         this.catalog = catalog;
         this.io = io;
+        this.nested = nested;
     }
 
     /** Runs the screen loop until the user quits or input ends. */
@@ -47,7 +58,9 @@ class AddressTui {
                 case "e", "edit" -> edit();
                 case "r", "remove" -> remove();
                 case "q", "quit", "exit" -> {
-                    io.println("Bye.");
+                    if (!nested) {
+                        io.println("Bye.");
+                    }
                     return;
                 }
                 default -> io.println("Unknown command '" + line.trim()

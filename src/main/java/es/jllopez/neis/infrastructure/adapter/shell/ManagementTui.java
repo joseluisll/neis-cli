@@ -100,7 +100,7 @@ class ManagementTui {
             switch (line.trim().toLowerCase()) {
                 case "" -> { /* redraw */ }
                 case "d", "dashboard" -> { /* the redraw IS the dashboard */ }
-                case "a", "addresses" -> new AddressTui(catalog, io).run();
+                case "a", "addresses" -> new AddressTui(catalog, io, true).run();
                 case "c", "chains" -> chainsSection();
                 case "e", "executions" -> executionsSection();
                 case "r", "repository" -> repositorySection();
@@ -556,6 +556,11 @@ class ManagementTui {
                 }
                 case "r" -> runChain(chainList);
                 default -> {
+                    if (chainList.isEmpty()) {
+                        io.println("  Nothing listed — no chains defined yet; "
+                                + "create one with 'chain create'.");
+                        continue;
+                    }
                     Integer index = parseIndex(trimmed, chainList.size());
                     if (index == null) {
                         io.println("Unknown command '" + line.trim()
