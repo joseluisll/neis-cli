@@ -58,8 +58,18 @@ public class WebpageTypeCatalog implements WebpageTypeCatalogPort {
                         "neis.webpage.types: a configured webpage type needs an id");
             }
             String strategy = entry == null ? null : entry.getStrategy();
-            map.put(id, new WebpageType(id, strategy == null
-                    ? WebpageType.STRATEGY_HTTP : strategy.trim()));
+            // US-06.10 review finding: a null/blank strategy used to
+            // silently bind to HTTP — a config typo (an id written
+            // without its strategy) must fail the boot loud, exactly
+            // like an unknown strategy value, never downgrade quietly.
+            if (strategy == null || strategy.isBlank()) {
+                throw new IllegalArgumentException("neis.webpage.types." + rawId
+                        + ": a configured webpage type needs a strategy ('"
+                        + WebpageType.STRATEGY_HTTP + "', '"
+                        + WebpageType.STRATEGY_RENDERED + "' or '"
+                        + WebpageType.STRATEGY_FEED + "')");
+            }
+            map.put(id, new WebpageType(id, strategy.trim()));
         });
         this.types = Map.copyOf(map);
         log.info("Webpage type taxonomy: {} types ({} configured extensions)",

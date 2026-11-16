@@ -62,12 +62,24 @@ class WebpageTypeCatalogTest {
     }
 
     @Test
-    void configuredEntryWithoutStrategyDefaultsToHttp() {
+    void configuredEntryWithoutStrategyFailsTheBoot() {
+        // US-06.10 review finding: a null/blank strategy used to bind
+        // silently to HTTP; the boot now refuses it loud, naming the
+        // offending key — same rule as an unknown strategy value.
         WebpageTypeProperties properties = new WebpageTypeProperties();
         properties.getTypes().put("mystery", new WebpageTypeProperties.Entry());
 
-        assertEquals("http", new WebpageTypeCatalog(properties)
-                .byId("mystery").orElseThrow().strategy());
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new WebpageTypeCatalog(properties));
+        assertTrue(e.getMessage().contains("mystery"), e.getMessage());
+        assertTrue(e.getMessage().contains("strategy"), e.getMessage());
+
+        // The blank form fails identically (a whitespace-only YAML value).
+        WebpageTypeProperties blank = new WebpageTypeProperties();
+        WebpageTypeProperties.Entry empty = new WebpageTypeProperties.Entry();
+        empty.setStrategy("   ");
+        blank.getTypes().put("mystery", empty);
+        assertThrows(IllegalArgumentException.class, () -> new WebpageTypeCatalog(blank));
     }
 
     @Test
