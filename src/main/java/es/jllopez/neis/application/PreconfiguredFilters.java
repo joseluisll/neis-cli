@@ -26,9 +26,11 @@ public class PreconfiguredFilters {
 
     /**
      * The preconfigured filter set for this address, in configuration
-     * order; empty when none is configured. Duplicates are refused at
-     * configuration time, so the map is well-formed by construction.
-     * The id matches CASE-INSENSITIVELY — the catalog's documented id
+     * order; empty when none is configured. Duplicates (same address
+     * and name, either case) are refused at configuration time, so no
+     * two entries ever collide for one address; entries for the same
+     * address with DIFFERENT names merge in configuration order. The
+     * id matches CASE-INSENSITIVELY — the catalog's documented id
      * semantics (US-06.10 review blocking finding: an exact-equals
      * match let a case-variant configured id pass the boot check yet
      * never apply — the dead-entry failure mode this class exists to

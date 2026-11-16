@@ -52,13 +52,16 @@ public record PreconfiguredFilterProperties(List<Entry> preconfigured) {
             }
         }
         long named = preconfigured.stream()
-                .map(e -> e.address() + "\u0000" + e.name().toLowerCase(java.util.Locale.ROOT))
+                .map(e -> e.address().toLowerCase(java.util.Locale.ROOT) + "\u0000"
+                        + e.name().toLowerCase(java.util.Locale.ROOT))
                 .distinct().count();
         if (named != preconfigured.size()) {
             throw new IllegalArgumentException(
                     "Duplicate preconfigured filter name for one address — refused "
                             + "(US-06.6; the same rule as the duplicate per-run "
-                            + "parameter refusal of US-12.3)");
+                            + "parameter refusal of US-12.3; the address matches "
+                            + "case-insensitively at run time, so a case-variant "
+                            + "duplicate would silently overwrite its twin)");
         }
     }
 

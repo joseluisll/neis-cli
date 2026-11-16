@@ -84,6 +84,26 @@ class PreconfiguredFilterAddressCheckTest {
     }
 
     @Test
+    void aCaseVariantDuplicateAddressNamePairIsRefusedAtBindTime() {
+        // US-06.10 re-review finding: the duplicate check keyed the
+        // address raw — 'ADDR-006 programme' + 'addr-006 PROGRAMME'
+        // passed the bind check and silently overwrote its twin at run
+        // time (find() matches case-insensitively). Refused now.
+        assertThrows(IllegalArgumentException.class,
+                () -> new PreconfiguredFilterProperties(List.of(
+                        new PreconfiguredFilterProperties.Entry("ADDR-006",
+                                "programme", "EU4Health"),
+                        new PreconfiguredFilterProperties.Entry("addr-006",
+                                "PROGRAMME", "Horizon"))));
+        // Different names for the same (case-variant) address still merge.
+        assertDoesNotThrow(() -> new PreconfiguredFilterProperties(List.of(
+                new PreconfiguredFilterProperties.Entry("ADDR-006",
+                        "programme", "EU4Health"),
+                new PreconfiguredFilterProperties.Entry("addr-006",
+                        "lang", "en"))));
+    }
+
+    @Test
     void theIdMatchIsCaseInsensitiveThroughToTheRunTimeMatcher() {
         // US-06.10 review blocking finding: the check resolved ids
         // case-insensitively (the catalog semantics) while find() used
