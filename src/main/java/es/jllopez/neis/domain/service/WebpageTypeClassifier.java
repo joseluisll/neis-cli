@@ -16,8 +16,13 @@ import java.util.Map;
  *   <li>a non-HTML content type classifies as {@code other} (API-only
  *       or non-HTML sources need no rendering);</li>
  *   <li>a framework marker in the body classifies as the matching
- *       {@code spa-<framework>} type ({@code spa} when only generic
- *       client-rendered hints are present);</li>
+ *       {@code spa-<framework>} type; generic mount ids such as
+ *       {@code id="root"}/{@code id="app"} are NOT markers (review
+ *       finding US-06.5 P3, issue #99: server-rendered pages routinely
+ *       use those ids, and a bare mount id is no evidence of
+ *       client rendering) — a framework-less SPA therefore classifies
+ *       as {@code static} and shows up as a visible static-mode
+ *       failure, the cheap direction to err;</li>
  *   <li>framework markers AND a {@code <noscript>} fallback classify
  *       as {@code hybrid} (server-rendered base + client widgets);</li>
  *   <li>an RSS/Atom feed document (feed content type, or the
@@ -51,9 +56,9 @@ public final class WebpageTypeClassifier {
         markers.put("data-v-app", "spa-vue");
         markers.put("__vue__", "spa-vue");
         markers.put("__nuxt", "spa-vue");
-        // Generic client-rendered hints (no framework identified).
-        markers.put("id=\"root\"", "spa");
-        markers.put("id=\"app\"", "spa");
+        // Generic mount ids (id="root"/id="app") deliberately NOT
+        // markers: server-rendered pages use them too, and a bare
+        // mount id proves nothing (US-06.5 P3, issue #99).
         return markers;
     }
 

@@ -102,4 +102,25 @@ class WebpageTypeClassifierTest {
         assertEquals("spa-react", classifier.classify("text/html",
                 "<SCRIPT ID=\"__NEXT_DATA__\"></SCRIPT>"));
     }
+
+    @Test
+    void serverRenderedPageWithGenericMountIdIsNotSpa() {
+        // US-06.5 P3 (issue #99): server-rendered pages routinely use
+        // id="root"/id="app" — a mount id (even with a bundled script)
+        // is NO SPA evidence, so a framework-less page stays static
+        // and never routes to the heavy rendered connector.
+        assertEquals("static", classifier.classify("text/html",
+                "<html><body><div id=\"root\"><h1>EU4Health news</h1>"
+                        + "<ul><li>item</li></ul></div>"
+                        + "<script src=\"/assets/analytics.js\"></script></body></html>"));
+        assertEquals("static", classifier.classify("text/html",
+                "<html><body><main id=\"app\"><p>static content</p></main></body></html>"));
+        assertEquals("static", classifier.classify("text/html",
+                "<html><body><div id=\"root\"></div>"
+                        + "<script src=\"/assets/main.abc123.js\" type=\"module\"></script>"
+                        + "</body></html>"));
+        // A real framework marker still wins regardless of the mount id.
+        assertEquals("spa-vue", classifier.classify("text/html",
+                "<div id=\"app\" data-v-app></div>"));
+    }
 }
