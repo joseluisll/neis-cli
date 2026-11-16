@@ -122,5 +122,14 @@ class WebpageTypeClassifierTest {
         // A real framework marker still wins regardless of the mount id.
         assertEquals("spa-vue", classifier.classify("text/html",
                 "<div id=\"app\" data-v-app></div>"));
+        // A mount id present alongside a framework marker + noscript
+        // is still hybrid: the hybrid rule only needs the marker.
+        assertEquals("hybrid", classifier.classify("text/html",
+                "<html><body><div id=\"root\" ng-version=\"17.0.0\">"
+                        + "<noscript>Enable JS</noscript></div></body></html>"));
+        // Uppercase markup carries no mount-id evidence either — the
+        // body is lowercased before matching, and the ids are gone.
+        assertEquals("static", classifier.classify("text/html",
+                "<HTML><BODY><DIV ID=\"ROOT\">content</DIV></BODY></HTML>"));
     }
 }

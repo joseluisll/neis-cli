@@ -102,19 +102,15 @@ public final class WebpageTypeClassifier {
         // A framework marker plus a noscript fallback: server-rendered
         // base with client-rendered fragments — hybrid. (A plain SPA
         // shell has nothing meaningful inside <noscript>.)
-        if (body.contains("<noscript>") && body.contains("</noscript>")
-                && !framework.equals("spa")) {
+        if (body.contains("<noscript>") && body.contains("</noscript>")) {
             return "hybrid";
         }
         return framework;
     }
 
-    /** The specific framework id wins over the generic {@code spa} hint. */
+    /** The first marker to match decides; no marker overrides another. */
     private static String stronger(String current, String candidate) {
-        if (current == null || current.equals("spa")) {
-            return candidate;
-        }
-        return current;
+        return current == null ? candidate : current;
     }
 
     /**
