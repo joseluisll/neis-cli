@@ -293,6 +293,61 @@ class ScrapeConnectorRouterTest {
                         java.util.Map.of("filter name", "y")));
     }
 
+    @Test
+    void liveFilteredHttpPathFetchesTheUrlWithTheQueryParameters() {
+        // US-06.6 review finding: the withQueryParams live path had
+        // zero coverage — the helper's unit tests prove the string
+        // arithmetic, nothing proved the ROUTER actually hands the
+        // connector the parameterized URL on the no-override live path.
+        java.util.List<String> fetched = new java.util.ArrayList<>();
+        HttpScrapeConnector recording = new HttpScrapeConnector(5, 1024 * 1024) {
+            @Override
+            public ScrapeResult scrapeUrl(String url) {
+                fetched.add(url);
+                return new ScrapeResult("filtered-page", "text/html", 13);
+            }
+        };
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), singleProvider(recording),
+                emptyRendered(), catalog(), "live");
+        Address httpAddress = UNCLASSIFIED.withWebpageType("static")
+                .withUrl("https://x.eu/list#section");
+
+        ScrapeResult result = router.scrapeWithFilters(httpAddress,
+                new java.util.LinkedHashMap<>() {{
+                    put("programme", "EU4Health");
+                    put("filter name", "a b");
+                }},
+                null);
+
+        assertEquals("filtered-page", result.html());
+        assertEquals(1, fetched.size());
+        assertEquals("https://x.eu/list?programme=EU4Health&filter+name=a+b#section",
+                fetched.get(0),
+                "encoded parameters appended before the fragment, filter order");
+    }
+
+    @Test
+    void liveFilteredHttpPathRefusesAKeyTheUrlAlreadyCarries() {
+        // The duplicate refusal must fire through the ROUTER path too,
+        // not only in the helper's unit tests.
+        HttpScrapeConnector recording = new HttpScrapeConnector(5, 1024 * 1024) {
+            @Override
+            public ScrapeResult scrapeUrl(String url) {
+                return new ScrapeResult("never", "text/html", 5);
+            }
+        };
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), singleProvider(recording),
+                emptyRendered(), catalog(), "live");
+        Address httpAddress = UNCLASSIFIED.withWebpageType("static")
+                .withUrl("https://x.eu/list?programme=EU");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> router.scrapeWithFilters(httpAddress,
+                        java.util.Map.of("programme", "EU4Health"), null));
+    }
+
     private static WebpageTypeCatalogPort catalog() {
         return new WebpageTypeCatalog(new WebpageTypeProperties());
     }
