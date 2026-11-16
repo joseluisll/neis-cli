@@ -114,6 +114,36 @@ class HttpClientAddressVerificationConnectorTest {
     }
 
     @Test
+    void aNon2xxClassificationGetStaysUnclassified() {
+        // US-06.10 review finding: the classification GET's status was
+        // only logged — a 5xx error page body carrying framework
+        // markers used to classify and could overwrite the stored
+        // type. The type stays null (unclassified) while the address
+        // still VERIFIES via its 2xx HEAD.
+        server.createContext("/flaky", exchange -> {
+            if ("HEAD".equals(exchange.getRequestMethod())) {
+                headHits.incrementAndGet();
+                exchange.sendResponseHeaders(200, -1);
+            } else {
+                getHits.incrementAndGet();
+                byte[] body = ("<html><body data-reactroot>"
+                        + "<h1>Internal server error</h1></body></html>")
+                        .getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "text/html");
+                exchange.sendResponseHeaders(500, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+
+        VerificationOutcome outcome = connector.verify(address("/flaky"));
+        assertEquals(VerificationStatus.VERIFIED, outcome.status());
+        assertEquals(1, getHits.get(), "the classification GET ran");
+        assertEquals(null, outcome.webpageType(),
+                "an error page must never classify");
+    }
+
+    @Test
     void anUnreachableServerMarksTheAddressFailedWithoutThrowing() {
         // Port closed: bind a socket, capture the port, release it.
         int closedPort;

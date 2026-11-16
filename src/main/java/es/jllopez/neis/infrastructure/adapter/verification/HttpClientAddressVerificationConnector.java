@@ -144,6 +144,20 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
                     .build();
             HttpResponse<java.io.InputStream> response = client.send(request,
                     HttpResponse.BodyHandlers.ofInputStream());
+            // US-06.10 review finding: the status was only logged. A
+            // non-2xx classification GET is an error page, never the
+            // address's listing — classifying it could overwrite the
+            // stored type. Refuse it: unclassified keeps the previously
+            // stored type, the same contract as any classification
+            // failure.
+            int classifyStatus = response.statusCode();
+            if (classifyStatus < 200 || classifyStatus >= 300) {
+                log.info("Address classification {} -> unclassified (HTTP {} "
+                                + "— the classification GET returned an error page; "
+                                + "the stored type is kept)",
+                        address.url(), classifyStatus);
+                return null;
+            }
             try (java.io.InputStream body = response.body()) {
                 String contentType = response.headers().firstValue("Content-Type")
                         .orElse("");
