@@ -166,7 +166,11 @@ cap.
   reachability (HEAD with GET fallback, redirects followed, timeout via
   `neis.address.verification.timeout-seconds`); the outcome
   (VERIFIED/FAILED + ISO checked-at) persists on the address through
-  the catalog.
+  the catalog. A verified verification makes up to THREE HTTP requests
+  (US-06.10 docs finding): (1) the HEAD probe that decides reachability;
+  (2) a GET fallback, only when the server refuses HEAD (405/501);
+  (3) the classification GET below, only after a verified 2xx — an
+  unverified or failed probe makes no classification request.
 - Webpage-type classification (US-06.5, issue #71): the verification
   probe also classifies the page into the EXTENSIBLE, configuration-
   driven taxonomy (`WebpageTypeCatalog`: built-ins `static`, `spa`,
@@ -181,7 +185,10 @@ cap.
   every capture; `address webpage-type` sets/clears it explicitly, and the retrieval
   strategy follows from the type in `live` mode (per-run WEBSCRAPE
   `connector` parameter overrides). An unclassifiable probe NEVER
-  erases a stored type.
+  erases a stored type. The classification GET is the probe's third
+  request: a separate bounded fetch (256 KB sample cap, watchdog
+  deadline) whose response must itself be 2xx — an error page is
+  refused unclassified, never classified.
 - Eligibility (US-04.3): executors accept only addresses that are
   syntactically valid AND VERIFIED. The executor refuses ineligible
   addresses; batch runs skip them and report the skip count.
