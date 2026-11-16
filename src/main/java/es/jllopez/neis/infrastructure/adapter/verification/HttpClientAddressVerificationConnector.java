@@ -156,6 +156,9 @@ public class HttpClientAddressVerificationConnector implements AddressVerificati
                                 + "— the classification GET returned an error page; "
                                 + "the stored type is kept)",
                         address.url(), classifyStatus);
+                // Close the refused body: ofInputStream holds the pooled
+                // connection until the stream is closed (review nit).
+                response.body().close();
                 return null;
             }
             try (java.io.InputStream body = response.body()) {
