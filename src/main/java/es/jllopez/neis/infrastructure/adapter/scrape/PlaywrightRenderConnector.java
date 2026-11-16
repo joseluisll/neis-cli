@@ -116,7 +116,19 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                 filtersApplied = true;
             }
             if (filtersApplied) {
-                submitFilterZone(page, firstControl, url);
+                boolean submitted = submitFilterZone(page, firstControl, url);
+                if (!submitted) {
+                    // US-06.10 review finding: the heuristic was
+                    // silent — a site that needs an explicit submit
+                    // click and has no recognizable control would
+                    // serve an UNFILTERED listing with no trace. The
+                    // heuristic stays best-effort (auto-apply pages
+                    // are legitimate), but the miss is now flagged.
+                    log.warn("RENDER fetch {}: filters applied to their controls but "
+                            + "no submit/apply control was found in the form or the "
+                            + "page — if this page does not auto-apply its filters, "
+                            + "the fetched listing is UNFILTERED", url);
+                }
                 page.waitForLoadState(
                         com.microsoft.playwright.options.LoadState.NETWORKIDLE);
             }
@@ -293,10 +305,14 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
      * page-wide first-submit heuristic could click an unrelated
      * form's button); with no matching button there, or no form, the
      * page-wide scan remains the fallback.
+     *
+     * @return whether a submit control was found and clicked — false
+     *         is flagged by the caller (US-06.10: the miss used to be
+     *         silent, leaving a possibly unfiltered listing unmarked)
      */
-    private void submitFilterZone(com.microsoft.playwright.Page page,
-                                  com.microsoft.playwright.Locator control,
-                                  String url) {
+    private boolean submitFilterZone(com.microsoft.playwright.Page page,
+                                     com.microsoft.playwright.Locator control,
+                                     String url) {
         var formScope = control == null ? null
                 : control.locator("xpath=ancestor::form[1]");
         if (formScope != null && formScope.count() > 0) {
@@ -304,7 +320,7 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                 var button = formScope.locator(selector).first();
                 if (button.count() > 0) {
                     button.click();
-                    return;
+                    return true;
                 }
             }
         }
@@ -312,9 +328,10 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
             var button = page.locator(selector).first();
             if (button.count() > 0) {
                 button.click();
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /** The submit/apply selectors, tried in order within each scope. */
