@@ -50,6 +50,37 @@ class NewsCommandsTest {
     }
 
     @Test
+    void completenessFilterNarrowsTheListingBeforeTheLimit() {
+        // US-16.4 review finding #97: completeness was not filterable
+        // outside news export. The filter narrows the unbounded match
+        // BEFORE the limit — an incomplete-only page is not cut short
+        // by the newest complete rows.
+        store.saveAll("ADDR-001", "news", List.of(
+                new NewsEventItem("ADDR-001", "news", "Complete story",
+                        "desc", "https://x.eu/complete", "2026-11-02")), null, null);
+        store.saveAll("ADDR-001", "news", List.of(
+                new NewsEventItem("ADDR-001", "news", "Gappy story",
+                        null, "https://x.eu/gappy", null)), null, null);
+
+        String incompleteOnly = commands.list(null, null, null, null, "incomplete", 20);
+        assertTrue(incompleteOnly.contains("Gappy story"), incompleteOnly);
+        assertFalse(incompleteOnly.contains("Complete story"), incompleteOnly);
+        assertTrue(incompleteOnly.startsWith("News/events (1):"), incompleteOnly);
+        assertTrue(incompleteOnly.contains("INCOMPLETE"), incompleteOnly);
+
+        String completeOnly = commands.list(null, null, null, null, "complete", 20);
+        assertTrue(completeOnly.contains("Complete story"), completeOnly);
+        assertFalse(completeOnly.contains("Gappy story"), completeOnly);
+
+        // Limit applies to the FILTERED set, not the raw match.
+        String limited = commands.list(null, null, null, null, "incomplete", 1);
+        assertTrue(limited.startsWith("News/events (1):"), limited);
+
+        String invalid = commands.list(null, null, null, null, "nonsense", 20);
+        assertTrue(invalid.startsWith("Invalid --incomplete value"), invalid);
+    }
+
+    @Test
     void duplicatesInsideThePageNoLongerUnderFillTheLimit() {
         seedDuplicatesOnTop();
 

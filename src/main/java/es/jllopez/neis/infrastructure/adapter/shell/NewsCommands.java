@@ -40,7 +40,8 @@ public class NewsCommands {
 
     @Command(name = {"news", "list"}, group = "News",
             description = "List the stored news/events, newest first, with their "
-                    + "provenance (US-14.3); filter by address, kind and date range. "
+                    + "provenance (US-14.3); filter by address, kind, date range "
+                    + "and completeness (US-14.4). "
                     + "The same command inside the interactive shell is the repository's "
                     + "TUI view.")
     public String list(
@@ -55,6 +56,9 @@ public class NewsCommands {
             @Option(longName = "to",
                     description = "Items dated on/before this date (same accepted forms "
                             + "as --from)") String dateTo,
+            @Option(longName = "incomplete", defaultValue = "all",
+                    description = "Completeness filter (US-14.4): all, complete or "
+                            + "incomplete") String incomplete,
             @Option(longName = "limit", defaultValue = "20",
                     description = "Maximum number of items to show") int limit) {
         // A typo in a range bound must not silently deactivate the
@@ -68,10 +72,29 @@ public class NewsCommands {
                         + "(e.g. 'Jul 16, 2026')";
             }
         }
-        List<NewsEventItem> items = newsEvents.search(new NewsEventQuery(
+        var completeness = parseCompleteness(incomplete);
+        if (completeness == null) {
+            return "Invalid --incomplete value '" + incomplete
+                    + "' — use all, complete or incomplete";
+        }
+        // US-16.4 review finding #97: completeness was not filterable in
+        // the listing (only in the export). The completeness narrows the
+        // UNBOUNDED match before the limit is applied — capping first
+        // would cut a filtered page short on the newest complete rows.
+        // Non-positive limits keep the query's documented default.
+        int effectiveLimit = limit <= 0 ? NewsEventQuery.DEFAULT_LIMIT : limit;
+        List<NewsEventItem> items = new ArrayList<>(newsEvents.search(new NewsEventQuery(
                 addressId == null ? null : addressId.trim(),
                 kind == null ? null : kind.trim().toLowerCase(Locale.ROOT),
-                dateFrom, dateTo, limit));
+                dateFrom, dateTo, Integer.MAX_VALUE)));
+        if (completeness == Completeness.COMPLETE) {
+            items.removeIf(NewsEventItem::incomplete);
+        } else if (completeness == Completeness.INCOMPLETE) {
+            items.removeIf(item -> !item.incomplete());
+        }
+        if (items.size() > effectiveLimit) {
+            items = items.subList(0, effectiveLimit);
+        }
         StringBuilder out = new StringBuilder("News/events (")
                 .append(items.size()).append("):\n");
         for (NewsEventItem item : items) {
