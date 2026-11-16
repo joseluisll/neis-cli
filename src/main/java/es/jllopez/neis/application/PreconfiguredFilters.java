@@ -28,6 +28,11 @@ public class PreconfiguredFilters {
      * The preconfigured filter set for this address, in configuration
      * order; empty when none is configured. Duplicates are refused at
      * configuration time, so the map is well-formed by construction.
+     * The id matches CASE-INSENSITIVELY — the catalog's documented id
+     * semantics (US-06.10 review blocking finding: an exact-equals
+     * match let a case-variant configured id pass the boot check yet
+     * never apply — the dead-entry failure mode this class exists to
+     * prevent).
      */
     public Optional<Map<String, String>> find(String addressId) {
         if (addressId == null || addressId.isBlank()) {
@@ -35,7 +40,7 @@ public class PreconfiguredFilters {
         }
         Map<String, String> filters = new LinkedHashMap<>();
         for (PreconfiguredFilterProperties.Entry entry : properties.preconfigured()) {
-            if (addressId.equals(entry.address())) {
+            if (addressId.equalsIgnoreCase(entry.address())) {
                 filters.put(entry.name(), entry.value());
             }
         }

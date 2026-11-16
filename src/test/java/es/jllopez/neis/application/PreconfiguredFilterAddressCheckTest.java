@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -64,7 +65,7 @@ class PreconfiguredFilterAddressCheckTest {
         assertTrue(e.getMessage().contains("2 configured filter(s)"), e.getMessage());
         assertTrue(e.getMessage().contains("ADDR-098") && e.getMessage().contains("ADDR-099"),
                 e.getMessage());
-        assertEquals(false, e.getMessage().contains("'ok'"),
+        assertFalse(e.getMessage().contains("'ok'"),
                 "the resolvable entry is not implicated: " + e.getMessage());
     }
 
@@ -83,9 +84,18 @@ class PreconfiguredFilterAddressCheckTest {
     }
 
     @Test
-    void theIdMatchIsCaseInsensitiveLikeTheCatalog() {
+    void theIdMatchIsCaseInsensitiveThroughToTheRunTimeMatcher() {
+        // US-06.10 review blocking finding: the check resolved ids
+        // case-insensitively (the catalog semantics) while find() used
+        // exact equals — a case-variant id passed the boot yet never
+        // applied. Both ends are aligned now; the boot check and the
+        // runtime matcher must agree on the SAME case-variant entry.
+        PreconfiguredFilters filters = new PreconfiguredFilters(
+                properties("addr-006", "programme", "EU4Health"));
         assertDoesNotThrow(() -> new PreconfiguredFilterAddressCheck(
                 properties("addr-006", "programme", "EU4Health"),
                 catalogWithIds("ADDR-006")).checkConfiguredAddressesExist());
+        assertTrue(filters.find("ADDR-006").isPresent(),
+                "the runtime matcher serves the case-variant configured id");
     }
 }

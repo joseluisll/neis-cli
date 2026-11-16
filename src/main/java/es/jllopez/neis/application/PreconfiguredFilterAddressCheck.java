@@ -59,7 +59,10 @@ public class PreconfiguredFilterAddressCheck {
         for (PreconfiguredFilterProperties.Entry entry : properties.preconfigured()) {
             try {
                 catalog.byId(entry.address());
-            } catch (RuntimeException e) {
+            } catch (IllegalArgumentException e) {
+                // byId's unknown-id refusal; any other failure (a port
+                // error surfacing as DataAccessException) propagates
+                // unwrapped instead of being mislabeled 'unknown id'.
                 dangling.add(entry.address() + " (filter '" + entry.name() + "')");
             }
         }
