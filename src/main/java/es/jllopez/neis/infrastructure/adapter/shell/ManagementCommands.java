@@ -39,6 +39,8 @@ public class ManagementCommands {
     private final ScheduleProperties schedules;
     private final AiAssistantService ai;
     private final SelectorStorePort selectorStore;
+    private final es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors;
+    private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
     private final Terminal terminal;
 
     public ManagementCommands(AddressCatalogService catalog,
@@ -50,6 +52,8 @@ public class ManagementCommands {
                               ScheduleProperties schedules,
                               AiAssistantService ai,
                               SelectorStorePort selectorStore,
+                              es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
+                              es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
                               Terminal terminal) {
         this.catalog = catalog;
         this.chains = chains;
@@ -60,18 +64,21 @@ public class ManagementCommands {
         this.schedules = schedules;
         this.ai = ai;
         this.selectorStore = selectorStore;
+        this.preconfiguredSelectors = preconfiguredSelectors;
+        this.preconfiguredFilters = preconfiguredFilters;
         this.terminal = terminal;
     }
 
     @Command(name = {"manage"}, group = "Management",
             description = "Open the unified management interface: dashboard, addresses, "
-                    + "chains, executions, repository and configuration (US-16)")
+                    + "chains, executions, repository, configuration and logs (US-16)")
     public void manage() {
         LineReader reader = LineReaderBuilder.builder()
                 .terminal(terminal)
                 .build();
         new ManagementTui(catalog, chains, executions, newsEvents, contentStore,
                 info, schedules, ai, selectorStore,
+                preconfiguredSelectors, preconfiguredFilters,
                 new AddressTuiCommands.JLineConsoleIO(reader)).run();
     }
 }

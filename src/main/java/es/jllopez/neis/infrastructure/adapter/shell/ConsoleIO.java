@@ -63,13 +63,14 @@ interface ConsoleIO {
 
     /**
      * The management main screen (US-16.1): the dashboard state
-     * (US-16.2) plus the section menu, framed by blanks.
+     * (US-16.2) plus the section menu, framed by blanks. Each entry's
+     * bracketed key is the key that selects it.
      */
     static void printManagementScreen(ConsoleIO io, String dashboard) {
         io.println("");
         io.println(dashboard);
         io.println("");
         io.println("Sections: [d]ashboard  [a]ddresses  [c]hains  [e]xecutions"
-                + "  [r]epository  co[n]fig  [q]uit");
+                + "  [r]epository  co[n]fig  l[o]gs  [q]uit");
     }
 }

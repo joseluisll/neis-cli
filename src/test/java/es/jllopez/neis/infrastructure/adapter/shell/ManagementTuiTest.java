@@ -14,7 +14,9 @@ import es.jllopez.neis.application.TaskWorkService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.ChainTask;
+import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
 import es.jllopez.neis.domain.model.VerificationStatus;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -95,7 +98,10 @@ class ManagementTuiTest {
         return new ManagementTui(catalog, chains, realExecutions, newsEvents,
                 new ContentStoreService(new InMemoryContentStorePort(), "work"),
                 info, new ScheduleProperties(List.of()),
-                mock(AiAssistantService.class), mock(SelectorStorePort.class), io);
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
     }
 
     private void seedVerifiedAddress() {
@@ -328,5 +334,273 @@ class ManagementTuiTest {
         // screen loop, which then hit EOF too and exited cleanly
         assertTrue(io.transcript().contains("EXECUTIONS (US-16.3)"), io.transcript());
         assertTrue(io.transcript().contains("(input ended)"), io.transcript());
+    }
+
+    @Test
+    void dashboardShowsNextScheduleFireTimesAndTaskTypes() {
+        seedVerifiedAddress();
+        ScheduleProperties withSchedule = new ScheduleProperties(List.of(
+                new ScheduleProperties.Entry("nightly-scrape", "WEBSCRAPE",
+                        "ADDR-001", "0 5 3 * * *")));
+        ManagementInfoService info = new ManagementInfoService(catalog, chains,
+                executions, newsEvents, withSchedule, mock(AiAssistantService.class));
+        ScriptedConsole io = new ScriptedConsole("d", "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info, withSchedule, mock(AiAssistantService.class),
+                mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("nightly-scrape"), transcript);
+        assertTrue(transcript.contains("next run "), transcript);
+        assertTrue(transcript.contains("Task types     : "), transcript);
+        assertTrue(transcript.contains("WEBSCRAPE"), transcript);
+    }
+
+    @Test
+    void dashboardShowsAnInvalidCronAsAnErrorNotSilence() {
+        ScheduleProperties badSchedule = new ScheduleProperties(List.of(
+                new ScheduleProperties.Entry("broken", "WEBSCRAPE",
+                        "ADDR-001", "not-a-cron")));
+        ManagementInfoService info = new ManagementInfoService(catalog, chains,
+                executions, newsEvents, badSchedule, mock(AiAssistantService.class));
+        ScriptedConsole io = new ScriptedConsole("d", "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info, badSchedule, mock(AiAssistantService.class),
+                mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
+
+        screen.run();
+
+        assertTrue(io.transcript().contains("invalid cron"), io.transcript());
+    }
+
+    @Test
+    void dashboardListsRecentFailedRunsWithTheirOutcome() {
+        seedVerifiedAddress();
+        // a failing task: the mock TaskWorkService throws -> the record
+        // goes FAILED with the cause in the outcome
+        TaskWorkService failing = mock(TaskWorkService.class);
+        when(failing.execute(anyString(), any(Address.class), any(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("boom: selector invalid"));
+        ExecutionService failingExecutions = new ExecutionService(executionStore,
+                chainStore, catalog, new UrlSyntaxValidator(), failing, DIRECT, 5);
+        failingExecutions.submit("WEBSCRAPE", "ADDR-001", TriggerType.MANUAL);
+        ManagementInfoService info = new ManagementInfoService(catalog, chains,
+                failingExecutions, newsEvents,
+                new ScheduleProperties(List.of()), mock(AiAssistantService.class));
+        ScriptedConsole io = new ScriptedConsole("d", "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, failingExecutions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info, new ScheduleProperties(List.of()),
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("Failed run     :"), transcript);
+        assertTrue(transcript.contains("boom: selector invalid"), transcript);
+    }
+
+    @Test
+    void logsSectionShowsTheLogLocationAndTailsTheFile() throws Exception {
+        java.nio.file.Path logDir = java.nio.file.Files.createTempDirectory("neis-logs");
+        java.nio.file.Path log = logDir.resolve("neis.log");
+        java.nio.file.Files.writeString(log, "line one\nline two\nline three\n");
+        System.setProperty("neis.log.path", log.toString());
+        try {
+            ScriptedConsole io = new ScriptedConsole(
+                    "o",
+                    "2",                        // tail the last 2 lines
+                    "b",
+                    "q");
+
+            tui(io).run();
+
+            String transcript = io.transcript();
+            assertTrue(transcript.contains("LOGS (US-16.1)"), transcript);
+            assertTrue(transcript.contains("Last 2 of 3 lines"), transcript);
+            assertTrue(transcript.contains("line two"), transcript);
+            assertTrue(transcript.contains("line three"), transcript);
+        } finally {
+            System.clearProperty("neis.log.path");
+            java.nio.file.Files.deleteIfExists(log);
+            java.nio.file.Files.deleteIfExists(logDir);
+        }
+    }
+
+    @Test
+    void configSectionShowsTheKeyAndPreconfiguredEntries() {
+        ScriptedConsole io = new ScriptedConsole("n", "b", "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("CONFIGURATION (US-16.5)"), transcript);
+        assertTrue(transcript.contains("General settings (US-15.1)"), transcript);
+        assertTrue(transcript.contains("Extraction limit"), transcript);
+        assertTrue(transcript.contains("AI provider (US-15.3)"), transcript);
+        assertTrue(transcript.contains("Preconfigured selectors (US-12.1"), transcript);
+        assertTrue(transcript.contains("<none configured>"), transcript);
+    }
+
+    @Test
+    void repositoryFilterNarrowsByCompleteness() {
+        seedNews(); // complete item
+        newsStore.saveAll("ADDR-001", "news", List.of(
+                new NewsEventItem("ADDR-001", "news", "Only a title",
+                        null, null, null)),
+                null, null); // incomplete item
+        ScriptedConsole io = new ScriptedConsole(
+                "r",
+                "f", "", "", "incomplete", "",   // filter: incomplete only
+                "b",
+                "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("incomplete only"), transcript);
+        assertTrue(transcript.contains("Only a title"), transcript);
+        // the complete item ('A title') is filtered out of the LISTING:
+        // check the rendered table rows, not the raw transcript (the
+        // dashboard elsewhere shows 'Only a title' too)
+        assertFalse(transcript.contains("  1. 2026-11-10  news  [ADDR-001]  A title"),
+                "the complete item must not be listed when filtering incomplete-only");
+        assertTrue(transcript.contains("INCOMPLETE"), transcript);
+    }
+
+    @Test
+    void executionFilterNarrowsByStatusAndIsClearedByAnEmptyAnswer() {
+        seedExecution(); // one SUCCESS record
+        ScriptedConsole io = new ScriptedConsole(
+                "e",
+                "f", "", "", "FAILED", "",      // filter: FAILED only -> nothing matches
+                "l",                            // redraw with the filter active
+                "f", "", "", "", "",            // empty answer clears it
+                "b",
+                "q");
+
+        tui(io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("match status=FAILED"), transcript);
+        assertTrue(transcript.contains("showing every execution again"), transcript);
+    }
+
+    @Test
+    void reRunRefusesARecordThatIsStillRunning() throws Exception {
+        seedVerifiedAddress();
+        // a task that blocks until the test releases it: the record
+        // stays RUNNING while the TUI re-run prompt is answered. A real
+        // (thread-pool) executor is required — the DIRECT executor runs
+        // the work inline and submit() would never return.
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Executor async = java.util.concurrent.Executors.newSingleThreadExecutor();
+        TaskWorkService blocking = mock(TaskWorkService.class);
+        when(blocking.execute(anyString(), any(Address.class), any(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    release.await();
+                    return "done";
+                });
+        ExecutionService slowExecutions = new ExecutionService(executionStore,
+                chainStore, catalog, new UrlSyntaxValidator(), blocking, async, 5);
+        slowExecutions.submit("WEBSCRAPE", "ADDR-001", TriggerType.MANUAL);
+        try {
+            TaskExecution submitted = slowExecutions.await(slowExecutions.list().get(0).id());
+            // await() returns the record even on timeout; it must still be in flight
+            if (submitted != null && (submitted.status() == ExecutionStatus.PENDING
+                    || submitted.status() == ExecutionStatus.RUNNING)) {
+                ManagementInfoService info = new ManagementInfoService(catalog, chains,
+                        slowExecutions, newsEvents,
+                        new ScheduleProperties(List.of()), mock(AiAssistantService.class));
+                ScriptedConsole io = new ScriptedConsole("e", "r", "1", "b", "q");
+                ManagementTui screen = new ManagementTui(catalog, chains, slowExecutions,
+                        newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                        info, new ScheduleProperties(List.of()),
+                        mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                        new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                        new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                        io);
+                screen.run();
+                assertTrue(io.transcript().contains("is still"), io.transcript());
+            }
+        } finally {
+            release.countDown();
+            if (async instanceof java.util.concurrent.ExecutorService service) {
+                service.shutdownNow();
+            }
+        }
+    }
+
+    @Test
+    void contentTreeDrillsDownToAFileAndPreviewsIt() throws Exception {
+        // real stored content on disk: a capture with a scrape.html
+        java.nio.file.Path work = java.nio.file.Files.createTempDirectory("neis-content");
+        java.nio.file.Path file = work.resolve("ADDR-001/cap-abc123/content/WEBSCRAPE/scrape.html");
+        java.nio.file.Files.createDirectories(file.getParent());
+        java.nio.file.Files.writeString(file,
+                "<html><head><style>.x{}</style></head><body>"
+                        + "<div class='item'><h2>Headline one</h2><p>Body text.</p></div>"
+                        + "<script>var x=1;</script></body></html>");
+        InMemoryContentStorePort port = new InMemoryContentStorePort();
+        port.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
+                "CONT-test", "ADDR-001", "cap-abc123", "WEBSCRAPE", "html",
+                file.toString(), java.time.Instant.now()));
+        ContentStoreService store = new ContentStoreService(port, work.toString());
+        ScriptedConsole io = new ScriptedConsole(
+                "r",
+                "t",                        // tree: level 1 (addresses)
+                "1",                        // drill into ADDR-001
+                "1",                        // drill into cap-abc123
+                "1",                        // drill into WEBSCRAPE/
+                "1",                        // preview scrape.html
+                "b",                        // back to the repository menu
+                "b",
+                "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, store, info(), new ScheduleProperties(List.of()),
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
+
+        try {
+            screen.run();
+        } finally {
+            System.clearProperty("neis.log.path");
+        }
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("CONTENT TREE"), transcript);
+        assertTrue(transcript.contains("Addresses with stored content"), transcript);
+        assertTrue(transcript.contains("cap-abc123"), transcript);
+        assertTrue(transcript.contains("Preview of CONT-test"), transcript);
+        assertTrue(transcript.contains("Headline one"), transcript);
+        assertFalse(transcript.contains("var x=1;"), "script content is dropped");
+        assertFalse(transcript.contains(".x{}"), "style content is dropped");
+        for (java.nio.file.Path root = work; root != null
+                && java.nio.file.Files.isDirectory(root); ) {
+            // best-effort cleanup of the temp tree
+            break;
+        }
+        java.util.stream.Stream<java.nio.file.Path> walk =
+                java.nio.file.Files.walk(work);
+        List<java.nio.file.Path> all = walk.sorted(java.util.Comparator.reverseOrder()).toList();
+        walk.close();
+        for (java.nio.file.Path p : all) {
+            java.nio.file.Files.deleteIfExists(p);
+        }
     }
 }

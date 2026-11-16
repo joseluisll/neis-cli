@@ -15,6 +15,7 @@ import es.jllopez.neis.domain.model.ContentRecord;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.TaskExecution;
 
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -55,6 +56,8 @@ class ManagementTui {
     private final ScheduleProperties schedules;
     private final AiAssistantService ai;
     private final es.jllopez.neis.domain.port.SelectorStorePort selectorStore;
+    private final es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors;
+    private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
     private final ConsoleIO io;
 
     ManagementTui(AddressCatalogService catalog,
@@ -66,6 +69,8 @@ class ManagementTui {
                   ScheduleProperties schedules,
                   AiAssistantService ai,
                   es.jllopez.neis.domain.port.SelectorStorePort selectorStore,
+                  es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
+                  es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
                   ConsoleIO io) {
         this.catalog = catalog;
         this.chains = chains;
@@ -76,6 +81,8 @@ class ManagementTui {
         this.schedules = schedules;
         this.ai = ai;
         this.selectorStore = selectorStore;
+        this.preconfiguredSelectors = preconfiguredSelectors;
+        this.preconfiguredFilters = preconfiguredFilters;
         this.io = io;
     }
 
@@ -97,13 +104,14 @@ class ManagementTui {
                 case "c", "chains" -> chainsSection();
                 case "e", "executions" -> executionsSection();
                 case "r", "repository" -> repositorySection();
-                case "g", "config" -> configSection();
+                case "n", "g", "config" -> configSection();
+                case "o", "logs" -> logsSection();
                 case "q", "quit", "exit" -> {
                     io.println("Bye.");
                     return;
                 }
                 default -> io.println("Unknown section '" + line.trim()
-                        + "' — choose one of d/a/c/e/r/g/q.");
+                        + "' — choose one of d/a/c/e/r/n/o/q.");
             }
         }
     }
@@ -120,7 +128,12 @@ class ManagementTui {
                 .append(d.verifiedAddresses()).append(" verified, ")
                 .append(d.unverifiedAddresses()).append(" unverified, ")
                 .append(d.failedAddresses()).append(" failed)\n");
-        out.append("  Chains         : ").append(d.chains()).append(" defined\n");
+        out.append("  Chains         : ").append(d.chains()).append(" defined");
+        if (!d.chainNames().isEmpty()) {
+            out.append(" — ").append(String.join(", ", d.chainNames()));
+        }
+        out.append("\n");
+        out.append("  Task types     : ").append(String.join(", ", d.taskTypes())).append("\n");
         out.append("  Executions     : ").append(d.executions()).append(" records (")
                 .append(d.running()).append(" active, ").append(d.failed()).append(" failed)\n");
         TaskExecution last = d.lastExecution();
@@ -132,18 +145,178 @@ class ManagementTui {
                     .append(last.finishedAt() == null ? " (running)" : "  " + TS.format(last.finishedAt()))
                     .append("\n");
         }
+        for (TaskExecution failure : d.recentFailures()) {
+            out.append("  Failed run     : ").append(failure.id()).append("  ")
+                    .append(failure.taskCode()).append(" over ")
+                    .append(failure.addressId() == null ? "-" : failure.addressId())
+                    .append(failure.finishedAt() == null ? "" : "  " + TS.format(failure.finishedAt()))
+                    .append("\n          ")
+                    .append(failure.outcome() == null ? "(no outcome recorded)"
+                            : firstLine(failure.outcome()))
+                    .append("\n");
+        }
         out.append("  Repository     : ").append(d.storedItems()).append(" news/events stored\n");
-        out.append("  Schedules      : ").append(d.schedules()).append(" configured\n");
+        if (d.nextRuns().isEmpty()) {
+            out.append("  Schedules      : none configured (neis.schedule.entries)\n");
+        } else {
+            out.append("  Schedules      : ").append(d.nextRuns().size()).append(" configured\n");
+            for (ManagementInfoService.ScheduleFire fire : d.nextRuns()) {
+                out.append("    ").append(fire.name()).append(": ")
+                        .append(fire.task()).append(" over ").append(fire.address())
+                        .append(" — next run ").append(fire.error() != null
+                                ? fire.error() + " (fix the cron to schedule it)"
+                                : fire.nextAt() == null ? "never (cron matches nothing)"
+                                : fire.nextAt())
+                        .append("\n");
+            }
+        }
         return out.toString();
+    }
+
+    /** The first line of a multi-line outcome (the dashboard keeps one
+     * line per entry; the full text is in the executions section). */
+    private static String firstLine(String text) {
+        int newline = text.indexOf('\n');
+        return newline < 0 ? text : text.substring(0, newline);
+    }
+
+    // ---- US-16.1: the Logs section (issue #78) ----
+
+    /** The rolling log's location, resolved like core/run.sh does
+     * (NEIS_LOG_PATH -> neis.log.path -> ./logs/neis.log). */
+    private Path logFile() {
+        return Path.of(System.getProperty("neis.log.path", "./logs/neis.log"));
+    }
+
+    private void logsSection() {
+        while (true) {
+            ConsoleIO.printSection(io, "LOGS (US-16.1)", logsTable(),
+                    "[l]ist tail  [<n>] last <n> lines  [b]ack");
+            String line = io.readLine("logs> ");
+            if (line == null) {
+                return;
+            }
+            String trimmed = line.trim().toLowerCase();
+            if (trimmed.isEmpty() || trimmed.equals("l") || trimmed.equals("list")) {
+                continue;
+            }
+            switch (trimmed) {
+                case "b", "back", "q", "quit", "exit" -> {
+                    return;
+                }
+                default -> {
+                    Integer lines = parseCount(trimmed, 1, 1000);
+                    if (lines == null) {
+                        io.println("Unknown command '" + line.trim()
+                                + "' — choose l / <n> (lines, 1-1000) / b.");
+                        continue;
+                    }
+                    io.println(logTail(lines));
+                }
+            }
+        }
+    }
+
+    private String logsTable() {
+        Path log = logFile();
+        return "Log file: " + log.toAbsolutePath()
+                + (java.nio.file.Files.isRegularFile(log) ? " (" + sizeOf(log) + " bytes)"
+                : " (not created yet — the file appears when NEIS first logs)");
+    }
+
+    private static long sizeOf(Path file) {
+        try {
+            return java.nio.file.Files.size(file);
+        } catch (java.io.IOException e) {
+            return -1;
+        }
+    }
+
+    /** The last <lines> lines of the rolling log, oldest of them
+     * first (log order). Missing file and read errors are reported
+     * loud, never as an empty screen. */
+    private String logTail(int lines) {
+        Path log = logFile();
+        if (!java.nio.file.Files.isRegularFile(log)) {
+            return "No log file at " + log.toAbsolutePath()
+                    + " — NEIS logs there once configured and run.";
+        }
+        try {
+            List<String> all = java.nio.file.Files.readAllLines(log);
+            int from = Math.max(0, all.size() - lines);
+            StringBuilder out = new StringBuilder("Last ")
+                    .append(all.size() - from).append(" of ")
+                    .append(all.size()).append(" lines:\n");
+            for (int i = from; i < all.size(); i++) {
+                out.append("  ").append(all.get(i)).append("\n");
+            }
+            return out.toString();
+        } catch (java.io.IOException e) {
+            return "Cannot read " + log.toAbsolutePath() + ": " + e.getMessage();
+        }
     }
 
     // ---- US-16.3: execution management (history, detail, re-run) ----
 
+    /** The active filter of the executions section, or null. */
+    private record ExecutionFilter(String addressId, String taskCode,
+                                   String status, String dateFrom) {
+
+        /** Whether the record passes every active dimension. */
+        boolean accepts(TaskExecution e) {
+            if (addressId != null
+                    && (e.addressId() == null || !e.addressId().equalsIgnoreCase(addressId))) {
+                return false;
+            }
+            if (taskCode != null
+                    && (e.taskCode() == null || !e.taskCode().equalsIgnoreCase(taskCode))) {
+                return false;
+            }
+            if (status != null && (e.status() == null || !e.status().name().equalsIgnoreCase(status))) {
+                return false;
+            }
+            if (dateFrom != null) {
+                String day = e.startedAt() == null ? null
+                        : e.startedAt().atZone(ZoneId.systemDefault())
+                        .toLocalDate().toString();
+                if (day == null || day.compareTo(dateFrom) < 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** Human description for the section header. */
+        String describe() {
+            List<String> parts = new java.util.ArrayList<>();
+            if (addressId != null) {
+                parts.add("address=" + addressId);
+            }
+            if (taskCode != null) {
+                parts.add("task=" + taskCode);
+            }
+            if (status != null) {
+                parts.add("status=" + status);
+            }
+            if (dateFrom != null) {
+                parts.add("from=" + dateFrom);
+            }
+            return String.join(", ", parts);
+        }
+    }
+
     private void executionsSection() {
+        ExecutionFilter filter = null;
         while (true) {
-            List<TaskExecution> records = executions.list();
-            ConsoleIO.printSection(io, "EXECUTIONS (US-16.3)", executionsTable(records),
-                    "[l]ist  [<n>] show detail  [r] re-run  [b]ack");
+            List<TaskExecution> all = executions.list();
+            List<TaskExecution> records = filterRecords(all, filter);
+            String header = "Execution records (" + records.size()
+                    + (filter == null ? " of " + all.size() + ", newest first)"
+                    : " of " + all.size() + " match " + filter.describe() + ")");
+            ConsoleIO.printSection(io, "EXECUTIONS (US-16.3)", header + ":\n"
+                            + executionsTable(records),
+                    "[l]ist  [f] filter (address/task/status/from-date, empty = clear)"
+                            + "  [<n>] show detail  [r] re-run  [b]ack");
             String line = io.readLine("executions> ");
             if (line == null) {
                 return;
@@ -156,19 +329,104 @@ class ManagementTui {
                 case "b", "back", "q", "quit", "exit" -> {
                     return;
                 }
+                case "f", "filter" -> filter = askExecutionFilter();
                 case "r" -> reRun(records);
                 default -> {
-                    // a bare number shows that record's detail
+                    if (records.isEmpty()) {
+                        io.println("  Nothing listed" + (filter == null ? ""
+                                : " (filter: " + filter.describe() + ")")
+                                + " — clear the filter with 'f' or list with 'l'.");
+                        continue;
+                    }
                     Integer index = parseIndex(trimmed, records.size());
                     if (index == null) {
                         io.println("Unknown command '" + line.trim()
-                                + "' — choose l / <n> / r / b.");
+                                + "' — choose l / f / <n> / r / b.");
                         continue;
                     }
                     io.println(executionDetail(records.get(index)));
                 }
             }
         }
+    }
+
+    /** Asks the four filter dimensions (US-16.3: address, task/chain,
+     * status, date); EMPTY input on a dimension keeps it unset, and an
+     * entirely empty answer CLEARS the active filter. Values are
+     * validated against what exists (statuses, task types, known
+     * addresses) so a typo is refused instead of filtering everything
+     * away silently. */
+    private ExecutionFilter askExecutionFilter() {
+        String address = io.readLine("  address id (empty = any): ");
+        if (address == null) {
+            return null;
+        }
+        address = address.trim();
+        if (!address.isEmpty()) {
+            try {
+                catalog.byId(address);
+            } catch (IllegalArgumentException e) {
+                io.println("  Filter cleared — " + e.getMessage());
+                return null;
+            }
+        }
+        String task = io.readLine("  task code (empty = any): ");
+        if (task == null) {
+            return null;
+        }
+        task = task.trim().toUpperCase();
+        if (!task.isEmpty() && !executions.taskTypes().contains(task)) {
+            io.println("  Filter cleared — unknown task type '" + task
+                    + "' (known: " + String.join(", ", executions.taskTypes()) + ").");
+            return null;
+        }
+        String status = io.readLine("  status PENDING/RUNNING/SUCCESS/FAILED (empty = any): ");
+        if (status == null) {
+            return null;
+        }
+        status = status.trim().toUpperCase();
+        if (!status.isEmpty() && !isValidStatus(status)) {
+            io.println("  Filter cleared — unknown status '" + status
+                    + "' (PENDING, RUNNING, SUCCESS or FAILED).");
+            return null;
+        }
+        String from = io.readLine("  started on/after, ISO yyyy-MM-dd (empty = any): ");
+        if (from == null) {
+            return null;
+        }
+        from = from.trim();
+        if (!from.isEmpty() && !from.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            io.println("  Filter cleared — the date must be ISO yyyy-MM-dd, got '"
+                    + from + "'.");
+            return null;
+        }
+        if (address.isEmpty() && task.isEmpty() && status.isEmpty() && from.isEmpty()) {
+            io.println("  Filter cleared — showing every execution again.");
+            return null;
+        }
+        return new ExecutionFilter(address.isEmpty() ? null : address,
+                task.isEmpty() ? null : task,
+                status.isEmpty() ? null : status,
+                from.isEmpty() ? null : from);
+    }
+
+    private static boolean isValidStatus(String status) {
+        for (es.jllopez.neis.domain.model.ExecutionStatus candidate :
+                es.jllopez.neis.domain.model.ExecutionStatus.values()) {
+            if (candidate.name().equalsIgnoreCase(status)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The records passing the filter (null filter = all). */
+    private static List<TaskExecution> filterRecords(List<TaskExecution> all,
+                                                     ExecutionFilter filter) {
+        if (filter == null) {
+            return all;
+        }
+        return all.stream().filter(filter::accepts).toList();
     }
 
     private String executionsTable(List<TaskExecution> records) {
@@ -221,9 +479,16 @@ class ManagementTui {
     }
 
     /** Re-run (US-16.3): resubmits the same task or chain over the
-     * same address. Idempotent by platform rules (US-15.4): the run
-     * itself is idempotent, the new record is a separate attempt. */
+     * same address. Only FAILED or finished (SUCCESS) records are
+     * re-runnable (US-16.3); a PENDING/RUNNING record is refused —
+     * it is still in flight, and re-running it would queue a duplicate.
+     * Idempotent by platform rules (US-15.4): the run itself is
+     * idempotent, the new record is a separate attempt. */
     private void reRun(List<TaskExecution> records) {
+        if (records.isEmpty()) {
+            io.println("  Nothing to re-run — no executions listed.");
+            return;
+        }
         String line = io.readLine("  number of the execution to re-run: ");
         if (line == null) {
             return;
@@ -235,6 +500,12 @@ class ManagementTui {
             return;
         }
         TaskExecution original = records.get(index);
+        if (original.status() == es.jllopez.neis.domain.model.ExecutionStatus.PENDING
+                || original.status() == es.jllopez.neis.domain.model.ExecutionStatus.RUNNING) {
+            io.println("  Refused: " + original.id() + " is still "
+                    + original.status() + " — wait for it to finish, then re-run.");
+            return;
+        }
         if (original.chainId() != null) {
             try {
                 TaskExecution submitted = executions.submitChain(
@@ -374,13 +645,21 @@ class ManagementTui {
     // ---- US-16.4: repository browsing (news/events + content tree) ----
 
     private void repositorySection() {
+        String kind = null;
+        String addressId = null;
+        Boolean complete = null; // null = any, true = complete only, false = incomplete only
+        int limit = es.jllopez.neis.domain.model.NewsEventQuery.DEFAULT_LIMIT;
         while (true) {
-            List<NewsEventItem> items = newsEvents.search(
+            List<NewsEventItem> searched = newsEvents.search(
                     new es.jllopez.neis.domain.model.NewsEventQuery(
-                            null, null, null, null,
-                            es.jllopez.neis.domain.model.NewsEventQuery.DEFAULT_LIMIT));
-            ConsoleIO.printSection(io, "REPOSITORY (US-16.4)", repositoryTable(items),
-                    "[l]ist news/events  [t]ree of stored content  [<n>] item detail  [b]ack");
+                            addressId, kind, null, null, limit));
+            List<NewsEventItem> items = complete == null ? searched
+                    : filterByCompleteness(searched, complete);
+            String header = repositoryHeader(items, kind, addressId, complete, limit);
+            ConsoleIO.printSection(io, "REPOSITORY (US-16.4)", header + ":\n"
+                            + repositoryTable(items),
+                    "[l]ist  [f] filter (kind/address/completeness/limit)  [t] tree of stored"
+                            + " content  [<n>] item detail  [b]ack");
             String line = io.readLine("repository> ");
             if (line == null) {
                 return;
@@ -393,18 +672,132 @@ class ManagementTui {
                 case "b", "back", "q", "quit", "exit" -> {
                     return;
                 }
-                case "t", "tree" -> io.println(contentTree());
+                case "t", "tree" -> browseContentTree();
+                case "f", "filter" -> {
+                    String[] filter = askRepositoryFilter(kind, addressId, complete, limit);
+                    if (filter != null) {
+                        kind = filter[0].isEmpty() ? null : filter[0];
+                        addressId = filter[1].isEmpty() ? null : filter[1];
+                        // 'complete' = show complete items only; the filter
+                        // below keeps items whose incomplete flag differs
+                        complete = filter[2].isEmpty() ? null
+                                : !filter[2].equals("incomplete");
+                        limit = Integer.parseInt(filter[3]);
+                    }
+                }
                 default -> {
+                    if (items.isEmpty()) {
+                        io.println("  Nothing listed — adjust the filter with 'f' or list with 'l'.");
+                        continue;
+                    }
                     Integer index = parseIndex(trimmed, items.size());
                     if (index == null) {
                         io.println("Unknown command '" + line.trim()
-                                + "' — choose l / t / <n> / b.");
+                                + "' — choose l / f / t / <n> / b.");
                         continue;
                     }
                     io.println(itemDetail(items.get(index)));
                 }
             }
         }
+    }
+
+    /** The items passing the completeness filter (null = all). */
+    private static List<NewsEventItem> filterByCompleteness(List<NewsEventItem> items,
+                                                            Boolean complete) {
+        return items.stream()
+                .filter(item -> item.incomplete() != complete)
+                .toList();
+    }
+
+    private String repositoryHeader(List<NewsEventItem> items, String kind,
+                                    String addressId, Boolean complete, int limit) {
+        StringBuilder out = new StringBuilder("News/events (").append(items.size())
+                .append(" shown, limit ").append(limit)
+                .append(items.size() == limit ? " — more may exist, raise the limit" : "")
+                .append(")");
+        List<String> parts = new java.util.ArrayList<>();
+        if (kind != null) {
+            parts.add("kind=" + kind);
+        }
+        if (addressId != null) {
+            parts.add("address=" + addressId);
+        }
+        if (complete != null) {
+            parts.add(complete ? "complete only" : "incomplete only");
+        }
+        if (!parts.isEmpty()) {
+            out.append(" — filter: ").append(String.join(", ", parts));
+        }
+        return out.toString();
+    }
+
+    /** Asks the repository filter dimensions (US-16.4: type, address,
+     * completeness); EMPTY input keeps a dimension, an entirely empty
+     * answer clears the filter. Values are validated (kind, known
+     * address) so a typo is refused loud. */
+    private String[] askRepositoryFilter(String kind, String addressId,
+                                         Boolean complete, int limit) {
+        String newKind = io.readLine("  kind news/event (empty = keep"
+                + (kind == null ? " any" : " " + kind) + "): ");
+        if (newKind == null) {
+            return null;
+        }
+        newKind = newKind.trim().toLowerCase();
+        if (!newKind.isEmpty() && !newKind.equals("news") && !newKind.equals("event")) {
+            io.println("  Filter unchanged — the kind must be news or event, got '"
+                    + newKind + "'.");
+            return null;
+        }
+        String newAddress = io.readLine("  address id (empty = keep"
+                + (addressId == null ? " any" : " " + addressId) + "): ");
+        if (newAddress == null) {
+            return null;
+        }
+        newAddress = newAddress.trim();
+        if (!newAddress.isEmpty()) {
+            try {
+                catalog.byId(newAddress);
+            } catch (IllegalArgumentException e) {
+                io.println("  Filter unchanged — " + e.getMessage());
+                return null;
+            }
+        }
+        String newComplete = io.readLine("  completeness all/complete/incomplete (empty = keep "
+                + (complete == null ? "all" : complete ? "complete" : "incomplete") + "): ");
+        if (newComplete == null) {
+            return null;
+        }
+        newComplete = newComplete.trim().toLowerCase();
+        if (!newComplete.isEmpty() && !newComplete.equals("all")
+                && !newComplete.equals("complete") && !newComplete.equals("incomplete")) {
+            io.println("  Filter unchanged — completeness must be all, complete or incomplete, got '"
+                    + newComplete + "'.");
+            return null;
+        }
+        String newLimit = io.readLine("  limit, 1-1000 (empty = keep " + limit + "): ");
+        if (newLimit == null) {
+            return null;
+        }
+        newLimit = newLimit.trim();
+        Integer parsedLimit = newLimit.isEmpty()
+                ? limit : parseCount(newLimit, 1, 1000);
+        if (parsedLimit == null) {
+            io.println("  Filter unchanged — the limit must be a number 1-1000, got '"
+                    + newLimit + "'.");
+            return null;
+        }
+        if (newKind.isEmpty() && newAddress.isEmpty()
+                && newComplete.isEmpty() && newLimit.isEmpty()) {
+            io.println("  Filter cleared — showing everything (default limit).");
+            return new String[]{"", "", "", String.valueOf(
+                    es.jllopez.neis.domain.model.NewsEventQuery.DEFAULT_LIMIT)};
+        }
+        return new String[]{
+                newKind.isEmpty() ? (kind == null ? "" : kind) : newKind,
+                newAddress.isEmpty() ? (addressId == null ? "" : addressId) : newAddress,
+                newComplete.isEmpty() ? (complete == null ? "" : complete ? "complete" : "incomplete") : newComplete,
+                String.valueOf(parsedLimit)};
     }
 
     private String repositoryTable(List<NewsEventItem> items) {
@@ -450,8 +843,245 @@ class ManagementTui {
         return out.toString();
     }
 
-    /** The storage tree (US-11.4): address / capture / task from the
-     * content records, with each record's file path. */
+    /** The storage tree (US-11.4) rendered as a navigable drill-down
+     * (US-16.4): the overview lists the addresses; typing a number
+     * drills into its captures; the next number drills into that
+     * capture's task folders; the next into the files; a file number
+     * PREVIEWS its stored content (raw or simplified HTML5 rendered as
+     * text/structure). 'u' goes one level up, 'b' back to the
+     * repository menu. */
+    private void browseContentTree() {
+        List<ContentRecord> records = contentStore.listAll();
+        if (records.isEmpty()) {
+            io.println("Content tree: <no stored content yet>, root: "
+                    + contentStore.root());
+            return;
+        }
+        List<String> addresses = records.stream().map(ContentRecord::addressId)
+                .distinct().toList();
+        String selectedAddress = null;
+        String selectedCapture = null;
+        String selectedTask = null;
+        while (true) {
+            ConsoleIO.printSection(io, "CONTENT TREE (US-11.4), root: " + contentStore.root(),
+                    treeLevel(records, addresses, selectedAddress, selectedCapture, selectedTask),
+                    treeMenu(selectedAddress, selectedCapture, selectedTask));
+            String line = io.readLine("tree> ");
+            if (line == null) {
+                return;
+            }
+            String trimmed = line.trim().toLowerCase();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            switch (trimmed) {
+                case "b", "back", "q", "quit", "exit" -> {
+                    return;
+                }
+                case "u", "up" -> {
+                    if (selectedTask != null) {
+                        selectedTask = null;
+                    } else if (selectedCapture != null) {
+                        selectedCapture = null;
+                    } else if (selectedAddress != null) {
+                        selectedAddress = null;
+                    }
+                }
+                default -> {
+                    // navigation depends on the current level
+                    if (selectedAddress == null) {
+                        Integer index = parseIndex(trimmed, addresses.size());
+                        if (index == null) {
+                            io.println("Unknown command '" + line.trim()
+                                    + "' — choose <n> (address) / b.");
+                            continue;
+                        }
+                        selectedAddress = addresses.get(index);
+                    } else if (selectedCapture == null) {
+                        List<String> captures = capturesOf(records, selectedAddress);
+                        Integer index = parseIndex(trimmed, captures.size());
+                        if (index == null) {
+                            io.println("Unknown command '" + line.trim()
+                                    + "' — choose <n> (capture) / u / b.");
+                            continue;
+                        }
+                        selectedCapture = captures.get(index);
+                    } else if (selectedTask == null) {
+                        List<String> tasks = tasksOf(records, selectedAddress, selectedCapture);
+                        Integer index = parseIndex(trimmed, tasks.size());
+                        if (index == null) {
+                            io.println("Unknown command '" + line.trim()
+                                    + "' — choose <n> (task folder) / u / b.");
+                            continue;
+                        }
+                        selectedTask = tasks.get(index);
+                    } else {
+                        List<ContentRecord> files = filesOf(records, selectedAddress,
+                                selectedCapture, selectedTask);
+                        Integer index = parseIndex(trimmed, files.size());
+                        if (index == null) {
+                            io.println("Unknown command '" + line.trim()
+                                    + "' — choose <n> (file, preview) / u / b.");
+                            continue;
+                        }
+                        io.println(contentPreview(files.get(index)));
+                    }
+                }
+            }
+        }
+    }
+
+    private String treeMenu(String address, String capture, String task) {
+        if (address == null) {
+            return "[<n>] open address  [b]ack";
+        }
+        if (capture == null) {
+            return "[<n>] open capture  [u]p  [b]ack";
+        }
+        if (task == null) {
+            return "[<n>] open task folder  [u]p  [b]ack";
+        }
+        return "[<n>] preview file  [u]p  [b]ack";
+    }
+
+    /** The state lines of one tree level. */
+    private String treeLevel(List<ContentRecord> records, List<String> addresses,
+                             String address, String capture, String task) {
+        StringBuilder out = new StringBuilder();
+        if (address == null) {
+            out.append("Addresses with stored content (").append(addresses.size()).append("):\n");
+            for (int i = 0; i < addresses.size(); i++) {
+                final String id = addresses.get(i);
+                long count = records.stream()
+                        .filter(r -> r.addressId().equals(id)).count();
+                out.append("  ").append(i + 1).append(". ").append(id)
+                        .append("/  (").append(count).append(" files)\n");
+            }
+            return out.toString();
+        }
+        if (capture == null) {
+            List<String> captures = capturesOf(records, address);
+            out.append(address).append("/ — captures (").append(captures.size()).append("):\n");
+            for (int i = 0; i < captures.size(); i++) {
+                final String id = captures.get(i);
+                long count = records.stream()
+                        .filter(r -> r.addressId().equals(address)
+                                && r.captureId().equals(id)).count();
+                out.append("  ").append(i + 1).append(". ").append(id)
+                        .append("/  (").append(count).append(" files)\n");
+            }
+            return out.toString();
+        }
+        if (task == null) {
+            List<String> tasks = tasksOf(records, address, capture);
+            out.append(address).append("/").append(capture).append("/content/ — tasks (")
+                    .append(tasks.size()).append("):\n");
+            for (int i = 0; i < tasks.size(); i++) {
+                final String id = tasks.get(i);
+                long count = records.stream()
+                        .filter(r -> r.addressId().equals(address)
+                                && r.captureId().equals(capture)
+                                && r.taskCode().equals(id)).count();
+                out.append("  ").append(i + 1).append(". ").append(id)
+                        .append("/  (").append(count).append(" files)\n");
+            }
+            return out.toString();
+        }
+        List<ContentRecord> files = filesOf(records, address, capture, task);
+        out.append(address).append("/").append(capture).append("/content/")
+                .append(task).append("/ — files (").append(files.size()).append("):\n");
+        for (int i = 0; i < files.size(); i++) {
+            out.append("  ").append(i + 1).append(". ")
+                    .append(Path.of(files.get(i).path()).getFileName())
+                    .append("\n        ").append(files.get(i).path()).append("\n");
+        }
+        return out.toString();
+    }
+
+    private static List<String> capturesOf(List<ContentRecord> records, String address) {
+        return records.stream()
+                .filter(r -> r.addressId().equals(address))
+                .map(ContentRecord::captureId).distinct().toList();
+    }
+
+    private static List<String> tasksOf(List<ContentRecord> records, String address,
+                                        String capture) {
+        return records.stream()
+                .filter(r -> r.addressId().equals(address) && r.captureId().equals(capture))
+                .map(ContentRecord::taskCode).distinct().toList();
+    }
+
+    private static List<ContentRecord> filesOf(List<ContentRecord> records, String address,
+                                               String capture, String task) {
+        return records.stream()
+                .filter(r -> r.addressId().equals(address) && r.captureId().equals(capture)
+                        && r.taskCode().equals(task))
+                .toList();
+    }
+
+    /** Content preview (US-16.4): reads the stored file and renders it
+     * as text/structure — HTML5 files are stripped to their visible
+     * text and structural tags (max ~100 lines); other files are shown
+     * raw (capped). A missing or unreadable file is reported loud. */
+    private String contentPreview(ContentRecord record) {
+        Path file = Path.of(record.path());
+        if (!java.nio.file.Files.isRegularFile(file)) {
+            return "Preview unavailable — the file is gone from the storage tree: "
+                    + record.path();
+        }
+        try {
+            String raw = java.nio.file.Files.readString(file);
+            String text = record.path().endsWith(".html") || raw.trim().startsWith("<")
+                    ? htmlToText(raw) : raw;
+            String[] lines = text.split("\\R");
+            StringBuilder out = new StringBuilder("Preview of ").append(record.id())
+                    .append(" [").append(record.taskCode()).append("] ")
+                    .append(file.getFileName())
+                    .append(" (").append(lines.length).append(" lines total):\n");
+            int shown = Math.min(lines.length, 100);
+            for (int i = 0; i < shown; i++) {
+                String line = lines[i];
+                if (line.length() > 160) {
+                    line = line.substring(0, 160) + "…";
+                }
+                out.append("  ").append(line).append("\n");
+            }
+            if (lines.length > shown) {
+                out.append("  … (").append(lines.length - shown)
+                        .append(" more lines — open the file at ").append(record.path())
+                        .append(")\n");
+            }
+            return out.toString();
+        } catch (java.io.IOException e) {
+            return "Cannot read " + record.path() + ": " + e.getMessage();
+        }
+    }
+
+    /** Renders stored HTML5 as text/structure: script/style/noscript
+     * dropped, block boundaries become newlines, tags stripped,
+     * entities unescaped, whitespace collapsed. Pure string work —
+     * the jsoup dependency stays behind the ports (US-01.4). */
+    private static String htmlToText(String html) {
+        String working = html
+                .replaceAll("(?is)<(script|style|noscript|svg|head)\\b.*?</\\1>", "")
+                .replaceAll("(?is)<br\\s*/?>", "\n")
+                .replaceAll("(?is)</(p|div|li|tr|h[1-6]|section|article|header|footer|table|ul|ol|select|option)>", "\n")
+                .replaceAll("(?is)<[^>]+>", "")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'");
+        return java.util.Arrays.stream(working.split("\\R"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
+    /** The flat tree rendering (kept for the execution detail's
+     * content links context); the navigable view is
+     * {@link #browseContentTree()}. */
     private String contentTree() {
         List<ContentRecord> records = contentStore.listAll();
         StringBuilder out = new StringBuilder("Content tree (").append(records.size())
@@ -502,18 +1132,50 @@ class ManagementTui {
         }
     }
 
-    /** The configuration overview (US-16.5): what is configured and
-     * where it lives. Values are shown read-only here — the externalized
-     * configuration (US-15.1) stays the source of record, edited in
-     * application.yml; the section makes the effective state visible
-     * and validates that what it shows is loadable. */
+    /** The configuration overview (US-16.5): every configurable element
+     * the system exposes, shown read-only — the externalized
+     * configuration (US-15.1, application.yml) stays the source of
+     * record, edited there; the section makes the effective state
+     * visible. Editing from the TUI is a later slice (tracked in the
+     * review-findings issue #97). */
     private String configText() {
         StringBuilder out = new StringBuilder();
-        out.append("  Work dir (content root): ").append(contentStore.root()).append("\n");
-        out.append("  AI provider            : ").append(ai.isAvailable()
-                ? "active" : "disabled (neis.ai.enabled=false)")
+        out.append("General settings (US-15.1):\n");
+        out.append("  Work dir (content root) : ").append(contentStore.root()).append("\n");
+        out.append("  Database                : ").append(System.getProperty("neis.db.path", "./neis.db")).append("\n");
+        out.append("  Log file                : ").append(logFile().toAbsolutePath()).append("\n");
+        out.append("  Scrape connector        : ").append(System.getProperty("neis.scrape.connector", "default (per webpage type)")).append("\n");
+        out.append("  Extraction limit        : ").append(System.getProperty("neis.extraction.max-items", "(unset — no global cap)")).append(" (US-12.5 neis.extraction.max-items)\n");
+        out.append("  Verification timeout    : ").append(System.getProperty("neis.address.verification.timeout-seconds", "(default)")).append(" s\n");
+        out.append("AI provider (US-15.3):\n");
+        out.append("  Status                  : ").append(ai.isAvailable() ? "active" : "disabled (neis.ai.enabled=false)").append("\n");
+        out.append("  Provider / model        : ").append(System.getProperty("neis.ai.provider", "melious")).append(" / ")
+                .append(System.getProperty("neis.ai.model", "(default)")).append("\n");
+        out.append("  Base URL                : ").append(System.getProperty("neis.ai.base-url", "(unset)")).append("\n");
+        out.append("  API key                 : via environment variable '").append(System.getProperty("neis.ai.api-key-ref", "MELIOUS_API_KEY")).append("' (never stored in config)\n");
+        out.append("Preconfigured selectors (US-12.1, neis.selectors.preconfigured): ")
+                .append(preconfiguredSelectors.preconfigured().isEmpty()
+                        ? "<none configured>"
+                        : preconfiguredSelectors.preconfigured().size() + " entries")
                 .append("\n");
-        out.append("  Schedules (").append(schedules.entries().size()).append("):\n");
+        for (es.jllopez.neis.application.PreconfiguredSelectorProperties.Entry entry
+                : preconfiguredSelectors.preconfigured()) {
+            out.append("    ").append(entry.address() == null || entry.address().isBlank()
+                            ? "<any address>" : entry.address())
+                    .append(" / ").append(entry.kind()).append(" : ")
+                    .append(entry.selector()).append("\n");
+        }
+        out.append("Preconfigured filters (US-06.6, neis.filters.preconfigured): ")
+                .append(preconfiguredFilters.preconfigured().isEmpty()
+                        ? "<none configured>"
+                        : preconfiguredFilters.preconfigured().size() + " entries")
+                .append("\n");
+        for (es.jllopez.neis.application.PreconfiguredFilterProperties.Entry entry
+                : preconfiguredFilters.preconfigured()) {
+            out.append("    ").append(entry.address()).append(" : ")
+                    .append(entry.name()).append(" = ").append(entry.value()).append("\n");
+        }
+        out.append("Schedules (").append(schedules.entries().size()).append("):\n");
         for (ScheduleProperties.Entry entry : schedules.entries()) {
             out.append("    ").append(entry.name()).append(": ")
                     .append(entry.task()).append(" over ").append(entry.address())
@@ -588,5 +1250,23 @@ class ManagementTui {
             return null;
         }
         return value - 1;
+    }
+
+    /** A count from a typed number, bounded; null when out of range or
+     * not a number. */
+    private static Integer parseCount(String input, int min, int max) {
+        if (input.isEmpty()) {
+            return null;
+        }
+        int value;
+        try {
+            value = Integer.parseInt(input);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (value < min || value > max) {
+            return null;
+        }
+        return value;
     }
 }
