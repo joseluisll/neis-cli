@@ -619,6 +619,94 @@ class TaskWorkServiceWebScrapeTest {
     }
 
     @Test
+    void atomEntriesArePinnedEndToEndThroughTheRealParser() {
+        // US-06.10 review finding on #100: the end-to-end feed tests
+        // covered only the RSS shape — Rome's Atom entries normalize
+        // dates and links differently. Pinned here through the real
+        // RomeFeedConnector parse: published preferred over updated,
+        // updated as the fallback, <link href> normalization (with and
+        // without rel=alternate) and the content-block description
+        // fallback.
+        catalog.updateWebpageType("ADDR-001", "feed");
+        String atomDoc = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <title>Atom news</title>
+                  <entry>
+                    <title>Atom item one</title>
+                    <link rel="alternate" href="https://example.eu/atom/1"/>
+                    <published>2026-11-11T08:00:00Z</published>
+                    <updated>2026-11-12T09:30:00Z</updated>
+                    <summary>First atom summary</summary>
+                  </entry>
+                  <entry>
+                    <title>Atom item two</title>
+                    <link href="https://example.eu/atom/2"/>
+                    <updated>2026-11-13T10:00:00Z</updated>
+                    <content type="html">Second atom content block</content>
+                  </entry>
+                </feed>
+                """;
+
+        String outcome = serviceWithFeedSource(null,
+                feedSource(atomDoc.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .execute("WEBSCRAPE", catalog.byId("ADDR-001"),
+                        java.util.Map.of(), null, null, "EXEC-atom-1");
+
+        assertTrue(outcome.startsWith("WEBSCRAPE (feed): 2 item(s)"), outcome);
+        var stored = newsEventStore.byAddress("ADDR-001");
+        assertEquals(2, stored.size());
+        assertEquals("Atom item one", stored.get(0).title());
+        assertEquals("https://example.eu/atom/1", stored.get(0).url());
+        assertEquals("2026-11-11", stored.get(0).date(),
+                "published wins over the newer updated");
+        assertEquals("First atom summary", stored.get(0).description());
+        assertEquals("Atom item two", stored.get(1).title());
+        assertEquals("https://example.eu/atom/2", stored.get(1).url(),
+                "a plain href link normalizes the same");
+        assertEquals("2026-11-13", stored.get(1).date(),
+                "updated is the fallback when published is absent");
+        assertEquals("Second atom content block", stored.get(1).description(),
+                "the content block is the description fallback");
+    }
+
+    @Test
+    void aConnectorOverrideOnAFeedAddressIsLoggedIgnoredButNeverRefused() {
+        // US-06.10 review finding on #100: a per-run connector override
+        // was silently ignored on the feed path (the feed IS the
+        // retrieval — no strategy to pin). Exactly one operational line
+        // names the override; the run proceeds and parses.
+        catalog.updateWebpageType("ADDR-001", "feed");
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger)
+                        org.slf4j.LoggerFactory.getLogger(TaskWorkService.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<
+                ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            String outcome = service(null).execute("WEBSCRAPE",
+                    catalog.byId("ADDR-001"), java.util.Map.of("connector", "http"),
+                    null, null, "EXEC-feed-3");
+
+            assertTrue(outcome.startsWith("WEBSCRAPE (feed): 2 item(s)"), outcome);
+            assertEquals(2, newsEventStore.byAddress("ADDR-001").size(),
+                    "the run proceeds despite the ignored override");
+            var flagged = appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().contains("is IGNORED"))
+                    .toList();
+            assertEquals(1, flagged.size(),
+                    "exactly one operational line: " + flagged.size());
+            assertTrue(flagged.get(0).getFormattedMessage().contains("'http'"),
+                    "the override value is named");
+            assertTrue(flagged.get(0).getFormattedMessage().contains("ADDR-001"),
+                    "the address is named");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
     void feedCapStopsTheExtraction() {
         catalog.updateWebpageType("ADDR-001", "feed");
 

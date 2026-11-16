@@ -198,6 +198,18 @@ public class TaskWorkService {
                                 + "source is parsed directly (US-06.6/06.8) — filters "
                                 + "do not apply to feeds; remove the preconfigured set");
                     }
+                    // A connector override is silently IGNORED here, not
+                    // refused (US-06.10 review finding on #100): the feed
+                    // IS the retrieval — there is no strategy to pin — but
+                    // the user must see that the parameter did nothing
+                    // (one operational line; the run proceeds).
+                    String connectorOverride = parameters.get("connector");
+                    if (connectorOverride != null && !connectorOverride.isBlank()) {
+                        log.info("WEBSCRAPE {}: the connector override '{}' is IGNORED — "
+                                + "the feed of {} is parsed directly (US-06.8); the feed "
+                                + "path has no retrieval strategy to pin",
+                                taskCode, connectorOverride.trim(), address.id());
+                    }
                     yield feedScrape(address, maxItemsCap(parameters), executionId);
                 }
                 yield scrape(address, maxItemsCap(parameters),
