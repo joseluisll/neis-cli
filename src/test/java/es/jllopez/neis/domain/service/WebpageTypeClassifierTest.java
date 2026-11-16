@@ -128,7 +128,9 @@ class WebpageTypeClassifierTest {
                 "<html><body><div id=\"root\" ng-version=\"17.0.0\">"
                         + "<noscript>Enable JS</noscript></div></body></html>"));
         // Uppercase markup carries no mount-id evidence either — the
-        // body is lowercased before matching, and the ids are gone.
+        // body is lowercased before matching, and id="root" is
+        // deliberately not a framework marker (issue #99), so the
+        // page is static regardless of case.
         assertEquals("static", classifier.classify("text/html",
                 "<HTML><BODY><DIV ID=\"ROOT\">content</DIV></BODY></HTML>"));
     }
