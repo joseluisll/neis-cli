@@ -186,8 +186,14 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
         }
         for (Element el : matches) {
             // jsoup may hand back the same element via several
-            // fragments; detached elements are already gone.
-            if (el.hasParent() && !carriesMainContent(el)) {
+            // fragments; detached elements are already gone. Detached
+            // is tested with ownerDocument()==null (the removeBanners
+            // counterpart of the removeMatches/removeGuarded rule):
+            // jsoup 1.24 keeps the parent pointer on a removed subtree,
+            // so a banner INSIDE an already-removed banner still reports
+            // hasParent()==true — hasParent() would count it (review
+            // round-2 non-blocking finding).
+            if (el.ownerDocument() != null && !carriesMainContent(el)) {
                 el.remove();
                 count++;
             }

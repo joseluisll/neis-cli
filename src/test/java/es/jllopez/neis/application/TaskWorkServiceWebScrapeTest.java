@@ -11,6 +11,7 @@ import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.StaticScrapeConnector;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
+import es.jllopez.neis.domain.model.ContentRecord;
 import es.jllopez.neis.testsupport.InMemoryContentStorePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -198,6 +199,66 @@ class TaskWorkServiceWebScrapeTest {
         // outcome names the selector.
         assertTrue(Files.exists(firstFileMatching("items.json")), outcome);
         assertTrue(outcome.contains("ul.news-list li"), outcome);
+    }
+
+    @Test
+    void theTaskScrapeArtifactCarriesTheRunAttribution() {
+        // US-06.7 review round-2 blocking finding (B2-R2): the
+        // WEBSCRAPE task's scrape.html was written through the 5-arg
+        // writeArtifact — a null executionId silently wiped the run
+        // attribution the chain path (and US-16.6) established. Pinned:
+        // the content record of scrape.html carries the owning run's id.
+        PreconfiguredSelectors configured = catalog(List.of(
+                        new PreconfiguredSelectorProperties.Entry("ADDR-001", "news",
+                                "ul.news-list li")));
+        var store = new InMemoryContentStorePort();
+        ContentStoreService contentStore =
+                new ContentStoreService(store, workDir.toString());
+        PipelineService pipeline = pipelineWithClearedPaths(configured, contentStore);
+        TaskWorkService work = new TaskWorkService(pipeline, catalog, newsEventStore,
+                feedSource(), webpageTypes(),
+                new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new JsoupSelectorConnector()), null);
+
+        work.execute("WEBSCRAPE", catalog.byId("ADDR-001"),
+                java.util.Map.of(), null, null, "EXEC-task-1");
+
+        String recordId = contentStore.contentRecordId(
+                catalog.byId("ADDR-001"), "WEBSCRAPE", "scrape.html");
+        ContentRecord record = store.findById(recordId)
+                .orElseThrow(() -> new AssertionError(
+                        "scrape.html content record missing: " + recordId));
+        assertEquals("EXEC-task-1", record.executionId(),
+                "the scrape.html content record must carry the run attribution");
+    }
+
+    /** A pipeline over the static fixtures with the jsoup clearing
+     * connector, for tests that need the real task path. */
+    private PipelineService pipelineWithClearedPaths(PreconfiguredSelectors configured,
+                                                     ContentStoreService contentStore) {
+        return new PipelineService(new StaticScrapeConnector(),
+                new JsoupSimplifyConnector(), new JsoupSelectorConnector(),
+                new SelectorStorePort() {
+                    @Override
+                    public Optional<StoredSelectors> load(String addressId) {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public void save(StoredSelectors selectors) {
+                        // not exercised here
+                    }
+                },
+                new PaginationDetector(),
+                new es.jllopez.neis.domain.service.ExposedFilterDetector(),
+                new ObjectProviderStub(), catalog, new UrlSyntaxValidator(),
+                configured, newsEventStore,
+                contentStore,
+                new JsoupObstructionClearer(),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new JsoupSelectorConnector()),
+                workDir.toString());
     }
 
     @Test

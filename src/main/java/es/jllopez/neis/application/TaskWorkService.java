@@ -416,7 +416,7 @@ public class TaskWorkService {
         // lands on the capture metadata (US-11.4).
         var cleared = pipeline.clearObstructions(address, scrape.html());
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html());
+                "scrape.html", cleared.html(), executionId);
         pipeline.captureWithFilters(address, address.url(), filters,
                 PipelineService.clearingRecord(cleared));
         String filtersNote = filters == null || filters.isEmpty() ? ""
