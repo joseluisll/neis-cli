@@ -221,9 +221,18 @@ class ReadabilitySimplifyRouterTest {
                 + "<a href=\"/detail-1\">Detail</a></article></body></html>";
         String out = simplify(html).html();
         assertFalse(out.contains("localhost"), "no fabricated host in the output");
-        assertTrue(out.contains("href=\"detail-1\""),
-                "the relative detail link survives relative (Readability's "
-                        + "absolutisation is undone to the relative path)");
+        assertFalse(out.contains("neis.invalid"), "no sentinel host in the output");
+        assertTrue(out.contains("href=\"/detail-1\""),
+                "the ROOT-relative detail link keeps its leading slash "
+                        + "(Readability's absolutisation is undone exactly)");
+        // a path-relative link also survives, relative to its directory
+        String html2 = "<html><head><title>Art</title></head><body>"
+                + "<article><h1>Title</h1><p>" + paragraph(40) + "</p>"
+                + "<a href=\"sub/rel-2\">Rel</a></article></body></html>";
+        String out2 = simplify(html2).html();
+        assertFalse(out2.contains("neis.invalid"));
+        assertTrue(out2.contains("href=\"sub/rel-2\""),
+                "a path-relative link survives unchanged");
     }
 
     @Test

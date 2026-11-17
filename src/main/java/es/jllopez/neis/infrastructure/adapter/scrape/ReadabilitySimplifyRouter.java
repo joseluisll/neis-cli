@@ -53,6 +53,16 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
     private static final Logger log =
             LoggerFactory.getLogger(ReadabilitySimplifyRouter.class);
 
+    /**
+     * The sentinel base for pages without a usable declared {@code
+     * <base href>}: an origin plus a PATH segment (review round-2
+     * finding B2 — a bare origin made root-relative links lose their
+     * leading slash when the absolute prefix was stripped). The
+     * sentinel NEVER reaches the output: the fabricated prefixes are
+     * stripped back to relative in simplifyWithReadability.
+     */
+    private static final String SENTINEL_BASE = "https://neis.invalid/__b__/";
+
     private final JsoupSimplifyConnector jsoupCleanse;
 
     public ReadabilitySimplifyRouter(JsoupSimplifyConnector jsoupCleanse) {
@@ -152,7 +162,7 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
             // address. Strip the fabricated absolute prefix so the
             // hrefs stay RELATIVE (exactly what the jsoup path emits);
             // an explicit <base href> still resolves for real.
-            if (!hasDeclaredBase(rawHtml)) {
+            if (SENTINEL_BASE.equals(base)) {
                 stripFabricatedAbsoluteUrls(content, base);
             }
             // The content element goes INSIDE a body (review finding
@@ -193,15 +203,19 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
      */
     private void stripFabricatedAbsoluteUrls(org.jsoup.nodes.Element content,
                                              String base) {
-        String prefix = base.endsWith("/") ? base : base + "/";
+        String withPath = base.endsWith("/") ? base : base + "/";
+        String bareOrigin = withPath.substring(0,
+                withPath.indexOf('/', withPath.indexOf("//") + 2));
         for (org.jsoup.nodes.Element el : content.select("[href], [src], [action]")) {
             for (String attr : new String[]{"href", "src", "action"}) {
                 if (!el.hasAttr(attr)) {
                     continue;
                 }
                 String value = el.attr(attr);
-                if (value.startsWith(prefix)) {
-                    el.attr(attr, value.substring(prefix.length()));
+                if (value.startsWith(withPath)) {
+                    el.attr(attr, value.substring(withPath.length()));
+                } else if (value.startsWith(bareOrigin)) {
+                    el.attr(attr, value.substring(bareOrigin.length()));
                 }
             }
         }
@@ -217,14 +231,15 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
         try {
             Document doc = Jsoup.parse(html);
             org.jsoup.nodes.Element base = doc.selectFirst("base[href]");
-            if (base != null && !base.attr("href").isBlank()) {
-                String href = base.attr("href");
-                URI.create(href);
-                return href;
+            if (base != null) {
+                String href = base.attr("href").trim();
+                if (!href.isBlank() && URI.create(href).isAbsolute()) {
+                    return href;
+                }
             }
         } catch (RuntimeException e) {
-            // fall through to the placeholder
+            // fall through to the sentinel
         }
-        return "https://localhost/";
+        return SENTINEL_BASE;
     }
 }
