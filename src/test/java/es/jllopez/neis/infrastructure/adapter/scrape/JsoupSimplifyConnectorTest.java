@@ -276,6 +276,25 @@ class JsoupSimplifyConnectorTest {
     }
 
     @Test
+    void popupDeclaredDialogIsRemovedWithData() {
+        // Round-2 review finding B3: a dialog that DECLARES itself a
+        // popup (class/aria-label/id) is removed WITH its content —
+        // unwrapping it would promote the popup text into the page.
+        String raw = "<html><body>"
+                + "<dialog id=\"helpdeskModal\" class=\"modal\"><p>helpdesk</p></dialog>"
+                + "<dialog aria-label=\"Newsletter popup\"><p>subscribe</p></dialog>"
+                + "<template class=\"popup-template\"><p>hidden ad</p></template>"
+                + "<h1>Main</h1><p>Content stays</p></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertFalse(simplified.contains("helpdesk"), "popup dialog content must go");
+        assertFalse(simplified.contains("subscribe"),
+                "aria-label-declared popup content must go");
+        assertFalse(simplified.contains("hidden ad"), "popup template must go");
+        assertTrue(simplified.contains("Main"));
+        assertTrue(simplified.contains("Content stays"));
+    }
+
+    @Test
     void dialogAndTemplateAreUnwrappedTheirDataSurvives() {
         // B1: dialog/template are forbidden (popups/dynamic content) but
         // may wrap real data — unwrapped, not removed.

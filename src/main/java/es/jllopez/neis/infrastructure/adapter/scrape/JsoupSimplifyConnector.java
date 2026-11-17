@@ -187,6 +187,12 @@ public class JsoupSimplifyConnector implements SimplifyPort {
      * US-07.4 (review finding B1): dialog/template are forbidden but may
      * wrap data — unwrap them (promote children, drop the element)
      * before the removal sweep so the data inside survives.
+     *
+     * <p>US-07.4 (review round-2 finding B3): a dialog/template that
+     * declares itself a POPUP (class/aria-label/id matching the
+     * popup/modal/ad fragments) is removed WITH its content, not
+     * unwrapped — unwrapping a popup promotes the popup text into the
+     * page, which the requirement excludes.</p>
      */
     private void unwrapForbiddenContainers(Document doc) {
         for (String tag : UNWRAP_TAGS.stream().sorted().toArray(String[]::new)) {
@@ -194,12 +200,30 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             while (changed) {
                 changed = false;
                 for (Element el : doc.select(tag)) {
-                    el.unwrap();
+                    if (isDeclaredPopup(el)) {
+                        el.remove();
+                    } else {
+                        el.unwrap();
+                    }
                     changed = true;
                     break; // DOM changed — restart the scan
                 }
             }
         }
+    }
+
+    /** True when the element's class/id/aria-label declares a popup,
+     * modal or advertisement container (the generic fragments). */
+    private boolean isDeclaredPopup(Element el) {
+        String marker = (el.className() + " " + el.id() + " "
+                + el.attr("aria-label")).toLowerCase(java.util.Locale.ROOT);
+        for (String fragment : new String[]{"popup", "modal", "advert",
+                "adsbygoogle", "overlay"}) {
+            if (marker.contains(fragment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
