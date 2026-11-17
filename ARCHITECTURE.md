@@ -301,8 +301,13 @@ cap.
   interactive screen over the address catalog (list, add, edit,
   remove) built on the shell's own JLine terminal — no new dependency.
   The screen redraws from live state after every operation and shows
-  each address's verification status and classified webpage type (the
-  US-09.2 status view). Empty input keeps the default (auto `ADDR-NNN`
+  each address's validation/verification status (US-09.2, issue #38):
+  the syntax-validation outcome of the STORED url (`AddressCatalogService
+  .urlValidationProblem` — VALID, or INVALID with the
+  `UrlSyntaxValidator` reason, re-evaluated per redraw, never a live
+  probe) next to the stored verification state
+  (UNVERIFIED/VERIFIED/FAILED + the ISO checked-at instant) and the
+  classified webpage type. Empty input keeps the default (auto `ADDR-NNN`
   id, current value on edit); an invalid value aborts that operation
   loud without touching the catalog; a removal needs an explicit `y`;
   EOF (piped input, Ctrl-D) exits cleanly, so the screen is

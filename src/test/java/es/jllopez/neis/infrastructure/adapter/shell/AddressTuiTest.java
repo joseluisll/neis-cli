@@ -26,11 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AddressTuiTest {
 
-    private final AddressCatalogService catalog = new AddressCatalogService(
-            new InMemoryAddressCatalogPort(List.of(new Address("ADDR-001", "News",
+    private final InMemoryAddressCatalogPort port = new InMemoryAddressCatalogPort(
+            List.of(new Address("ADDR-001", "News",
                     null, "https://commission.europa.eu/news-and-media/news_en",
-                    AddressType.URL_NEWS))),
-            new UrlSyntaxValidator());
+                    AddressType.URL_NEWS)));
+    private final AddressCatalogService catalog = new AddressCatalogService(
+            port, new UrlSyntaxValidator());
 
     /** Scripted console: queued inputs in, captured lines out. */
     private static final class ScriptedConsole implements ConsoleIO {
@@ -78,11 +79,34 @@ class AddressTuiTest {
 
         String transcript = io.transcript();
         assertTrue(transcript.contains("ADDR-001"), transcript);
-        assertTrue(transcript.contains("VERIFIED"), transcript);
+        assertTrue(transcript.contains("validation: VALID"), transcript);
+        assertTrue(transcript.contains("verification: VERIFIED"), transcript);
         assertTrue(transcript.contains("(2026-11-15T10:00:00Z)"), transcript);
         assertTrue(transcript.contains("unclassified"), transcript);
         assertTrue(transcript.contains("Bye."), transcript);
         assertTrue(io.fedAllInputs());
+    }
+
+    @Test
+    void listShowsTheSyntaxValidationOutcomeOfTheStoredUrl() {
+        // US-09.2, issue #38: the validation/verification status of
+        // EACH address — here an INVALID stored url with the
+        // validator's reason, never a live probe. The hand-seeded
+        // port bypasses the catalog's create/update gate, which is
+        // exactly the state a status view must surface loud.
+        port.save(new Address("ADDR-BAD", "Broken", null,
+                "not-a-url", AddressType.URL_NEWS));
+        ScriptedConsole io = new ScriptedConsole("l", "q");
+
+        new AddressTui(catalog, io).run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("validation: INVALID ("
+                + "the URL has no scheme (expected http or https): not-a-url)"),
+                transcript);
+        assertTrue(transcript.contains("verification: UNVERIFIED"), transcript);
+        // The valid row stays VALID on the same screen.
+        assertTrue(transcript.contains("validation: VALID"), transcript);
     }
 
     @Test
