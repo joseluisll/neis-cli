@@ -156,11 +156,19 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
                 match,
                 blankToNull(filters.addressId()), blankToNull(filters.addressId()),
                 blankToNull(filters.kind()), blankToNull(filters.kind()));
-        // Rank order is the SQL order: keep it through the id -> item
-        // mapping (findAllById would lose it), then date-filter/limit.
+        // US-14.8 (N2): the row resolution is ONE batched findAllById,
+        // not a per-row findById — the N+1 lookups were fine at kit
+        // scale and a real cost as the repository grows. The limit
+        // stays in Java behind the lenient date filter (a dated-out
+        // row must not eat a ranked slot), so a SQL LIMIT cannot
+        // replace it; the batched fetch removes the per-row cost.
+        // Rank order is the SQL order: restore it from the id list
+        // (findAllById returns the entities in no defined order).
+        var byId = jpa.findAllById(ids).stream()
+                .collect(Collectors.toMap(NewsEventEntity::getId,
+                        NewsEventStoreConnector::toItem));
         return ids.stream()
-                .map(id -> jpa.findById(id).map(NewsEventStoreConnector::toItem)
-                        .orElse(null))
+                .map(byId::get)
                 .filter(item -> item != null
                         && filters.dateInRange(item.date()))
                 .limit(filters.limit())

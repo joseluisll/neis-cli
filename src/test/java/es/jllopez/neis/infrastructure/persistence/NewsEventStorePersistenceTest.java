@@ -5,6 +5,7 @@ import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
+import es.jllopez.neis.infrastructure.adapter.persistence.NewsEventStoreConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,6 +63,12 @@ class NewsEventStorePersistenceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private NewsEventJpaRepository jpa;
+
+    @Autowired
+    private NewsEventSightingJpaRepository sightingJpa;
 
     private void seedAddress(String id) {
         jdbcTemplate.update(
@@ -523,5 +530,114 @@ class NewsEventStorePersistenceTest {
                 new NewsEventQuery("ADDR-IT", null, null, null, 20));
         assertEquals(1, quotedHits.size());
         assertEquals("The foo bar baz story", quotedHits.get(0).title());
+    }
+
+    @Test
+    void fullTextSearchBatchesTheRowLookupsInsteadOfPerRowFindById() {
+        // US-14.8 (N2, issue #101): the FTS search resolves the ranked
+        // rows with ONE batched findAllById, not a per-row findById
+        // (N+1) — pinned by COUNTING the repository's findById calls
+        // through a recording wrapper, so the old per-row shape fails
+        // this test by construction. Row selection is asserted by
+        // identity (which rows, in rank order), not just counts.
+        seedAddress("ADDR-NM");
+        store.saveAll("ADDR-NM", "news", List.of(new NewsEventItem(
+                "ADDR-NM", "news", "Ledger wallet review",
+                "Hardware wallet security", "https://example.eu/b1",
+                "2026-11-14")), null, null);
+        store.saveAll("ADDR-NM", "news", List.of(new NewsEventItem(
+                "ADDR-NM", "news", "Wallet firmware update",
+                "Ledger devices patched", "https://example.eu/b2",
+                "2026-11-20")), null, null);
+        store.saveAll("ADDR-NM", "event", List.of(new NewsEventItem(
+                "ADDR-NM", "event", "Unrelated event", "Nothing here",
+                "https://example.eu/b3", "2026-11-21")), null, null);
+
+        var recording = new RecordingNewsEventRepository(jpa);
+        var counting = (NewsEventJpaRepository) java.lang.reflect.Proxy
+                .newProxyInstance(NewsEventJpaRepository.class.getClassLoader(),
+                        new Class<?>[] {NewsEventJpaRepository.class}, recording);
+        var connector = new NewsEventStoreConnector(counting,
+                sightingJpa, jdbcTemplate);
+
+        List<NewsEventItem> hits = connector.search("wallet",
+                new NewsEventQuery("ADDR-NM", null, null, null, 20));
+        assertEquals(2, hits.size());
+        assertTrue(hits.stream().anyMatch(i -> "Ledger wallet review".equals(i.title())));
+        assertTrue(hits.stream().anyMatch(i -> "Wallet firmware update".equals(i.title())));
+        assertEquals(0, recording.findByIdCount,
+                "row resolution must be batched (findAllById), not per-row findById");
+
+        // The limit and the lenient date filter still select by
+        // identity: only the in-range rows survive, ranked first.
+        recording.findByIdCount = 0;
+        var windowed = connector.search("wallet",
+                new NewsEventQuery("ADDR-NM", null, "2026-11-15", null, 1));
+        assertEquals(1, windowed.size());
+        assertEquals("Wallet firmware update", windowed.get(0).title());
+        assertEquals(0, recording.findByIdCount,
+                "the filtered search is batched too");
+    }
+
+    @Test
+    void vacuumKeepsTheFtsJoinIntact() {
+        // US-14.8 (N4, issue #101): the external-content FTS index keys
+        // on news_events' implicit rowid, and news_events has a TEXT
+        // primary key — SQLite only GUARANTEES rowid stability for
+        // INTEGER PRIMARY KEY (rowid alias) tables, so a VACUUM may
+        // renumber rows and silently break the join. Verified
+        // empirically on sqlite 3.46.1 (CLI probes, plain and
+        // post-delete cases): rowids are preserved. This test PINS the
+        // behavior against a VACUUM on the real migrated file — if a
+        // future SQLite build renumbers, this fails loudly and the
+        // documented recovery is the FTS rebuild command
+        // (INSERT INTO news_events_fts(news_events_fts) VALUES
+        // ('rebuild'), the V9 migration's approach).
+        seedAddress("ADDR-NN");
+        store.saveAll("ADDR-NN", "news", List.of(new NewsEventItem(
+                "ADDR-NN", "news", "Vacuum pinned story",
+                "Description", "https://example.eu/v1", "2026-11-14")),
+                null, null);
+        store.saveAll("ADDR-NN", "news", List.of(new NewsEventItem(
+                "ADDR-NN", "news", "Second vacuum story",
+                "Description", "https://example.eu/v2", "2026-11-15")),
+                null, null);
+        // Gaps in the rowid sequence are the case where a compaction
+        // pass has something to renumber.
+        jdbcTemplate.update(
+                "DELETE FROM news_event_sightings WHERE address_id = 'ADDR-NN'");
+        jdbcTemplate.update(
+                "DELETE FROM news_events WHERE title = 'Second vacuum story'");
+
+        jdbcTemplate.execute("VACUUM");
+
+        var hits = store.search("vacuum pinned",
+                new NewsEventQuery("ADDR-NN", null, null, null, 20));
+        assertEquals(1, hits.size(), "the FTS join survives VACUUM");
+        assertEquals("Vacuum pinned story", hits.get(0).title());
+    }
+
+    /** Recording wrapper: delegates everything, counts findById. */
+    private static final class RecordingNewsEventRepository
+            implements java.lang.reflect.InvocationHandler {
+        private final NewsEventJpaRepository delegate;
+        int findByIdCount;
+
+        RecordingNewsEventRepository(NewsEventJpaRepository delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                             Object[] args) throws Throwable {
+            if (method.getName().equals("findById")) {
+                findByIdCount++;
+            }
+            try {
+                return method.invoke(delegate, args);
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                throw e.getCause();
+            }
+        }
     }
 }
