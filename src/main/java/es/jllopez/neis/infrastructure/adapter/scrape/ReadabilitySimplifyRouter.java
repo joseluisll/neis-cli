@@ -111,6 +111,15 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
         if (!hasArticleMarker) {
             return false;
         }
+        // US-07.5 review finding B1: many similar article containers is
+        // a LISTING built from teaser cards (the common news-listing
+        // pattern) — Readability would score one teaser as "the
+        // article" and drop the rest of the items. An article page has
+        // ONE main content region.
+        int articleCount = doc.select("article, [role=article]").size();
+        if (articleCount > 1) {
+            return false;
+        }
         // Prose dominance: paragraph text vs. total text (a listing
         // keeps most of its text inside links/table cells).
         String paragraphText = doc.select("p").text();
@@ -129,22 +138,38 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
      */
     private SimplifiedContent simplifyWithReadability(String rawHtml) {
         try {
-            Readability4J readability = new Readability4J(baseUri(rawHtml), rawHtml);
+            String base = baseUri(rawHtml);
+            Readability4J readability = new Readability4J(base, rawHtml);
             Article article = readability.parse();
             org.jsoup.nodes.Element content = article.getArticleContent();
             if (content == null || content.text().isBlank()) {
                 return null;
             }
-            Document articleDoc = new Document(baseUri(rawHtml));
-            articleDoc.appendChild(content.clone());
+            // US-07.5 review finding B2: Readability absolutises
+            // relative URLs against the base URI — without a declared
+            // base that made up https://localhost/... links, corrupting
+            // the detail URLs downstream code resolves against the real
+            // address. Strip the fabricated absolute prefix so the
+            // hrefs stay RELATIVE (exactly what the jsoup path emits);
+            // an explicit <base href> still resolves for real.
+            if (!hasDeclaredBase(rawHtml)) {
+                stripFabricatedAbsoluteUrls(content, base);
+            }
+            // The content element goes INSIDE a body (review finding
+            // B3: appended to a fresh Document it sat outside
+            // <html><body>, so the title check read an empty body and
+            // the h1 always fired, landing after the content).
+            Document articleDoc = new Document(base);
+            org.jsoup.nodes.Element body = articleDoc.appendElement("body");
+            body.appendChild(content.clone());
             // The article title is data (US-07.2): re-attach it as an
             // h1 when Readability dropped it from the content region.
             String title = article.getTitle();
             if (title != null && !title.isBlank()
-                    && !articleDoc.body().text().contains(title)) {
+                    && !articleDoc.text().contains(title)) {
                 org.jsoup.nodes.Element h1 =
                         articleDoc.createElement("h1").text(title.trim());
-                articleDoc.body().prependChild(h1);
+                body.prependChild(h1);
             }
             return jsoupCleanse.simplify(articleDoc.html());
         } catch (RuntimeException e) {
@@ -154,17 +179,48 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
         }
     }
 
-    /** A base URI for the parse (relative-URL resolution); the raw
-     * HTML's base when it declares one, else a neutral placeholder. */
+    /** True when the raw HTML declares its own {@code <base href>}. */
+    private boolean hasDeclaredBase(String html) {
+        Document doc = Jsoup.parse(html);
+        return doc.selectFirst("base[href]") != null;
+    }
+
+    /**
+     * Undo Readability's URL absolutisation for links it resolved
+     * against the GIVEN base: values equal to base + a relative path
+     * are rewritten back to the relative path. Anything else (already
+     * absolute on the page, another host) is left untouched.
+     */
+    private void stripFabricatedAbsoluteUrls(org.jsoup.nodes.Element content,
+                                             String base) {
+        String prefix = base.endsWith("/") ? base : base + "/";
+        for (org.jsoup.nodes.Element el : content.select("[href], [src], [action]")) {
+            for (String attr : new String[]{"href", "src", "action"}) {
+                if (!el.hasAttr(attr)) {
+                    continue;
+                }
+                String value = el.attr(attr);
+                if (value.startsWith(prefix)) {
+                    el.attr(attr, value.substring(prefix.length()));
+                }
+            }
+        }
+    }
+
+    /**
+     * A base URI for the parse (relative-URL resolution): the raw
+     * HTML's declared {@code <base href>}, else a neutral placeholder
+     * (the placeholder NEVER reaches the output — the fabricated
+     * absolute URLs are stripped back to relative above).
+     */
     private String baseUri(String html) {
         try {
             Document doc = Jsoup.parse(html);
-            String base = doc.selectFirst("base[href]") != null
-                    ? doc.selectFirst("base[href]").attr("href")
-                    : doc.location();
-            if (base != null && !base.isBlank()) {
-                URI.create(base);
-                return base;
+            org.jsoup.nodes.Element base = doc.selectFirst("base[href]");
+            if (base != null && !base.attr("href").isBlank()) {
+                String href = base.attr("href");
+                URI.create(href);
+                return href;
             }
         } catch (RuntimeException e) {
             // fall through to the placeholder

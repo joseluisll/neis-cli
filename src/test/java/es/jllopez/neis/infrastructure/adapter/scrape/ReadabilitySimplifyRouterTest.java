@@ -157,4 +157,98 @@ class ReadabilitySimplifyRouterTest {
         assertTrue(out.contains("support/news/"),
                 "news detail links must survive the routing simplify");
     }
+
+    // --- US-07.5 review round-1 findings B1/B2/B3 ---
+
+    @Test
+    void articleTeaserListingsNeverTakeTheReadabilityPath() throws Exception {
+        // B1 regression, on the REAL fixture the review caught: a news
+        // listing built from many <article> teaser cards (addr-006) is a
+        // LISTING — Readability would score one teaser as "the article"
+        // and drop the rest. Every item detail link must survive.
+        String out = router.simplify(fixture("addr-006-news-rendered.html")).html();
+        long linkCount = out.split("href=", -1).length - 1;
+        assertTrue(linkCount >= 60,
+                "a teaser-card listing keeps its item links (got " + linkCount + ")");
+    }
+
+    @Test
+    void syntheticTeaserListingKeepsItemsAndPaginationAndForm() {
+        // B1: many similar article containers is a listing, however
+        // prose-heavy the teasers are — pagination and filter forms too.
+        StringBuilder teasers = new StringBuilder(
+                "<html><body><nav class=\"ecl-pagination\" aria-label=\"Pagination\">"
+                        + "<a href=\"?page=2\">2</a><a href=\"?page=3\">3</a></nav>"
+                        + "<form action=\"/filter\"><select name=\"year\">"
+                        + "<option>2026</option></select></form><main>");
+        for (int i = 1; i <= 10; i++) {
+            teasers.append("<article><h2>News ").append(i).append("</h2>")
+                    .append("<p>Excerpt text for news item ").append(i)
+                    .append(" with enough words to look prose-heavy and push")
+                    .append(" the paragraph share of the page text up. ")
+                    .append("More sentence content follows here so each teaser")
+                    .append(" carries a substantial excerpt of its own.</p>")
+                    .append("<a href=\"/news/item-").append(i).append("\">Read</a></article>");
+        }
+        teasers.append("</main></body></html>");
+        String out = router.simplify(teasers.toString()).html();
+        assertFalse(router.isArticleLike(teasers.toString()),
+                "a multi-article teaser listing is not article-like");
+        assertTrue(out.contains("/news/item-1"), "item links survive");
+        assertTrue(out.contains("?page=2"), "pagination survives");
+        assertTrue(out.contains("<select"), "the filter form survives");
+    }
+
+    @Test
+    void singleArticlePageTakesTheReadabilityPath() {
+        // The positive control for B1's guard: ONE article region still
+        // routes to Readability (boilerplate outside the article goes).
+        String html = article(paragraph(40));
+        assertTrue(router.isArticleLike(html));
+        String out = simplify(html).html();
+        assertFalse(out.contains("main-menu"),
+                "site chrome must go on the article path");
+        assertTrue(out.contains("word"), "article text survives");
+    }
+
+    @Test
+    void relativeUrlsAreNotRewrittenToAFabricatedHost() {
+        // B2: Readability absolutises against the base URI; without a
+        // declared base the hrefs must come back RELATIVE (as the jsoup
+        // path emits them), never https://localhost/...
+        String html = "<html><head><title>Art</title></head><body>"
+                + "<article><h1>Title</h1><p>" + paragraph(40) + "</p>"
+                + "<a href=\"/detail-1\">Detail</a></article></body></html>";
+        String out = simplify(html).html();
+        assertFalse(out.contains("localhost"), "no fabricated host in the output");
+        assertTrue(out.contains("href=\"detail-1\""),
+                "the relative detail link survives relative (Readability's "
+                        + "absolutisation is undone to the relative path)");
+    }
+
+    @Test
+    void titleIsNotDuplicatedAndPrecedesTheContent() {
+        // B3: the title check must read the real body; the h1 (when the
+        // <title> is not already present) comes BEFORE the content, and
+        // an h1 carried by the article is not duplicated.
+        String html = "<html><head><title>Test Article</title></head><body>"
+                + "<article><p>" + paragraph(40) + "</p></article></body></html>";
+        String out = simplify(html).html();
+        long h1Count = out.split("<h1", -1).length - 1;
+        assertTrue(h1Count >= 1, "the article title is attached as h1");
+        // no duplicate h1 with the same text
+        long titleCount = out.split("Test Article", -1).length - 1;
+        assertTrue(titleCount <= 1,
+                "the title must not appear twice (got " + titleCount + ")");
+
+        // and when the article carries its own h1 matching the title:
+        String html2 = "<html><head><title>Same Head</title></head><body>"
+                + "<article><h1>Same Head</h1><p>" + paragraph(40)
+                + "</p></article></body></html>";
+        String out2 = simplify(html2).html();
+        long titleCount2 = out2.split("Same Head", -1).length - 1;
+        assertTrue(titleCount2 <= 1,
+                "an h1 already in the content is not duplicated (got "
+                        + titleCount2 + ")");
+    }
 }
