@@ -20,45 +20,45 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class NeisApplication {
 
     public static void main(String[] args) {
-        // US-15.5 (issue #105): a command argument with an UNBALANCED
-        // double quote dies inside Spring Shell's inline parser with a
-        // raw CommandNotFoundException — before any command code runs,
-        // with no hint that the quote is the cause (verified live for
-        // both the single-argument form and the multi-argument form).
-        // The parser belongs to the framework; the fix is message-level
+        // US-15.5 (issue #105): a command line with an UNBALANCED double
+        // quote dies inside Spring Shell's inline parser with a raw
+        // CommandNotFoundException — before any command code runs, with
+        // no hint that the quote is the cause (verified live for both
+        // the single-argument form and the multi-argument form). The
+        // parser belongs to the framework; the fix is message-level
         // guidance in OUR entry point: refuse the command here, naming
         // the quoting problem, instead of booting into a stack trace.
-        for (String arg : args) {
-            if (!isQuoteBalanced(arg)) {
-                System.err.println("Unbalanced double quote in the command: " + arg);
-                System.err.println("The command parser needs every double quote paired; "
-                        + "a literal quote inside a value is written as two quotes (\"\"). "
-                        + "Nothing ran.");
-                System.exit(1);
-            }
+        // The invariant checked is the parser's OWN: Spring Shell 4
+        // JOINS the argv elements into one line (String.join(" ", args))
+        // and its tokenizer enforces quote parity over THAT joined line
+        // — a quoted value split across argv elements (shell IFS
+        // splitting) is therefore legal and must not be refused.
+        String commandLine = String.join(" ", args);
+        if (!isQuoteBalanced(commandLine)) {
+            System.err.println("Unbalanced double quote in the command: " + commandLine);
+            System.err.println("The command parser needs every double quote on the "
+                    + "command line paired; a literal quote inside a quoted value is "
+                    + "written with a backslash (\\\"). Nothing ran.");
+            System.exit(1);
         }
         SpringApplication.run(NeisApplication.class, args);
     }
 
     /**
-     * Whether the text's double quotes are balanced under the command
-     * parser's tokenizer: a quote toggles the quoted state, and a
-     * doubled quote ({@code ""}) inside a quoted span is an ESCAPED
-     * literal quote, not a toggle. Balanced quotes pass through to the
-     * parser (documented US-15.5 behavior); only an unclosed quoted
-     * span — the case the parser crashes on — is refused.
+     * Whether the text's double quotes are BALANCED — the invariant the
+     * command parser's tokenizer enforces over the joined command line
+     * (Spring Shell 4 splits it with a quote-parity regex; it has NO
+     * doubled-quote escape — a literal quote inside a fully-quoted
+     * token is written with a backslash). An even count of quotes
+     * passes through to the parser (documented US-15.5 behavior); an
+     * odd count — the case the parser crashes on — is refused.
      */
     static boolean isQuoteBalanced(String text) {
         boolean inQuote = false;
         for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) != '"') {
-                continue;
+            if (text.charAt(i) == '"') {
+                inQuote = !inQuote;
             }
-            if (inQuote && i + 1 < text.length() && text.charAt(i + 1) == '"') {
-                i++; // an escaped literal quote: skip the pair
-                continue;
-            }
-            inQuote = !inQuote;
         }
         return !inQuote;
     }
