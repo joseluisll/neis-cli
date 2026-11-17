@@ -177,6 +177,18 @@ public class AddressCatalogService {
     }
 
     /**
+     * The syntax-validation outcome of an address's registered URL
+     * (US-04.1, issue #21), re-evaluated on the STORED url — never a
+     * live probe. Empty optional: the URL is syntactically valid
+     * (VALID); present: the validator's human-readable reason
+     * (INVALID). Status views (TUI, management dashboard) read this to
+     * display the validation state next to the verification state.
+     */
+    public Optional<String> urlValidationProblem(Address address) {
+        return urlValidator.validate(address == null ? null : address.url());
+    }
+
+    /**
      * Syntactic URL validation at creation/edit time (US-04.1, issue
      * #21): no address enters the catalog with a malformed URL.
      */

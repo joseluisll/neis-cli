@@ -29,16 +29,31 @@ interface ConsoleIO {
         io.println("Commands: [l]ist  [a]dd  [e]dit  [r]emove  [q]uit");
     }
 
-    /** The address table of one screen, newest state every redraw. */
-    static String addressTable(List<es.jllopez.neis.domain.model.Address> addresses) {
+    /**
+     * The address table of one screen, newest state every redraw
+     * (US-09.2, issue #38): each row carries the address's
+     * validation/verification status — the syntax-validation outcome
+     * (VALID / INVALID + the validator's reason, re-evaluated on the
+     * STORED url, never a live probe) and the stored verification
+     * state (UNVERIFIED/VERIFIED/FAILED + the ISO instant of the
+     * check) with the classified webpage type next to them.
+     */
+    static String addressTable(
+            List<es.jllopez.neis.domain.model.Address> addresses,
+            java.util.function.Function<es.jllopez.neis.domain.model.Address,
+                    java.util.Optional<String>> validationProblem) {
         StringBuilder out = new StringBuilder("Registered addresses (")
                 .append(addresses.size()).append("):");
         for (es.jllopez.neis.domain.model.Address a : addresses) {
+            String problem = validationProblem.apply(a).orElse(null);
             out.append("\n  ").append(a.id())
                     .append("  [").append(a.itemKind()).append("]  ")
                     .append(a.name())
                     .append("\n        ").append(a.url())
-                    .append("\n        verification: ")
+                    .append("\n        validation: ")
+                    .append(problem == null ? "VALID"
+                            : "INVALID (" + problem + ")")
+                    .append("  |  verification: ")
                     .append(a.verificationStatus())
                     .append(a.verifiedAt() == null ? "" : " (" + a.verifiedAt() + ")")
                     .append("  |  webpage type: ")

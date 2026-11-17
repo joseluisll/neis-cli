@@ -8,8 +8,10 @@ import es.jllopez.neis.domain.model.AddressType;
  * The address-management TUI loop (US-09.1, issue #37, user story #9):
  * a menu-driven screen over the address catalog — list, create, edit
  * and remove — redrawn from live state after every operation, so the
- * verification status and the classified webpage type shown are never
- * stale. Thin over {@link AddressCatalogService}: the catalog keeps
+ * address's validation/verification status (US-09.2, issue #38: the
+ * syntax outcome of the STORED url — never a live probe — next to the
+ * stored verification state) and the classified webpage type shown are
+ * never stale. Thin over {@link AddressCatalogService}: the catalog keeps
  * its own rules (URL validation, idempotent re-registration, edits
  * never touching verification state or capabilities).
  *
@@ -45,7 +47,8 @@ class AddressTui {
         io.println("Address management (US-09.1) — the screen redraws from " +
                 "live state after every operation.");
         while (true) {
-            ConsoleIO.printScreen(io, ConsoleIO.addressTable(catalog.list()));
+            ConsoleIO.printScreen(io, ConsoleIO.addressTable(catalog.list(),
+                    catalog::urlValidationProblem));
             String line = io.readLine("address> ");
             if (line == null) {
                 io.println("(input ended)");
