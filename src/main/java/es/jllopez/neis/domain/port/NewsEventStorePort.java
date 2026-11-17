@@ -67,6 +67,15 @@ public interface NewsEventStorePort {
     long count();
 
     /**
+     * The number of items FIRST stored at or after the instant
+     * (US-16.8: the dashboard's repository-growth delta — growth is
+     * visible without mental arithmetic over the single total). The
+     * timestamp is the row's created_at (first storage), not its last
+     * update: re-extraction upserts do not inflate the delta.
+     */
+    long countCreatedSince(java.time.Instant since);
+
+    /**
      * The appearance history of one logical record (US-14.5), looked
      * up by its canonical id: one entry per capture in which any row
      * of the record appeared, newest first, each with its US-14.2

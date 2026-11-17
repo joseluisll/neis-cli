@@ -173,6 +173,12 @@ class ManagementTuiTest {
         assertTrue(transcript.contains("1 registered (1 verified"), transcript);
         assertTrue(transcript.contains("Chains         : 1"), transcript);
         assertTrue(transcript.contains("Repository     : 1 news/events"), transcript);
+        // US-16.8: the growth delta is visible without mental arithmetic
+        // (the seeded item was stored within the last 24h).
+        assertTrue(transcript.contains("news/events stored (+1 new in the last 24h)"),
+                transcript);
+        // US-16.8: the navigation model is documented on the dashboard.
+        assertTrue(transcript.contains("Navigation"), transcript);
         assertTrue(transcript.contains("WEBSCRAPE"), transcript);
         assertTrue(transcript.contains("SUCCESS"), transcript);
         assertTrue(io.fedAllInputs());
@@ -205,6 +211,10 @@ class ManagementTuiTest {
         assertTrue(transcript.contains("EXECUTIONS (US-16.3)"), transcript);
         assertTrue(transcript.contains("Execution EXEC-"), transcript);
         assertTrue(transcript.contains("Re-submitted"), transcript);
+        // US-16.8: the original run (seedExecution) had an EMPTY
+        // parameter map — the message must not claim "same parameters".
+        assertTrue(transcript.contains(", no parameters)"), transcript);
+        assertTrue(!transcript.contains("same parameters"), transcript);
         assertEquals(recordsBefore + 1, executions.list().size(),
                 "the re-run leaves its own execution record");
         assertTrue(io.fedAllInputs());

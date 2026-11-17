@@ -108,8 +108,17 @@ public class NewsCommands {
                     .append("\n");
         }
         if (items.isEmpty()) {
+            // US-16.8: the message names every ACTIVE filter — a filter
+            // that excluded the remaining rows (e.g. --incomplete
+            // complete over an all-incomplete store) must be visible,
+            // not just "no match".
             out.append("  <no stored news/events match")
                     .append(addressId == null ? "" : " address " + addressId)
+                    .append(kind == null ? "" : " kind " + kind)
+                    .append(dateFrom == null ? "" : " from " + dateFrom)
+                    .append(dateTo == null ? "" : " to " + dateTo)
+                    .append(completeness == Completeness.ALL ? ""
+                            : " completeness " + completeness.name().toLowerCase(Locale.ROOT))
                     .append(" — run a chain over a verified address>\n");
         }
         return out.toString();

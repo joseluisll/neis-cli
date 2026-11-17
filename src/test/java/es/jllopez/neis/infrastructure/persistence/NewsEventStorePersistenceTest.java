@@ -617,6 +617,29 @@ class NewsEventStorePersistenceTest {
         assertEquals("Vacuum pinned story", hits.get(0).title());
     }
 
+    @Test
+    void growthDeltaCountsFirstStorageNotUpserts() {
+        // US-16.8 (issue #104): the dashboard's 24h delta counts rows by
+        // their FIRST storage (created_at) — a re-extraction upsert of
+        // the same item must not inflate the growth.
+        seedAddress("ADDR-NO");
+        var item = new NewsEventItem("ADDR-NO", "news", "Growth probe",
+                "Description", "https://example.eu/g1", "2026-11-16");
+        java.time.Instant before = java.time.Instant.now();
+        store.saveAll("ADDR-NO", "news", List.of(item), null, null);
+
+        assertEquals(1, store.countCreatedSince(before),
+                "the freshly stored row counts");
+        // Re-extraction of the SAME item (upsert): the delta holds.
+        store.saveAll("ADDR-NO", "news", List.of(item), null, null);
+        assertEquals(1, store.countCreatedSince(before),
+                "an upsert does not inflate the growth delta");
+        // A future bound excludes everything stored so far.
+        assertEquals(0, store.countCreatedSince(
+                        java.time.Instant.now().plusSeconds(3600)),
+                "nothing was stored after the future bound");
+    }
+
     /** Recording wrapper: delegates everything, counts findById. */
     private static final class RecordingNewsEventRepository
             implements java.lang.reflect.InvocationHandler {

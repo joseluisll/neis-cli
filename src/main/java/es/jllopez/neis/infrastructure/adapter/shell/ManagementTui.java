@@ -204,7 +204,17 @@ class ManagementTui {
                             : firstLine(failure.outcome()))
                     .append("\n");
         }
-        out.append("  Repository     : ").append(d.storedItems()).append(" news/events stored\n");
+        out.append("  Repository     : ").append(d.storedItems()).append(" news/events stored");
+        if (d.newItems24h() > 0) {
+            out.append(" (+").append(d.newItems24h()).append(" new in the last 24h)");
+        }
+        out.append("\n");
+        // US-16.8: the navigation model, documented on the dashboard —
+        // records are addressed by LIST POSITION inside their section,
+        // not by their ids (the ids are typeable in the CLI commands).
+        out.append("  Navigation     : pick a section key, then act on a record by its\n")
+                .append("                   list number in that section; ids (EXEC-*, CONT-*) are\n")
+                .append("                   for the CLI commands (e.g. execution show --id)\n");
         if (d.nextRuns().isEmpty()) {
             out.append("  Schedules      : none configured (neis.schedule.entries)\n");
         } else {
@@ -599,9 +609,15 @@ class ManagementTui {
             TaskExecution submitted = executions.submit(
                     original.taskCode(), original.addressId(),
                     original.triggerType(), original.parameters());
+            // US-16.8: "same parameters" only when the original run HAD
+            // any — an empty parameter map printed a parameter claim
+            // that was not there.
             io.println("  Re-submitted " + submitted.id() + ": "
                     + submitted.taskCode() + " over " + submitted.addressId()
-                    + " (" + submitted.triggerType() + ", same parameters)");
+                    + " (" + submitted.triggerType()
+                    + (original.parameters().isEmpty()
+                        ? ", no parameters)"
+                        : ", same parameters: " + original.parameters() + ")"));
         } catch (IllegalArgumentException | IllegalStateException e) {
             io.println("  Refused: " + e.getMessage());
         }

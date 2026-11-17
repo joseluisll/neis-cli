@@ -40,6 +40,9 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
      * idempotent like the real store's deterministic sighting id. */
     private final Map<String, Map<String, NewsEventSighting>> sightingHistory =
             new HashMap<>();
+    /** First-storage timestamps (US-16.8 growth delta): a re-upserted
+     * row keeps its first stamp, like the real store's created_at. */
+    private final Map<String, Instant> firstCreatedAt = new HashMap<>();
 
     @Override
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
@@ -65,6 +68,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                     missing.isEmpty() ? null : String.join(", ", missing),
                     item.computedCanonicalId());
             store.put(key, row);
+            firstCreatedAt.putIfAbsent(key, Instant.now());
             // US-14.5 sighting: one per saveAll that produced the item,
             // carrying the same provenance — idempotent per (execution,
             // content) triple like the real store's deterministic id.
@@ -108,6 +112,17 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     @Override
     public long count() {
         return store.size();
+    }
+
+    @Override
+    public long countCreatedSince(java.time.Instant since) {
+        // First-storage timestamps (created_at) stand in for the real
+        // store's column: a re-upserted row keeps its first stamp, like
+        // the connector's created_at.
+        return store.keySet().stream()
+                .filter(key -> !firstCreatedAt
+                        .getOrDefault(key, Instant.MAX).isBefore(since))
+                .count();
     }
 
     @Override

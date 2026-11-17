@@ -80,6 +80,7 @@ public class ManagementInfoService {
             TaskExecution lastExecution,
             List<TaskExecution> recentFailures,
             long storedItems,
+            long newItems24h,
             List<ScheduleFire> nextRuns,
             boolean aiAvailable) {
     }
@@ -117,7 +118,12 @@ public class ManagementInfoService {
                         .filter(e -> e.status() == ExecutionStatus.FAILED)
                         .limit(RECENT_FAILURES)
                         .toList(),
-                newsEvents.count(), nextRuns(), ai.isAvailable());
+                newsEvents.count(),
+                // US-16.8: the growth delta — the single total made the
+                // dashboard's growth invisible without mental arithmetic.
+                newsEvents.countCreatedSince(
+                        java.time.Instant.now().minus(java.time.Duration.ofHours(24))),
+                nextRuns(), ai.isAvailable());
     }
 
     /**

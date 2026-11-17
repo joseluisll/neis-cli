@@ -129,4 +129,20 @@ class NewsCommandsTest {
         assertEquals(7, out.split("\n  cn-", -1).length - 1,
                 "one record line per logical record:\n" + out);
     }
+
+    @Test
+    void theEmptyMessageNamesTheActiveFilters() {
+        // US-16.8 (issue #104): a filter that excluded the remaining
+        // rows (--incomplete complete over an all-incomplete store) is
+        // NAMED in the empty-result message, not hidden behind
+        // "no stored news/events match".
+        store.saveAll("ADDR-001", "news", List.of(
+                new NewsEventItem("ADDR-001", "news", "Gappy story",
+                        null, "https://x.eu/gappy", null)), null, null);
+
+        String out = commands.list(null, null, null, null, "complete", 20);
+
+        assertTrue(out.contains("<no stored news/events match"), out);
+        assertTrue(out.contains("completeness complete"), out);
+    }
 }

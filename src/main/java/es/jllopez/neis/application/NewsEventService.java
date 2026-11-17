@@ -73,6 +73,12 @@ public class NewsEventService {
         return newsEventStore.count();
     }
 
+    /** The items first stored at or after the instant (US-16.8 growth
+     * delta): first storage, not the last upsert. */
+    public long countCreatedSince(java.time.Instant since) {
+        return newsEventStore.countCreatedSince(since);
+    }
+
     /**
      * The appearance history of one logical record (US-14.5), looked
      * up by its canonical id: one entry per capture in which any row

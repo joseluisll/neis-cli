@@ -200,6 +200,23 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         return jpa.count();
     }
 
+    @Override
+    public long countCreatedSince(java.time.Instant since) {
+        // created_at is SYSTEM-GENERATED ISO-8601 TEXT (Instant.now()
+        // in saveAll), so a lexical comparison is safe here — unlike
+        // the user item dates, which need the lenient domain parser.
+        // The bound always carries a fraction so the trailing 'Z' of a
+        // fraction-less instant cannot sort after a fractional row.
+        String bound = since.toString();
+        if (!bound.contains(".")) {
+            bound = bound.replace("Z", ".000000Z");
+        }
+        Long count = jdbc.queryForObject(
+                "select count(*) from news_events where created_at >= ?",
+                Long.class, bound);
+        return count == null ? 0 : count;
+    }
+
     private static NewsEventItem toItem(NewsEventEntity e) {
         return new NewsEventItem(e.getAddressId(), e.getKind(),
                 e.getTitle(), e.getDescription(), e.getUrl(), e.getDate(),
