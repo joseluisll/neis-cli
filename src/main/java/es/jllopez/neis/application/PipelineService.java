@@ -796,9 +796,15 @@ public class PipelineService {
             return FilterApplication.skipped("criterion '" + field + " = " + value
                     + "' not applied: " + e.getMessage());
         }
+        // Obstruction clearing (US-06.7, issue #75; review round-3
+        // blocking finding B4-R3): the filtered response is cleared
+        // BEFORE it is stored or its items extracted — the same rule
+        // as every other fetch site (B1 pagination, B3 re-scrapes).
+        ClearedContent filteredCleared = clearObstructions(address,
+                filteredScrape.html());
         Path filteredArtifact = writeArtifact(address, "FILTER", "filtered-html",
-                "scrape-filtered.html", filteredScrape.html(), executionId);
-        SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredScrape.html());
+                "scrape-filtered.html", filteredCleared.html(), executionId);
+        SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredCleared.html());
         writeArtifact(address, "FILTER", "filtered-html",
                 "simplified-filtered.html", filteredSimplified.html(), executionId);
         List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(

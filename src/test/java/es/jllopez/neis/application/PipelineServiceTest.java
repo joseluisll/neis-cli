@@ -845,6 +845,23 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         assertTrue(captureDirOf(catalog.byId("ADDR-005"))
                 .resolve("content").resolve("FILTER").resolve("simplified-filtered.html")
                 .toFile().exists());
+        // US-06.7 (review round-3 blocking finding B4-R3): the stored
+        // filtered response is the CLEARED HTML5 — obstruction clearing
+        // applies before the artifact is written or its items are
+        // extracted, the same rule as every other fetch site.
+        try {
+            String storedFilteredHtml = java.nio.file.Files.readString(
+                    captureDirOf(catalog.byId("ADDR-005"))
+                            .resolve("content").resolve("FILTER")
+                            .resolve("scrape-filtered.html"));
+            org.jsoup.nodes.Document storedDoc = org.jsoup.Jsoup.parse(storedFilteredHtml);
+            assertTrue(storedDoc.select("[role=dialog], dialog[open]").isEmpty(),
+                    "no declared overlay may survive in the stored filtered response");
+            assertTrue(storedDoc.select("ins.adsbygoogle, [class*=ad-container]").isEmpty(),
+                    "no ad container may survive in the stored filtered response");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
