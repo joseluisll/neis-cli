@@ -129,6 +129,55 @@ class PrunedTreeHtmlRendererTest {
     }
 
     @Test
+    void aMediaBearingPagePassesTheComplianceCheckOnEveryWiredTier() {
+        // US-07.6 review B1+N1 pin: the prune keeps img/svg/video (they
+        // are neither irrelevant nor interactable) — the WIRED tiered
+        // path (analyzer+renderer, the Spring shape) must strip them
+        // (the same forbidden-element rule as the cleanse) and the
+        // output must pass the US-07.4 compliance check on every tier.
+        String html = "<html><head><title>Page</title></head><body><main>"
+                + "<img src=\"/x.png\" alt=\"a\">"
+                + "<svg><circle r=\"1\"/></svg>"
+                + "<video src=\"/v.mp4\"></video>"
+                + "<iframe src=\"/embed\"></iframe>"
+                + "<p>word ".repeat(1) + "</p>"
+                + "<article><h2><a href=\"/detail\">Headline</a></h2>"
+                + "<p>" + "word ".repeat(200) + "</p></article>"
+                + "</main></body></html>";
+        JsoupSimplifyConnector wired = new JsoupSimplifyConnector(
+                analyzer, renderer);
+        for (String tier : new String[]{"full", "economy", "lean"}) {
+            SimplifiedContent out = wired.simplify(html, tier);
+            assertFalse(out.html().contains("<img"), tier);
+            assertFalse(out.html().contains("<svg"), tier);
+            assertFalse(out.html().contains("<video"), tier);
+            assertFalse(out.html().contains("<iframe"), tier);
+            assertTrue(out.html().contains("Headline"), tier + " keeps data");
+            // does not throw = passes checkSyntax (a failure is loud)
+            JsoupSimplifyConnector.checkSyntax(out.html());
+        }
+    }
+
+    @Test
+    void economyTruncationKeepsEmbeddedLinks() {
+        // US-07.6 review B2 pin: el.text(String) replaces ALL children —
+        // truncating a <p> holding a detail link must never delete it.
+        String html = "<html><body><main><article>"
+                + "<h2><a href=\"/detail-1\">Headline</a></h2>"
+                + "<p>" + "word ".repeat(150) + "<a href=\"/read-more\">Read more</a></p>"
+                + "</article></main></body></html>";
+        Map<String, String> placeholders = new LinkedHashMap<>();
+        Document pruned = analyzer.prune(html, placeholders);
+
+        SimplifiedContent economy = renderer.render(pruned, "economy");
+
+        assertTrue(economy.html().contains("/read-more"),
+                "the embedded detail link survives the economy truncation");
+        assertTrue(economy.html().contains("Read more"),
+                "the link's text survives");
+    }
+
+    @Test
     void theRouterRoutesFullThroughStructureAndDelegatesTheOtherTiers() {
         ReadabilitySimplifyRouter router = new ReadabilitySimplifyRouter(
                 new JsoupSimplifyConnector());

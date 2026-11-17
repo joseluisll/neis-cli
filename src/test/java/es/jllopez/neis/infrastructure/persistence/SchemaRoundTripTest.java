@@ -88,7 +88,7 @@ class SchemaRoundTripTest {
         // V16 = the capture DOM-analysis digest (US-06.9, issue #88);
         // V17 = the capture SIMPLIFY side table (US-07.6, issue #89).
         assertEquals(17, applied.size(),
-                "the V1..V16 migrations should be applied");
+                "the applied Flyway migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.

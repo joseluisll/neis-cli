@@ -188,7 +188,43 @@ public class PrunedTreeHtmlRenderer {
             for (Element el : doc.select("*")) {
                 String text = el.ownText();
                 if (text.length() > cap) {
-                    el.text(text.substring(0, cap));
+                    // US-07.6 review B2: el.text(String) REPLACES ALL
+                    // CHILDREN — an <a> inside a truncated <p> was
+                    // deleted (data loss, US-07.4). Truncate only the
+                    // element's OWN text nodes; child elements (links,
+                    // labels) survive untouched.
+                    String remainder = text.substring(cap);
+                    int removed = 0;
+                    for (org.jsoup.nodes.TextNode node : el.textNodes()) {
+                        String nodeText = node.getWholeText();
+                        if (removed + nodeText.length() <= cap) {
+                            removed += nodeText.length();
+                            continue;
+                        }
+                        int keep = cap - removed;
+                        String prefix = nodeText.substring(0,
+                                Math.max(0, Math.min(keep, nodeText.length())));
+                        int nodeCut = Math.max(0, nodeText.length() - keep);
+                        if (prefix.isBlank() && nodeCut >= nodeText.length()) {
+                            node.remove();
+                        } else {
+                            node.text(prefix);
+                            removed = cap;
+                        }
+                    }
+                    // The overflow beyond the cap (an element whose
+                    // text exceeds it) is dropped from the tail nodes.
+                    String full = el.ownText();
+                    if (full.length() > cap + remainder.length()) {
+                        // still over — cut the tail text nodes entirely
+                        int seen = 0;
+                        for (org.jsoup.nodes.TextNode node : el.textNodes()) {
+                            seen += node.getWholeText().length();
+                            if (seen > cap) {
+                                node.text("");
+                            }
+                        }
+                    }
                 }
             }
         }

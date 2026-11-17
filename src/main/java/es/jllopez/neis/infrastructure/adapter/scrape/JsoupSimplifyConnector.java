@@ -117,7 +117,12 @@ public class JsoupSimplifyConnector implements SimplifyPort {
         this.treeRenderer = null;
     }
 
-    /** Spring constructor: the tiered rendering collaborators. */
+    /** Spring constructor: the tiered rendering collaborators. When
+     * multiple constructors exist Spring picks the no-arg one by
+     * default, silently leaving the tiered rendering UNWIRED in the
+     * running app (US-07.6 review finding B3) — mark this one
+     * explicitly as the autowire candidate. */
+    @org.springframework.beans.factory.annotation.Autowired
     public JsoupSimplifyConnector(JsoupDomAnalyzer domAnalyzer,
                                   PrunedTreeHtmlRenderer treeRenderer) {
         this.domAnalyzer = domAnalyzer;
@@ -145,7 +150,19 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             try {
                 java.util.Map<String, String> placeholders = new java.util.LinkedHashMap<>();
                 Document pruned = domAnalyzer.prune(rawHtml, placeholders);
+                // US-07.6 review B1: the prune keeps media/presentation
+                // elements (img/svg/video/... are not "irrelevant" and
+                // not interactable) — the rendered output would fail the
+                // US-07.4 compliance check at the guarded write on every
+                // real page. Apply the SAME forbidden-element removal
+                // the cleanse applies (same rule, same lists), then the
+                // same output check: every tier carries the identical
+                // output contract.
+                unwrapForbiddenContainers(pruned);
+                pruned.select(STRIPPED_TAGS).remove();
+                pruned.select(STRIPPED_STRUCTURE_TAGS).remove();
                 SimplifiedContent rendered = treeRenderer.render(pruned, checked.id());
+                checkSyntax(rendered.html());
                 return rendered;
             } catch (RuntimeException e) {
                 // The pruned-tree rendering is a US-07.6 enhancement; a
