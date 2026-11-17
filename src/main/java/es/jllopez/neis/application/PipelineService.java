@@ -5,6 +5,7 @@ import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
 import es.jllopez.neis.domain.model.ClearedContent;
 import es.jllopez.neis.domain.model.Capture;
+import es.jllopez.neis.domain.model.ElementCatalog;
 import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.FilterRequestOption;
 import es.jllopez.neis.domain.model.FilterSpec;
@@ -16,6 +17,7 @@ import es.jllopez.neis.domain.model.SimplifiedContent;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import es.jllopez.neis.domain.port.ContentScrapePort;
+import es.jllopez.neis.domain.port.DomAnalysisPort;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import es.jllopez.neis.domain.port.ObstructionClearingPort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
@@ -115,6 +117,8 @@ public class PipelineService {
     final ObstructionClearingPort clearingPort;
     /** The page-specific clearing selectors (US-06.7 / US-12.1 style). */
     final ClearingSelectors clearingSelectors;
+    /** DOM analysis: pruned element tree + catalog + digest (US-06.9). */
+    final DomAnalysisPort domAnalysisPort;
 
     public PipelineService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
@@ -130,6 +134,7 @@ public class PipelineService {
                            ContentStoreService contentStore,
                            ObstructionClearingPort clearingPort,
                            ClearingSelectors clearingSelectors,
+                           DomAnalysisPort domAnalysisPort,
                            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
@@ -145,6 +150,7 @@ public class PipelineService {
         this.contentStore = contentStore;
         this.clearingPort = clearingPort;
         this.clearingSelectors = clearingSelectors;
+        this.domAnalysisPort = domAnalysisPort;
     }
 
     /** Runs the whole pipeline for one address. */
@@ -217,6 +223,8 @@ public class PipelineService {
         ClearedContent cleared = clearObstructions(address, scrape.html());
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
+        // US-06.9: the pruned element tree + catalog + change digest.
+        analyzeDom(address, cleared.html());
         captureWithFilters(address, address.url(), scrapeFilters,
                 clearingRecord(cleared));
 
@@ -285,6 +293,8 @@ public class PipelineService {
                         pageScrape.html());
                 writeArtifact(flagged, "WEBSCRAPE", "page-html",
                         "scrape-page" + (page + 1) + ".html", pageCleared.html(), executionId);
+                // US-06.9: per-page element catalog + digest.
+                analyzeDom(flagged, pageCleared.html());
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageCleared.html());
                 writeArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
@@ -1153,9 +1163,21 @@ public class PipelineService {
     void captureWithFilters(Address address, String url,
                             java.util.Map<String, String> filters,
                             String clearedRecord) {
+        captureMetadata(address, url, filters, clearedRecord, null);
+    }
+
+    /**
+     * Same, with the DOM-analysis change digest (US-06.9, issue #88):
+     * the digest of the pruned element tree is stored with the capture
+     * metadata (US-11.4) so unchanged pages are detected between runs.
+     */
+    void captureMetadata(Address address, String url,
+                         java.util.Map<String, String> filters,
+                         String clearedRecord, String domDigest) {
         String captureId = contentStore.captureId(url);
         es.jllopez.neis.domain.port.ContentStorePort store = contentStore.store();
-        if ((filters == null || filters.isEmpty()) && clearedRecord == null) {
+        if ((filters == null || filters.isEmpty()) && clearedRecord == null
+                && domDigest == null) {
             return;
         }
         store.findCapture(address.id(), captureId)
@@ -1166,13 +1188,14 @@ public class PipelineService {
                                 mergeStored(existing.filters(),
                                         filters == null || filters.isEmpty()
                                                 ? null : ContentStoreService.filtersJson(filters)),
-                                mergeStored(existing.cleared(), clearedRecord))),
+                                mergeStored(existing.cleared(), clearedRecord),
+                                mergeStored(existing.domDigest(), domDigest))),
                         () -> store.saveCapture(new Capture(
                                 address.id(), captureId, url, java.time.Instant.now(),
                                 address.webpageType(),
                                 filters == null || filters.isEmpty()
                                         ? null : ContentStoreService.filtersJson(filters),
-                                clearedRecord)));
+                                clearedRecord, domDigest)));
     }
 
     /**
@@ -1219,6 +1242,77 @@ public class PipelineService {
     ClearedContent clearObstructions(Address address, String html) {
         return clearingPort.clear(html,
                 clearingSelectors.find(address.id(), address.itemKind()));
+    }
+
+    /**
+     * DOM analysis (US-06.9, issue #88): the cleared HTML5 is walked
+     * into the pruned element tree — the element catalog artifact
+     * (element-catalog.json, the AI's numbered-tree view for US-13.3/
+     * US-13.4) is stored with the capture, and the tree's change
+     * digest lands on the capture metadata (US-11.4) so unchanged
+     * pages are detected between runs. A catalog with zero elements
+     * (an empty page) still stores its digest: "no relevant elements"
+     * is itself a comparable state.
+     */
+    ElementCatalog analyzeDom(Address address, String clearedHtml) {
+        ElementCatalog catalog = domAnalysisPort.analyze(clearedHtml);
+        writeArtifact(address, "WEBSCRAPE", "element-catalog",
+                "element-catalog.json", catalogJson(catalog));
+        captureMetadata(address, address.url(), null, null, catalog.digest());
+        return catalog;
+    }
+
+    /** A JSON string literal, or the JSON null for a null/absent value. */
+    static String jsonValue(String s) {
+        return s == null ? "null" : "\"" + ContentStoreService.jsonEscape(s) + "\"";
+    }
+
+    /**
+     * The element catalog as JSON (US-06.9): the deterministic
+     * rendering the AI selector identification (US-13.3/US-13.4) will
+     * consume — elements in document order, digest and placeholders.
+     * Shared escaping via ContentStoreService.jsonEscape.
+     */
+    static String catalogJson(ElementCatalog catalog) {
+        StringBuilder json = new StringBuilder("{\"digest\":\"")
+                .append(ContentStoreService.jsonEscape(catalog.digest()))
+                .append("\",\"elements\":[");
+        boolean first = true;
+        for (var e : catalog.elements()) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append("{\"id\":\"").append(ContentStoreService.jsonEscape(e.id()))
+                    .append("\",\"tag\":\"").append(ContentStoreService.jsonEscape(e.tag()))
+                    .append("\",\"css\":\"").append(ContentStoreService.jsonEscape(e.cssPath()))
+                    .append("\",\"role\":\"").append(ContentStoreService.jsonEscape(e.role()))
+                    .append("\",\"text\":").append(jsonValue(e.text()))
+                    .append(",\"interactable\":").append(e.interactable())
+                    .append(",\"dropped\":").append(e.dropped())
+                    .append(",\"attrs\":{");
+            boolean firstAttr = true;
+            for (var a : e.attributes().entrySet()) {
+                if (!firstAttr) {
+                    json.append(',');
+                }
+                firstAttr = false;
+                json.append('"').append(ContentStoreService.jsonEscape(a.getKey()))
+                        .append("\":").append(jsonValue(a.getValue()));
+            }
+            json.append("}}");
+        }
+        json.append("],\"placeholders\":{");
+        boolean firstPlaceholder = true;
+        for (var p : catalog.placeholders().entrySet()) {
+            if (!firstPlaceholder) {
+                json.append(',');
+            }
+            firstPlaceholder = false;
+            json.append('"').append(ContentStoreService.jsonEscape(p.getKey()))
+                    .append("\":").append(jsonValue(p.getValue()));
+        }
+        return json.append("}}").toString();
     }
 
 

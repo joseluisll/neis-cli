@@ -49,6 +49,18 @@ public class CaptureEntity {
     @Column(name = "cleared")
     private String cleared;
 
+    /** The DOM-analysis change digest of the capture (US-06.9). */
+    @Column(name = "dom_digest")
+    private String domDigest;
+
+    public String getDomDigest() {
+        return domDigest;
+    }
+
+    public void setDomDigest(String domDigest) {
+        this.domDigest = domDigest;
+    }
+
     public String getCleared() {
         return cleared;
     }

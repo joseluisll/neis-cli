@@ -115,6 +115,7 @@ class TaskWorkServiceWebScrapeTest {
                 new JsoupObstructionClearer(),
                 new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                         new JsoupSelectorConnector()),
+                new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
                 feedSource(), webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
@@ -151,6 +152,7 @@ class TaskWorkServiceWebScrapeTest {
                 new JsoupObstructionClearer(),
                 new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                         new JsoupSelectorConnector()),
+                new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
                 source, webpageTypes(), filters,
@@ -258,6 +260,7 @@ class TaskWorkServiceWebScrapeTest {
                 new JsoupObstructionClearer(),
                 new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                         new JsoupSelectorConnector()),
+                new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                 workDir.toString());
     }
 
@@ -415,6 +418,7 @@ class TaskWorkServiceWebScrapeTest {
                     new JsoupObstructionClearer(),
                     new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                             new JsoupSelectorConnector()),
+                    new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
@@ -495,6 +499,7 @@ class TaskWorkServiceWebScrapeTest {
                     new JsoupObstructionClearer(),
                     new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                             new JsoupSelectorConnector()),
+                    new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
@@ -580,6 +585,7 @@ class TaskWorkServiceWebScrapeTest {
                     new JsoupObstructionClearer(),
                     new ClearingSelectors(new ClearingProperties(java.util.List.of()),
                             new JsoupSelectorConnector()),
+                    new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,

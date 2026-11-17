@@ -24,20 +24,26 @@ import java.time.Instant;
  */
 public record Capture(String addressId, String captureId, String url,
                       Instant createdAt, String webpageType, String filters,
-                      String cleared) {
+                      String cleared, String domDigest) {
 
     public Capture(String addressId, String captureId, String url, Instant createdAt) {
-        this(addressId, captureId, url, createdAt, null, null, null);
+        this(addressId, captureId, url, createdAt, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType) {
-        this(addressId, captureId, url, createdAt, webpageType, null, null);
+        this(addressId, captureId, url, createdAt, webpageType, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType, String filters) {
-        this(addressId, captureId, url, createdAt, webpageType, filters, null);
+        this(addressId, captureId, url, createdAt, webpageType, filters, null, null);
+    }
+
+    public Capture(String addressId, String captureId, String url,
+                   Instant createdAt, String webpageType, String filters,
+                   String cleared) {
+        this(addressId, captureId, url, createdAt, webpageType, filters, cleared, null);
     }
 
     public Capture {

@@ -178,7 +178,7 @@ class PipelineServiceTest {
 private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         return new PipelineService(scrapePort, simplifyPort, extractionPort,
                 selectorStore, paginationDetector, new ExposedFilterDetector(),
-                ai, catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                ai, catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
     }
 
     @Test
@@ -191,7 +191,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                badCatalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                badCatalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> chain.run(bad));
@@ -210,7 +210,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
-                catalog2, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                catalog2, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> chain.run(unverified));
@@ -234,7 +234,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                                 + "\"filtering\":{\"detected\":true,\"reasoning\":\"\"},"
                                 + "\"correctedAddress\":null}",
                         "{\"filters\":[],\"reasoning\":\"none\"}")),
-                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         chain.run(good);
 
@@ -388,7 +388,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
                 catalog, new UrlSyntaxValidator(), configured, newsEventStore(), contentStore(),
-                clearingConnector(), clearingSelectors(), workDir.toString());
+                clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-003"));
 
@@ -423,7 +423,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(selectorAiMustNotCall),
                 catalog, new UrlSyntaxValidator(), configured, newsEventStore(), contentStore(),
-                clearingConnector(), clearingSelectors(), workDir.toString());
+                clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-003"));
 
@@ -829,7 +829,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"narrows to past events\"}");
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -898,7 +898,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(limited, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -941,7 +941,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                         + "\"reasoning\":\"ignored the constraint\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -989,7 +989,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                         + "\"request\":\"oe_event_status=past\",\"reasoning\":\"\"}");
         PipelineService service = new PipelineService(constrained, simplifyPort,
                 extractionPort, selectorStore, paginationDetector, new ExposedFilterDetector(),
-                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                aiProvider(ai), catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -1029,7 +1029,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         PipelineService service = new PipelineService(scrapePort, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), aiProvider(aiCapabilityOnly),
-                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"));
 
@@ -1076,7 +1076,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Event status", "Past"), null);
@@ -1117,7 +1117,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         PipelineService service = new PipelineService(withFilteredResponse, simplifyPort,
                 extractionPort, selectorStore, paginationDetector,
                 new ExposedFilterDetector(), empty,
-                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), workDir.toString());
+                catalog, new UrlSyntaxValidator(), preconfigured(), newsEventStore(), contentStore(), clearingConnector(), clearingSelectors(), new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(), workDir.toString());
 
         PipelineResult result = service.run(catalog.byId("ADDR-005"), 50, 10,
                 new FilterSpec("Keyword", "plasma"), null);

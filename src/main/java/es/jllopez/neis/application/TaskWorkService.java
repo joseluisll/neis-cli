@@ -417,6 +417,9 @@ public class TaskWorkService {
         var cleared = pipeline.clearObstructions(address, scrape.html());
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
+        // US-06.9: the pruned element tree + catalog + change digest
+        // (page 1; pagination pages are analyzed below per page).
+        pipeline.analyzeDom(address, cleared.html());
         pipeline.captureWithFilters(address, address.url(), filters,
                 PipelineService.clearingRecord(cleared));
         String filtersNote = filters == null || filters.isEmpty() ? ""
@@ -533,6 +536,9 @@ public class TaskWorkService {
             var pageCleared = pipeline.clearObstructions(address, page.html());
             pipeline.writeArtifact(address, "WEBSCRAPE", "page-html",
                     "scrape-page" + pages + ".html", pageCleared.html(), executionId);
+            // US-06.9: per-page element catalog + digest (its own
+            // artifact; the capture digest follows page 1's tree).
+            pipeline.analyzeDom(address, pageCleared.html());
             int before = items.size();
             for (NewsEventItem item : pipeline.extractionPort.extract(pageCleared.html(),
                     selector.get(), address.itemKind(), address.id(),

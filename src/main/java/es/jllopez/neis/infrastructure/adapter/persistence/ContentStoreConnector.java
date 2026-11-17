@@ -59,6 +59,11 @@ public class ContentStoreConnector implements ContentStorePort {
         if (capture.cleared() != null) {
             entity.setCleared(capture.cleared());
         }
+        // The DOM-analysis digest (US-06.9) follows the same rule: a
+        // digest-less re-capture never wipes a stored digest.
+        if (capture.domDigest() != null) {
+            entity.setDomDigest(capture.domDigest());
+        }
         captures.save(entity);
         return capture;
     }
@@ -69,7 +74,7 @@ public class ContentStoreConnector implements ContentStorePort {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
                         e.createdAtInstant(), e.getWebpageType(), e.getFilters(),
-                        e.getCleared()));
+                        e.getCleared(), e.getDomDigest()));
     }
 
     @Override
