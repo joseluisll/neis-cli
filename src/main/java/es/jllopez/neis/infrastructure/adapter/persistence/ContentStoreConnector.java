@@ -54,6 +54,11 @@ public class ContentStoreConnector implements ContentStorePort {
         if (capture.filters() != null) {
             entity.setFilters(capture.filters());
         }
+        // The obstruction-clearing record (US-06.7) follows the same
+        // rule: a clearing-less re-capture never wipes a stored record.
+        if (capture.cleared() != null) {
+            entity.setCleared(capture.cleared());
+        }
         captures.save(entity);
         return capture;
     }
@@ -63,7 +68,8 @@ public class ContentStoreConnector implements ContentStorePort {
     public Optional<Capture> findCapture(String addressId, String captureId) {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
-                        e.createdAtInstant(), e.getWebpageType(), e.getFilters()));
+                        e.createdAtInstant(), e.getWebpageType(), e.getFilters(),
+                        e.getCleared()));
     }
 
     @Override

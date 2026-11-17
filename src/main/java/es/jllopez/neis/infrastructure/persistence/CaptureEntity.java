@@ -45,6 +45,18 @@ public class CaptureEntity {
     @Column(name = "filters")
     private String filters;
 
+    /** The obstruction-clearing record of the capture, JSON object (US-06.7). */
+    @Column(name = "cleared")
+    private String cleared;
+
+    public String getCleared() {
+        return cleared;
+    }
+
+    public void setCleared(String cleared) {
+        this.cleared = cleared;
+    }
+
     public String getFilters() {
         return filters;
     }

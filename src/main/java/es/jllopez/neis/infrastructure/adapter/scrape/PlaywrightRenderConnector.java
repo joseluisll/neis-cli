@@ -105,6 +105,16 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
                     new com.microsoft.playwright.Page.NavigateOptions()
                             .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.NETWORKIDLE)
                             .setTimeout(timeoutSeconds * 1000L));
+            // Obstruction dismissal (US-06.7, issue #75): the browser
+            // interaction layer closes what can be closed — popup
+            // windows, cookie/consent accept buttons, dialog close
+            // controls — BEFORE the DOM is serialized. Best-effort by
+            // design (a page with none simply finds none); the DOM
+            // sweep in the clearing connector (jsoup) removes what no
+            // button dismisses. The serialize step below runs on the
+            // SAME page, so a dismissed overlay is gone from the
+            // stored HTML5.
+            dismissObstructions(page, url);
             boolean filtersApplied = false;
             com.microsoft.playwright.Locator firstControl = null;
             for (var filter : filters.entrySet()) {
@@ -339,6 +349,63 @@ public class PlaywrightRenderConnector implements ContentScrapePort {
             "button[type=submit]", "input[type=submit]",
             "button:has-text(\"Apply\")", "button:has-text(\"Filter\")",
             "button:has-text(\"Search\")"};
+
+    /**
+     * Dismisses what the page itself offers to dismiss (US-06.7, issue
+     * #75): consent/cookie accept buttons, dialog close controls and
+     * any additional popup window the page opened. Best-effort — a
+     * control that is absent, hidden or refuses the click is skipped
+     * (the jsoup clearing connector handles the DOM remains); only
+     * unexpected Playwright errors are contained, never propagated:
+     * a failed dismissal must not fail an otherwise servable fetch.
+     */
+    private void dismissObstructions(com.microsoft.playwright.Page page, String url) {
+        // Pages that spawned popups: their close is the dismiss.
+        try {
+            for (com.microsoft.playwright.Page popup : page.context().pages()) {
+                if (!popup.equals(page) && !popup.isClosed()) {
+                    popup.close();
+                    log.info("RENDER {}: popup window dismissed (US-06.7)", url);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.info("RENDER {}: popup dismissal skipped: {}", url,
+                    e.getClass().getSimpleName());
+        }
+        // Consent/accept and dialog-close controls, in order: the
+        // first clickable one is used, one per selector, never twice.
+        for (String selector : DISMISS_SELECTORS) {
+            try {
+                var control = page.locator(selector).first();
+                if (control.count() > 0 && control.isVisible()) {
+                    control.click(new com.microsoft.playwright.Locator.ClickOptions()
+                            .setTimeout(2000));
+                    log.info("RENDER {}: obstruction dismissed via '{}' (US-06.7)",
+                            url, selector);
+                }
+            } catch (RuntimeException e) {
+                // Absent, hidden or non-clickable: the DOM sweep handles
+                // what this click could not.
+                log.info("RENDER {}: dismissal '{}' skipped: {}", url, selector,
+                        e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /**
+     * The dismissal selectors (US-06.7): the generic consent/accept
+     * and dialog-close vocabulary of the web — no site-specific
+     * knowledge. One click per matching selector at most.
+     */
+    private static final String[] DISMISS_SELECTORS = {
+            "button:has-text(\"Accept all\")",
+            "button:has-text(\"Accept\")",
+            "button:has-text(\"I agree\")",
+            "button:has-text(\"Agree\")",
+            "button[aria-label*=\"cookie\" i]",
+            "[role=dialog] button:has-text(\"Close\")",
+            "[role=dialog] [aria-label*=\"close\" i]",
+            "dialog[open] button:has-text(\"Close\")"};
 
     /** Deterministic shutdown of the provisioned browser and driver
      * (US-06.5 review note): without it, closing the JVM relied on

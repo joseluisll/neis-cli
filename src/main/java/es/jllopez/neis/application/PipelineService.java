@@ -3,6 +3,7 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.ClearedContent;
 import es.jllopez.neis.domain.model.Capture;
 import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.FilterRequestOption;
@@ -16,6 +17,7 @@ import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import es.jllopez.neis.domain.port.ContentScrapePort;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
+import es.jllopez.neis.domain.port.ObstructionClearingPort;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
 import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.port.SimplifyPort;
@@ -109,6 +111,10 @@ public class PipelineService {
     final PreconfiguredSelectors preconfiguredSelectors;
     private final NewsEventStorePort newsEventStore;
     final ContentStoreService contentStore;
+    /** Obstruction clearing (US-06.7, issue #75). */
+    final ObstructionClearingPort clearingPort;
+    /** The page-specific clearing selectors (US-06.7 / US-12.1 style). */
+    final ClearingSelectors clearingSelectors;
 
     public PipelineService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
@@ -122,6 +128,8 @@ public class PipelineService {
                            PreconfiguredSelectors preconfiguredSelectors,
                            NewsEventStorePort newsEventStore,
                            ContentStoreService contentStore,
+                           ObstructionClearingPort clearingPort,
+                           ClearingSelectors clearingSelectors,
                            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
@@ -135,6 +143,8 @@ public class PipelineService {
         this.preconfiguredSelectors = preconfiguredSelectors;
         this.newsEventStore = newsEventStore;
         this.contentStore = contentStore;
+        this.clearingPort = clearingPort;
+        this.clearingSelectors = clearingSelectors;
     }
 
     /** Runs the whole pipeline for one address. */
@@ -199,12 +209,19 @@ public class PipelineService {
         ScrapeResult scrape = scrapeFilters == null || scrapeFilters.isEmpty()
                 ? scrapePort.scrape(address)
                 : scrapePort.scrapeWithFilters(address, scrapeFilters, null);
+        // Obstruction clearing (US-06.7, issue #75): popups, cookie
+        // banners, ads and the configured page-specific selectors are
+        // removed BEFORE the HTML5 is stored or passed on — extraction
+        // and SIMPLIFY see the main content, and the removal record
+        // lands on the capture metadata (US-11.4).
+        ClearedContent cleared = clearObstructions(address, scrape.html());
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html(), executionId);
-        captureWithFilters(address, address.url(), scrapeFilters);
+                "scrape.html", cleared.html());
+        captureWithFilters(address, address.url(), scrapeFilters,
+                clearingRecord(cleared));
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
-        SimplifiedContent simplified = simplifyPort.simplify(scrape.html());
+        SimplifiedContent simplified = simplifyPort.simplify(cleared.html());
         Path simplifyArtifact = writeArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
 
@@ -1116,26 +1133,80 @@ public class PipelineService {
      * issue #73 / US-11.4): the JSON rendering lands on the capture
      * row; the row's other fields (createdAt, webpageType) are
      * preserved, and a null/empty filter set never touches the stored
-     * metadata (the same never-wipes rule as the webpage type).
+     * metadata (the same never-wipes rule as the webpage type). The
+     * clearing record (US-06.7), when present, follows the same rule.
      */
     void captureWithFilters(Address address, String url,
-                            java.util.Map<String, String> filters) {
-        if (filters == null || filters.isEmpty()) {
-            return;
-        }
+                            java.util.Map<String, String> filters,
+                            String clearedRecord) {
         String captureId = contentStore.captureId(url);
         es.jllopez.neis.domain.port.ContentStorePort store = contentStore.store();
+        if ((filters == null || filters.isEmpty()) && clearedRecord == null) {
+            return;
+        }
         store.findCapture(address.id(), captureId)
                 .ifPresentOrElse(
                         existing -> store.saveCapture(new Capture(
                                 address.id(), captureId, url, existing.createdAt(),
                                 existing.webpageType(),
-                                ContentStoreService.filtersJson(filters))),
+                                mergeStored(existing.filters(),
+                                        filters == null || filters.isEmpty()
+                                                ? null : ContentStoreService.filtersJson(filters)),
+                                mergeStored(existing.cleared(), clearedRecord))),
                         () -> store.saveCapture(new Capture(
                                 address.id(), captureId, url, java.time.Instant.now(),
                                 address.webpageType(),
-                                ContentStoreService.filtersJson(filters))));
+                                filters == null || filters.isEmpty()
+                                        ? null : ContentStoreService.filtersJson(filters),
+                                clearedRecord)));
     }
+
+    /**
+     * The never-wipes merge rule (US-11.4): a fresh value replaces the
+     * stored one; an absent fresh value (null) keeps the stored one.
+     */
+    private static String mergeStored(String stored, String fresh) {
+        return fresh != null ? fresh : stored;
+    }
+
+    /**
+     * The clearing record for the capture metadata (US-06.7): the JSON
+     * object {@code {"removed": <count>, "rules": [...]}}; null when
+     * nothing was removed — a no-op clearing leaves no record, and a
+     * capture without removals states exactly that (nothing removed,
+     * nothing recorded).
+     */
+    static String clearingRecord(ClearedContent cleared) {
+        if (cleared == null || cleared.removedCount() <= 0) {
+            return null;
+        }
+        StringBuilder json = new StringBuilder("{\"removed\":")
+                .append(cleared.removedCount()).append(",\"rules\":[");
+        boolean first = true;
+        for (String rule : cleared.rulesApplied()) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append('"').append(ContentStoreService.jsonEscape(rule)).append('"');
+        }
+        return json.append("]}").toString();
+    }
+
+    /**
+     * Obstruction clearing (US-06.7, issue #75): the captured HTML5 is
+     * cleaned of popups, cookie banners, modal overlays, advertisement
+     * nodes and the page-specific configured selectors BEFORE it is
+     * stored or passed to other tasks. A clearing failure fails the
+     * run loud (a half-cleared capture would poison the repository
+     * silently); an empty configured-selector list means the generic
+     * rules only.
+     */
+    ClearedContent clearObstructions(Address address, String html) {
+        return clearingPort.clear(html,
+                clearingSelectors.find(address.id(), address.itemKind()));
+    }
+
 
     /** Chosen selector plus its provenance and the page analysis. */
     record SelectorSelection(String selector, String source, PageAnalysis analysis) {

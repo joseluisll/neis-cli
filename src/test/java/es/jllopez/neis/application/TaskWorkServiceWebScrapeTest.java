@@ -6,6 +6,7 @@ import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.SelectorStorePort;
 import es.jllopez.neis.domain.service.PaginationDetector;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
+import es.jllopez.neis.infrastructure.adapter.scrape.JsoupObstructionClearer;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.JsoupSimplifyConnector;
 import es.jllopez.neis.infrastructure.adapter.scrape.StaticScrapeConnector;
@@ -110,9 +111,13 @@ class TaskWorkServiceWebScrapeTest {
                 new ObjectProviderStub(), catalog, new UrlSyntaxValidator(),
                 preconfigured, newsEventStore,
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                new JsoupObstructionClearer(),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new JsoupSelectorConnector()),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
-                feedSource(), webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), configuredMaxItems);
+                feedSource(), webpageTypes(), new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()), new JsoupSelectorConnector()), configuredMaxItems);
     }
 
     private TaskWorkService serviceWithFeedSource(PreconfiguredSelectors preconfigured,
@@ -142,9 +147,13 @@ class TaskWorkServiceWebScrapeTest {
                 new ObjectProviderStub(), catalog, new UrlSyntaxValidator(),
                 preconfigured, newsEventStore,
                 new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                new JsoupObstructionClearer(),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new JsoupSelectorConnector()),
                 workDir.toString());
         return new TaskWorkService(pipeline, catalog, newsEventStore,
-                source, webpageTypes(), filters, null);
+                source, webpageTypes(), filters,
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()), new JsoupSelectorConnector()), null);
     }
 
     private PreconfiguredSelectors catalog(
@@ -342,11 +351,15 @@ class TaskWorkServiceWebScrapeTest {
                     new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
                     configured, newsEventStore,
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                    new JsoupObstructionClearer(),
+                    new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                            new JsoupSelectorConnector()),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
                         feedSource(), webpageTypes(),
-                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                        new ClearingSelectors(new ClearingProperties(java.util.List.of()), new JsoupSelectorConnector()), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"));
 
             assertTrue(outcome.contains("items extracted: 4"), outcome);
@@ -418,11 +431,15 @@ class TaskWorkServiceWebScrapeTest {
                     new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
                     configured, newsEventStore,
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                    new JsoupObstructionClearer(),
+                    new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                            new JsoupSelectorConnector()),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
                         feedSource(), webpageTypes(),
-                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                        new ClearingSelectors(new ClearingProperties(java.util.List.of()), new JsoupSelectorConnector()), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-LIVE"),
                             java.util.Map.of("max-items", "3"));
 
@@ -499,11 +516,15 @@ class TaskWorkServiceWebScrapeTest {
                     new ObjectProviderStub(), liveCatalog, new UrlSyntaxValidator(),
                     configured, newsEventStore,
                     new ContentStoreService(new InMemoryContentStorePort(), workDir.toString()),
+                    new JsoupObstructionClearer(),
+                    new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                            new JsoupSelectorConnector()),
                     workDir.toString());
 
             String outcome = new TaskWorkService(livePipeline, liveCatalog, newsEventStore,
                         feedSource(), webpageTypes(),
-                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null)
+                        new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                        new ClearingSelectors(new ClearingProperties(java.util.List.of()), new JsoupSelectorConnector()), null)
                     .execute("WEBSCRAPE", liveCatalog.byId("ADDR-SPA"));
 
             assertTrue(outcome.contains("SPA next page fetched over plain HTTP"), outcome);

@@ -72,6 +72,20 @@ neis:
     # misbehaving registered address cannot buffer unbounded bytes into
     # memory (review finding 2026-11-14).
     max-bytes: 10485760
+    clearing:
+      # Page-specific obstructing selectors (US-06.7, issue #75): CSS
+      # selectors of the elements a WEBSCRAPE run removes from the
+      # captured HTML5 (popups, banners, ads the generic clearing rules
+      # miss), per address or kind-wide — the selector model (US-12),
+      # validated at boot (a selector that does not parse fails the
+      # boot, US-12.3). The generic clearing rules (declared overlays,
+      # consent/cookie vocabulary, ad containers) always apply on top.
+      selectors: []
+#      - address: ADDR-005
+#        kind: event
+#        selector: "#site-overlay"
+#      - kind: news
+#        selector: ".promo-popup"
   address:
     verification:
       # Address reachability check (US-04.2): per-request timeout of the

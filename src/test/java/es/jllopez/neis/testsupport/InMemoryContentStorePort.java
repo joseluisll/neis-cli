@@ -24,7 +24,21 @@ public class InMemoryContentStorePort implements ContentStorePort {
     @Override
     public Capture saveCapture(Capture capture) {
         captures.computeIfAbsent(capture.addressId(), key -> new ConcurrentHashMap<>())
-                .put(capture.captureId(), capture);
+                .merge(capture.captureId(), capture, (stored, fresh) -> {
+                    // The never-wipes upsert semantics of the SQLite
+                    // connector (US-11.4): a null field on the fresh
+                    // capture keeps the stored one (webpage type,
+                    // filters US-06.6, clearing US-06.7).
+                    String webpageType = fresh.webpageType() != null
+                            ? fresh.webpageType() : stored.webpageType();
+                    String filters = fresh.filters() != null
+                            ? fresh.filters() : stored.filters();
+                    String cleared = fresh.cleared() != null
+                            ? fresh.cleared() : stored.cleared();
+                    return new Capture(fresh.addressId(), fresh.captureId(),
+                            fresh.url(), fresh.createdAt(), webpageType,
+                            filters, cleared);
+                });
         return capture;
     }
 

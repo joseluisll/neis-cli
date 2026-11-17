@@ -15,17 +15,29 @@ import java.time.Instant;
  * config order; null = fetched without filters. A re-capture without
  * filters never wipes a stored set (the same rule as the webpage
  * type).</p>
+ *
+ * <p>{@code cleared} (US-06.7, issue #75): the obstruction-clearing
+ * record of the capture, as a JSON object string — the removed
+ * element count and the rules that removed at least one element; null
+ * = captured without clearing. A re-capture without clearing never
+ * wipes a stored record (the same never-wipes rule).</p>
  */
 public record Capture(String addressId, String captureId, String url,
-                      Instant createdAt, String webpageType, String filters) {
+                      Instant createdAt, String webpageType, String filters,
+                      String cleared) {
 
     public Capture(String addressId, String captureId, String url, Instant createdAt) {
-        this(addressId, captureId, url, createdAt, null, null);
+        this(addressId, captureId, url, createdAt, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType) {
-        this(addressId, captureId, url, createdAt, webpageType, null);
+        this(addressId, captureId, url, createdAt, webpageType, null, null);
+    }
+
+    public Capture(String addressId, String captureId, String url,
+                   Instant createdAt, String webpageType, String filters) {
+        this(addressId, captureId, url, createdAt, webpageType, filters, null);
     }
 
     public Capture {

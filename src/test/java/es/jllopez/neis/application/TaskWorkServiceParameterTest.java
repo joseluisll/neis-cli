@@ -47,7 +47,9 @@ class TaskWorkServiceParameterTest {
                 new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576),
                 new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
                         new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties()),
-                new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())), null);
+                new PreconfiguredFilters(new PreconfiguredFilterProperties(List.of())),
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector()), null);
     }
 
     private PipelineService pipelineReturning(PipelineResult result) {
@@ -123,7 +125,9 @@ class TaskWorkServiceParameterTest {
                 new es.jllopez.neis.infrastructure.adapter.feed.RomeFeedConnector(5, 1048576),
                 new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog(
                         new es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties()),
-                preconfigured, null);
+                preconfigured,
+                new ClearingSelectors(new ClearingProperties(java.util.List.of()),
+                        new es.jllopez.neis.infrastructure.adapter.scrape.JsoupSelectorConnector()), null);
 
         work.execute("PRINT", address, Map.of());
 

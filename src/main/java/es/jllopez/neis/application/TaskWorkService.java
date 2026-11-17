@@ -50,6 +50,8 @@ public class TaskWorkService {
     private final es.jllopez.neis.domain.port.FeedSourcePort feedSource;
     private final es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes;
     private final PreconfiguredFilters preconfiguredFilters;
+    /** Page-specific clearing selectors (US-06.7, issue #75). */
+    private final ClearingSelectors clearingSelectors;
     /** Externalized default cap (US-12.5): null = no limit. Volatile:
      * the US-16.5 edit path may update it while runs use it. */
     private volatile Integer configuredMaxItems;
@@ -59,6 +61,7 @@ public class TaskWorkService {
                            es.jllopez.neis.domain.port.FeedSourcePort feedSource,
                            es.jllopez.neis.domain.port.WebpageTypeCatalogPort webpageTypes,
                            PreconfiguredFilters preconfiguredFilters,
+                           ClearingSelectors clearingSelectors,
                            @org.springframework.beans.factory.annotation.Value(
                                    "${neis.extraction.max-items:}") String configuredMaxItems) {
         this.pipeline = pipeline;
@@ -67,6 +70,7 @@ public class TaskWorkService {
         this.feedSource = feedSource;
         this.webpageTypes = webpageTypes;
         this.preconfiguredFilters = preconfiguredFilters;
+        this.clearingSelectors = clearingSelectors;
         this.configuredMaxItems = parseMaxItems(configuredMaxItems);
     }
 
@@ -406,12 +410,18 @@ public class TaskWorkService {
         var scrape = filters == null || filters.isEmpty()
                 ? pipeline.scrapePort.scrape(address, connectorOverride)
                 : pipeline.scrapePort.scrapeWithFilters(address, filters, connectorOverride);
+        // Obstruction clearing (US-06.7, issue #75): popups, banners,
+        // ads and the configured selectors are removed BEFORE the
+        // artifact is written or extraction runs; the removal record
+        // lands on the capture metadata (US-11.4).
+        var cleared = pipeline.clearObstructions(address, scrape.html());
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html(), executionId);
-        pipeline.captureWithFilters(address, address.url(), filters);
+                "scrape.html", cleared.html());
+        pipeline.captureWithFilters(address, address.url(), filters,
+                PipelineService.clearingRecord(cleared));
         String filtersNote = filters == null || filters.isEmpty() ? ""
                 : "; filters: " + filterSummary(filters);
-        PaginationInfo pagination = pipeline.paginationDetector.detect(scrape.html());
+        PaginationInfo pagination = pipeline.paginationDetector.detect(cleared.html());
 
         // US-12.6 (issue #72): a selector override replaces the
         // preconfigured selector for this run; preconfigured selectors
@@ -429,11 +439,16 @@ public class TaskWorkService {
         Optional<String> selector = selectorOverrideTrimmed != null
                 ? Optional.of(selectorOverrideTrimmed)
                 : pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
+        String selectorEmptyNote = selector.isEmpty()
+                ? "; no preconfigured selector for " + address.id()
+                        + " — item extraction skipped (US-06.4)" : "";
+        String clearNote = cleared.removedCount() > 0
+                ? "; cleared " + cleared.removedCount() + " obstructing element(s)"
+                : "";
         if (selector.isEmpty()) {
-            return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
-                    + filtersNote
-                    + "; no preconfigured selector for " + address.id()
-                    + " — item extraction skipped (US-06.4); paginated: "
+            return "WEBSCRAPE: " + cleared.sizeBytes() + " bytes -> " + artifact
+                    + filtersNote + clearNote + selectorEmptyNote
+                    + "; paginated: "
                     + pagination.paginated() + " (" + pagination.evidence() + ")";
         }
         // US-12.3 (issue #48): validation BEFORE execution — a selector
@@ -447,7 +462,7 @@ public class TaskWorkService {
         }
 
         List<NewsEventItem> items = new ArrayList<>(pipeline.extractionPort.extract(
-                scrape.html(), selector.get(), address.itemKind(), address.id(),
+                cleared.html(), selector.get(), address.itemKind(), address.id(),
                 maxItems, address.url()));
         // US-12.3: a selector is only valid if it selects at least one
         // element in the live content — an empty match aborts the run
@@ -464,7 +479,7 @@ public class TaskWorkService {
         String currentUrl = address.url().trim();
         visited.add(currentUrl);
         String nextUrl = items.size() < maxItems
-                ? pipeline.extractionPort.nextPageUrl(scrape.html(), currentUrl)
+                ? pipeline.extractionPort.nextPageUrl(cleared.html(), currentUrl)
                 : null;
         boolean truncatedByGuard = false;
         boolean warnedSpaNextPage = false;
@@ -515,10 +530,11 @@ public class TaskWorkService {
                 break;
             }
             pages++;
+            var pageCleared = pipeline.clearObstructions(address, page.html());
             pipeline.writeArtifact(address, "WEBSCRAPE", "page-html",
-                    "scrape-page" + pages + ".html", page.html(), executionId);
+                    "scrape-page" + pages + ".html", pageCleared.html(), executionId);
             int before = items.size();
-            for (NewsEventItem item : pipeline.extractionPort.extract(page.html(),
+            for (NewsEventItem item : pipeline.extractionPort.extract(pageCleared.html(),
                     selector.get(), address.itemKind(), address.id(),
                     maxItems - items.size(), nextUrl)) {
                 if (isNew(items, item)) {
@@ -530,7 +546,7 @@ public class TaskWorkService {
                 break;
             }
             nextUrl = items.size() < maxItems
-                    ? pipeline.extractionPort.nextPageUrl(page.html(), nextUrl)
+                    ? pipeline.extractionPort.nextPageUrl(pageCleared.html(), nextUrl)
                     : null;
             if (nextUrl != null && pages >= MAX_PAGES - 1 && items.size() < maxItems) {
                 // The loop condition is about to end on the page guard:
@@ -561,8 +577,8 @@ public class TaskWorkService {
         String capNote = maxItems == Integer.MAX_VALUE ? "no cap"
                 : "cap " + maxItems;
         String iterationNote = notes.isEmpty() ? "" : "; " + String.join("; ", notes);
-        return "WEBSCRAPE: " + scrape.sizeBytes() + " bytes -> " + artifact
-                + filtersNote
+        return "WEBSCRAPE: " + cleared.sizeBytes() + " bytes -> " + artifact
+                + filtersNote + clearNote
                 + "; items extracted: " + items.size() + " (" + capNote
                 + "; selector '" + selector.get() + "') -> " + itemsArtifact
                 + "; pages: " + pages + "; paginated: " + pagination.paginated()
