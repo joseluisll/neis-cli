@@ -249,6 +249,97 @@ class JsoupSimplifyConnectorTest {
                 "data/action elements must pass the check");
     }
 
+    // US-07.4 review round-1 findings B1/B2 fixes.
+
+    @Test
+    void simplifyHandlesEveryForbiddenElementWithoutFailingTheRun() {
+        // B1: a forbidden element must be REMOVED (or unwrapped), never
+        // left in place to fail the whole run — failing the run loses ALL
+        // the data, which breaks the data-preservation rule.
+        for (String element : new String[]{
+                "<script>alert(1)</script>", "<style>.a{}</style>",
+                "<link rel=\"stylesheet\" href=\"x.css\">", "<meta charset=\"x\">",
+                "<noscript>fallback</noscript>", "<iframe src=\"x\"></iframe>",
+                "<frame src=\"x\">", "<applet></applet>", "<object data=\"x\"></object>",
+                "<embed src=\"x\">", "<img src=\"x.png\">", "<picture></picture>",
+                "<source src=\"x\">", "<video src=\"x.mp4\"></video>",
+                "<audio src=\"x.mp3\"></audio>", "<track src=\"x\">",
+                "<canvas></canvas>", "<map name=\"m\"></map>", "<area href=\"x\">",
+                "<noembed>x</noembed>", "<param name=\"p\" value=\"v\">"}) {
+            String raw = "<html><body><h1>Keep</h1>" + element
+                    + "<p>Data stays</p></body></html>";
+            var out = assertDoesNotThrow(() -> connector.simplify(raw),
+                    "simplify must handle a forbidden element, not fail: " + element);
+            assertTrue(out.html().contains("Keep"), element);
+            assertTrue(out.html().contains("Data stays"), element);
+        }
+    }
+
+    @Test
+    void dialogAndTemplateAreUnwrappedTheirDataSurvives() {
+        // B1: dialog/template are forbidden (popups/dynamic content) but
+        // may wrap real data — unwrapped, not removed.
+        String raw = "<html><body>"
+                + "<dialog open><article><h2>Popup title</h2>"
+                + "<p>Popup body</p></article></dialog>"
+                + "<template><p>Templated note</p></template>"
+                + "<h1>Main</h1></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertFalse(simplified.contains("<dialog"), "the dialog element is gone");
+        assertFalse(simplified.contains("<template"), "the template element is gone");
+        assertTrue(simplified.contains("Popup title"),
+                "data inside the dialog survives the unwrap");
+        assertTrue(simplified.contains("Popup body"));
+        assertTrue(simplified.contains("Templated note"),
+                "data inside the template survives the unwrap");
+        assertTrue(simplified.contains("Main"));
+    }
+
+    @Test
+    void advertisementsAndPopupsAreRemoved() {
+        // B2: ads and popups are excluded by the requirement.
+        String raw = "<html><body>"
+                + "<ins class=\"adsbygoogle\">ad slot</ins>"
+                + "<div class=\"advertisement\">BUY NOW</div>"
+                + "<div class=\"advert-banner\">promo</div>"
+                + "<div class=\"newsletter-popup\">subscribe</div>"
+                + "<p>Real content</p></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertFalse(simplified.contains("adsbygoogle"), "ads must go");
+        assertFalse(simplified.contains("BUY NOW"), "advertisement containers must go");
+        assertFalse(simplified.contains("promo"), "advert-* fragments must go");
+        assertFalse(simplified.contains("subscribe"), "popups must go");
+        assertTrue(simplified.contains("Real content"));
+    }
+
+    @Test
+    void javascriptUrlsAreNeutralisedElementsKept() {
+        // B2: a javascript: URL is dynamic code; the attribute goes, the
+        // element (an action element) and its text stay.
+        String raw = "<html><body>"
+                + "<a href=\"javascript:alert(1)\">Click</a>"
+                + "<form action=\"javascript:x()\"><button formaction=\"javascript:y()\">Go</button></form>"
+                + "<p>Stays</p></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertFalse(simplified.contains("javascript:"), "no javascript: URL survives");
+        assertTrue(simplified.contains("Click"), "the link's text survives");
+        assertTrue(simplified.contains("<a"), "the link element survives");
+        assertTrue(simplified.contains("<button"), "the button survives");
+        assertTrue(simplified.contains("Go"), "the button's label survives");
+    }
+
+    @Test
+    void checkSyntaxRejectsJavascriptUrls() {
+        assertThrows(JsoupSimplifyConnector.SimplifySyntaxException.class,
+                () -> JsoupSimplifyConnector.checkSyntax(
+                        "<html><body><a href=\"javascript:alert(1)\">x</a></body></html>"),
+                "the tripwire must refuse javascript: URLs");
+        assertDoesNotThrow(
+                () -> JsoupSimplifyConnector.checkSyntax(
+                        "<html><body><a href=\"https://example.org/\">x</a></body></html>"),
+                "real URLs pass");
+    }
+
     @Test
     void dropsEventHandlerAttributes() {
         // Event handlers are dynamic code (US-07.4): every on* attribute

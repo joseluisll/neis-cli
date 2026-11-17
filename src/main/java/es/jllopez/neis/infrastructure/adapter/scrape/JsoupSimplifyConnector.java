@@ -28,22 +28,47 @@ public class JsoupSimplifyConnector implements SimplifyPort {
 
     /**
      * US-07.4: elements whose presence makes the output non-compliant —
-     * dynamic code (scripts, embedded objects), presentation, media and
-     * popup/iframe content. An exact-name Set, never a substring test
-     * (a {@code p} selector must not match {@code template}).
+     * dynamic code (scripts, embedded objects), media, popup/iframe and
+     * dialog/template content. ONE Set drives BOTH the cleanse and the
+     * check (US-07.4 review finding B1: two lists drift — a forbidden
+     * element that is never removed fails the whole run instead of being
+     * simplified). An exact-name Set, never a substring test (a
+     * {@code p} selector must not match {@code template}).
      */
     private static final java.util.Set<String> FORBIDDEN_TAGS =
             java.util.Set.of("script", "style", "link", "meta", "noscript",
                     "iframe", "frame", "frameset", "object", "embed", "applet",
                     "svg", "img", "picture", "source", "video", "audio",
-                    "track", "canvas", "map", "area", "dialog", "template");
+                    "track", "canvas", "map", "area", "dialog", "template",
+                    "noembed", "param");
 
+    /**
+     * The non-data element strip list, DERIVED from FORBIDDEN_TAGS (one
+     * source of truth — the selector is the Set joined, so a tag added to
+     * the Set is stripped AND checked; US-07.4 review finding B1). Order:
+     * alphabetical by construction of the join — deterministic.
+     */
     private static final String STRIPPED_TAGS =
-            "script, style, link, meta, noscript, iframe, svg, img, video, audio, "
-                    + "source, picture, canvas, object, embed, map, area, "
-                    // structural/layout-only containers (US-07.1); nav is
-                    // handled separately below (pagination navs are kept)
-                    + "header, footer, aside";
+            String.join(", ", FORBIDDEN_TAGS.stream().sorted()
+                    .toArray(String[]::new));
+
+    /**
+     * Structural/layout-only containers (US-07.1), kept as a separate
+     * selector: nav is handled separately below (pagination navs are
+     * kept for the ANALYZE capability detection, US-17).
+     */
+    private static final String STRIPPED_STRUCTURE_TAGS = "header, footer, aside";
+
+    /**
+     * Dialog/template are forbidden (popups/dynamic content) but may
+     * WRAP data — an open {@code <dialog>} often holds the newsletter or
+     * help popup AND sometimes real content. They are UNWRAPPED (children
+     * promoted, element dropped), not removed, so data inside survives;
+     * everything else on the forbidden list is removed outright. Frames
+     * and frame content are structural relics (no listing data).
+     */
+    private static final java.util.Set<String> UNWRAP_TAGS =
+            java.util.Set.of("dialog", "template");
 
     private static final String[] STRIPPED_ATTRIBUTES = {
             "style", "srcset", "sizes", "media", "onload", "onclick", "data-src",
@@ -65,7 +90,12 @@ public class JsoupSimplifyConnector implements SimplifyPort {
     private static final String[] STRIPPED_CLASS_FRAGMENTS = {
             "pagetree", "sidebar", "breadcrumb", "menu", "toolbar", "cookie",
             "banner", "modal", "tooltip", "search", "sr-only", "screen-reader",
-            "skiplink", "a11y"};
+            "skiplink", "a11y",
+            // US-07.4 review finding B2: advertisements and popups are
+            // excluded by the requirement, not only the standard ad
+            // elements the obstruction clearing removes before this step
+            // (a SIMPLIFY input may come from other paths).
+            "popup", "advert", "adsbygoogle"};
 
     @Override
     public SimplifiedContent simplify(String rawHtml) {
@@ -74,7 +104,14 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                 .prettyPrint(false)
                 .charset(StandardCharsets.UTF_8);
 
+        // US-07.4: unwrap the forbidden-but-maybe-data containers
+        // FIRST (dialog/template — their children survive, the element
+        // does not), then remove every other forbidden non-data element
+        // (derived from the same Set the compliance check scans for),
+        // then the structural chrome (US-07.1).
+        unwrapForbiddenContainers(doc);
         doc.select(STRIPPED_TAGS).remove();
+        doc.select(STRIPPED_STRUCTURE_TAGS).remove();
         doc.select("head").remove(); // head carries metadata, not action/data elements
         // Nav elements are page chrome (menus, breadcrumbs) — EXCEPT
         // pagination navs: their next/page links are action elements the
@@ -108,6 +145,7 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             }
         }
         removeEventHandlers(doc);
+        neutraliseScriptUrls(doc);
         removeComments(doc.body());
 
         String html = doc.html();
@@ -139,6 +177,46 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                     : new ArrayList<>(el.attributes().asList())) {
                 String key = attr.getKey().toLowerCase(java.util.Locale.ROOT);
                 if (key.startsWith("on") && key.length() > 2) {
+                    el.removeAttr(attr.getKey());
+                }
+            }
+        }
+    }
+
+    /**
+     * US-07.4 (review finding B1): dialog/template are forbidden but may
+     * wrap data — unwrap them (promote children, drop the element)
+     * before the removal sweep so the data inside survives.
+     */
+    private void unwrapForbiddenContainers(Document doc) {
+        for (String tag : UNWRAP_TAGS.stream().sorted().toArray(String[]::new)) {
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (Element el : doc.select(tag)) {
+                    el.unwrap();
+                    changed = true;
+                    break; // DOM changed — restart the scan
+                }
+            }
+        }
+    }
+
+    /**
+     * US-07.4 (review finding B2): a {@code javascript:} URL IS dynamic
+     * code. The attribute is dropped and the ELEMENT KEPT (an {@code <a>}
+     * without href is still an action element; its text is data) —
+     * removal maximal only where no data is lost. Covered by the syntax
+     * check too (below), so a future cleanse regression trips the
+     * tripwire instead of passing silently.
+     */
+    private void neutraliseScriptUrls(Document doc) {
+        for (Element el : doc.select("*")) {
+            for (org.jsoup.nodes.Attribute attr
+                    : new ArrayList<>(el.attributes().asList())) {
+                String value = attr.getValue();
+                if (value != null && value.trim().toLowerCase(java.util.Locale.ROOT)
+                        .startsWith("javascript:")) {
                     el.removeAttr(attr.getKey());
                 }
             }
@@ -184,6 +262,20 @@ public class JsoupSimplifyConnector implements SimplifyPort {
                 throw new SimplifySyntaxException(
                         "SIMPLIFY output contains a non-data element: <"
                                 + forbidden.tagName() + ">");
+            }
+            // US-07.4 (review finding B2): javascript: URLs are dynamic
+            // code — the check refuses them wherever they survived.
+            for (org.jsoup.nodes.Attribute attr
+                    : new ArrayList<>(forbidden.attributes().asList())) {
+                String value = attr.getValue();
+                if (value != null && value.trim()
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .startsWith("javascript:")) {
+                    throw new SimplifySyntaxException(
+                            "SIMPLIFY output contains dynamic code: attribute '"
+                                    + attr.getKey() + "' with a javascript: URL on <"
+                                    + forbidden.tagName() + ">");
+                }
             }
         }
     }
