@@ -57,7 +57,7 @@
         <div class="pulse-dot"></div>
         <h1>NEIS (neis-cli) Architecture</h1>
       </div>
-      <p class="subtitle">Hexagonal SSAFP pipeline WEBSCRAPE &rarr; SIMPLIFY &rarr; ANALYZE &rarr; FILTER &rarr; PRINT &middot; runs as chain core-chain-ssafp (core/run.sh, ex-MVP #90 retired) &middot; AI-driven capability flagging, address correction, filter-zone selectors &amp; offline filter application (US-17 / US-13.7 / US-06.6) &middot; commit 5c3efef</p>
+      <p class="subtitle">Hexagonal SSAFP pipeline WEBSCRAPE &rarr; SIMPLIFY &rarr; ANALYZE &rarr; FILTER &rarr; PRINT &middot; runs as chain core-chain-ssafp (core/run.sh, ex-MVP #90 retired) &middot; AI-driven capability flagging, address correction, filter-zone selectors &amp; offline filter application (US-17 / US-13.7 / US-06.6) &middot; obstruction clearing (US-06.7) &middot; DOM pruning &amp; element catalog (US-06.9) &middot; hardening backlog closed (US-06.10) &middot; commit 990a453</p>
     </div>
 
     <!-- Main Diagram -->
@@ -266,8 +266,8 @@
         <rect x="230" y="615" width="168" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
         <text x="314" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">ScrapeConnectorRouter</text>
         <text x="314" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">neis.scrape.connector: static | live</text>
-        <text x="314" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">StaticScrapeConnector: fixtures /mvp/samples/*.html</text>
-        <text x="314" y="677" fill="#fbbf24" font-size="7.5" text-anchor="middle">HttpScrapeConnector: HttpClient + jsoup (US-06.1)</text>
+        <text x="314" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">JsoupObstructionClearer: popups &middot; banners &middot; ads (US-06.7)</text>
+        <text x="314" y="677" fill="#fbbf24" font-size="7.5" text-anchor="middle">JsoupDomAnalyzer: pruned tree + digest (US-06.9)</text>
 
         <rect x="408" y="615" width="168" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
         <text x="492" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">JsoupSimplifyConnector</text>
@@ -361,7 +361,7 @@
 
     <!-- Footer -->
     <p class="footer">
-      NEIS &mdash; News and Events Information System &middot; neis-cli &middot; detailed architecture view &middot; generated 2026-11-11 &middot; commit 43c9493
+      NEIS &mdash; News and Events Information System &middot; neis-cli &middot; detailed architecture view &middot; generated 2026-11-17 &middot; commit 990a453
     </p>
   </div>
 </body>
