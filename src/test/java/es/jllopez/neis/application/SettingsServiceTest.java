@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SettingsServiceTest {
 
     private final InMemorySettingsStorePort store = new InMemorySettingsStorePort();
-    private final SettingsService settings = new SettingsService(store);
+    private final SettingsService settings = new SettingsService(store,
+            new org.springframework.core.env.StandardEnvironment());
 
     @Test
     void validValuesAreStoredAndVisibleAsOverrides() {
@@ -86,5 +87,28 @@ class SettingsServiceTest {
         } finally {
             System.clearProperty(SettingsService.VERIFICATION_TIMEOUT);
         }
+    }
+
+    @Test
+    void effectiveReadsYamlOnlyValuesFromTheLiveEnvironment() {
+        // US-16.7 (issue #103): application.yml values are NOT mirrored
+        // into system properties — the effective view must resolve them
+        // from the Spring Environment, or a YAML-configured value
+        // displayed as unset although it IS configured and effective.
+        org.springframework.mock.env.MockEnvironment env =
+                new org.springframework.mock.env.MockEnvironment();
+        env.setProperty(SettingsService.SCRAPE_CONNECTOR, "static");
+        env.setProperty(SettingsService.VERIFICATION_TIMEOUT, "10");
+        SettingsService service = new SettingsService(store, env);
+
+        assertEquals("static", service.effective(SettingsService.SCRAPE_CONNECTOR),
+                "the YAML-configured value is effective, not unset");
+        assertEquals("10", service.effective(SettingsService.VERIFICATION_TIMEOUT),
+                "the YAML-configured timeout shows");
+
+        // A stored override still wins over the Environment.
+        service.set(SettingsService.VERIFICATION_TIMEOUT, "30");
+        assertEquals("30", service.effective(SettingsService.VERIFICATION_TIMEOUT),
+                "the override layers over the Environment value");
     }
 }

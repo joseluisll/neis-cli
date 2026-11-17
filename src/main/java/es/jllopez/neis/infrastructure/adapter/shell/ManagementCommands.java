@@ -43,6 +43,7 @@ public class ManagementCommands {
     private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
     private final es.jllopez.neis.application.SettingsService settings;
     private final es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier;
+    private final org.springframework.core.env.Environment environment;
     private final Terminal terminal;
 
     public ManagementCommands(AddressCatalogService catalog,
@@ -58,6 +59,7 @@ public class ManagementCommands {
                               es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
                               es.jllopez.neis.application.SettingsService settings,
                               es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier,
+                              org.springframework.core.env.Environment environment,
                               Terminal terminal) {
         this.catalog = catalog;
         this.chains = chains;
@@ -72,6 +74,7 @@ public class ManagementCommands {
         this.preconfiguredFilters = preconfiguredFilters;
         this.settings = settings;
         this.settingsApplier = settingsApplier;
+        this.environment = environment;
         this.terminal = terminal;
     }
 
@@ -86,6 +89,6 @@ public class ManagementCommands {
                 info, schedules, ai, selectorStore,
                 preconfiguredSelectors, preconfiguredFilters,
                 new AddressTuiCommands.JLineConsoleIO(reader),
-                settings, settingsApplier).run();
+                settings, settingsApplier, environment).run();
     }
 }

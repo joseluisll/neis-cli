@@ -666,7 +666,8 @@ class ManagementTuiTest {
         // persists the override and applies it live.
         seedVerifiedAddress();
         InMemorySettingsStorePort settingsStore = new InMemorySettingsStorePort();
-        SettingsService settings = new SettingsService(settingsStore);
+        SettingsService settings = new SettingsService(settingsStore,
+                new org.springframework.core.env.StandardEnvironment());
         es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier applier =
                 mock(es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier.class);
         ScriptedConsole io = new ScriptedConsole(
@@ -812,6 +813,40 @@ class ManagementTuiTest {
         for (java.nio.file.Path p : all) {
             java.nio.file.Files.deleteIfExists(p);
         }
+    }
+
+    @Test
+    void configOverviewDistinguishesConfiguredValuesFromStoredOverrides() {
+        // US-16.7 (issue #103): the overview resolves each key from the
+        // live Environment (a YAML-only value SHOWS, marked "(from
+        // configuration)") and a stored override is visually distinct
+        // ("[stored override]") — neither displays as unset/default.
+        seedVerifiedAddress();
+        org.springframework.mock.env.MockEnvironment env =
+                new org.springframework.mock.env.MockEnvironment();
+        env.setProperty("neis.scrape.connector", "static");
+        InMemorySettingsStorePort settingsStore = new InMemorySettingsStorePort();
+        SettingsService settings = new SettingsService(settingsStore, env);
+        settings.set(SettingsService.VERIFICATION_TIMEOUT, "45");
+        es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier applier =
+                mock(es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier.class);
+        ScriptedConsole io = new ScriptedConsole("g", "b", "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(new InMemoryContentStorePort(), "work"),
+                info(), new ScheduleProperties(List.of()),
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io, settings, applier, env);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("static  (from configuration)"),
+                "the YAML-only scrape connector shows as configured:\n" + transcript);
+        assertTrue(transcript.contains("45  [stored override]"),
+                "the stored override is visually distinct:\n" + transcript);
+        assertTrue(io.fedAllInputs());
     }
 
     @Test

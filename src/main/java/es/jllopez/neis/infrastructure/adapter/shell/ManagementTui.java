@@ -60,6 +60,10 @@ class ManagementTui {
     private final es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters;
     private final es.jllopez.neis.application.SettingsService settings;
     private final es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier;
+    /** The live layered configuration (US-16.7): system properties
+     * over application.yml — the display source for the un-overridden
+     * values (system properties alone miss the YAML values). */
+    private final org.springframework.core.env.Environment environment;
     private final ConsoleIO io;
 
     ManagementTui(AddressCatalogService catalog,
@@ -93,6 +97,27 @@ class ManagementTui {
                   ConsoleIO io,
                   es.jllopez.neis.application.SettingsService settings,
                   es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier) {
+        this(catalog, chains, executions, newsEvents, contentStore, info, schedules,
+                ai, selectorStore, preconfiguredSelectors, preconfiguredFilters, io,
+                settings, settingsApplier,
+                new org.springframework.core.env.StandardEnvironment());
+    }
+
+    ManagementTui(AddressCatalogService catalog,
+                  ChainService chains,
+                  ExecutionService executions,
+                  NewsEventService newsEvents,
+                  ContentStoreService contentStore,
+                  ManagementInfoService info,
+                  ScheduleProperties schedules,
+                  AiAssistantService ai,
+                  es.jllopez.neis.domain.port.SelectorStorePort selectorStore,
+                  es.jllopez.neis.application.PreconfiguredSelectorProperties preconfiguredSelectors,
+                  es.jllopez.neis.application.PreconfiguredFilterProperties preconfiguredFilters,
+                  ConsoleIO io,
+                  es.jllopez.neis.application.SettingsService settings,
+                  es.jllopez.neis.infrastructure.adapter.config.SettingsOverrideApplier settingsApplier,
+                  org.springframework.core.env.Environment environment) {
         this.catalog = catalog;
         this.chains = chains;
         this.executions = executions;
@@ -106,6 +131,7 @@ class ManagementTui {
         this.preconfiguredFilters = preconfiguredFilters;
         this.settings = settings;
         this.settingsApplier = settingsApplier;
+        this.environment = environment;
         this.io = io;
     }
 
@@ -1212,17 +1238,25 @@ class ManagementTui {
         }
         out.append("General settings (US-15.1):\n");
         out.append("  Work dir (content root) : ").append(contentStore.root()).append("\n");
-        out.append("  Database                : ").append(System.getProperty("neis.db.path", "./neis.db")).append("\n");
+        out.append("  Database                : ")
+                .append(effectiveValue("neis.db.path", "./neis.db")).append("\n");
         out.append("  Log file                : ").append(logFile().toAbsolutePath()).append("\n");
-        out.append("  Scrape connector        : ").append(System.getProperty("neis.scrape.connector", "default (per webpage type)")).append("\n");
-        out.append("  Extraction limit        : ").append(System.getProperty("neis.extraction.max-items", "(unset — no global cap)")).append(" (US-12.5 neis.extraction.max-items)\n");
-        out.append("  Verification timeout    : ").append(System.getProperty("neis.address.verification.timeout-seconds", "(default)")).append(" s\n");
+        out.append("  Scrape connector        : ").append(effectiveValue(
+                es.jllopez.neis.application.SettingsService.SCRAPE_CONNECTOR,
+                "default (per webpage type)")).append("\n");
+        out.append("  Extraction limit        : ").append(effectiveValue(
+                        es.jllopez.neis.application.SettingsService.EXTRACTION_MAX_ITEMS,
+                        "(unset — no global cap)"))
+                .append(" (US-12.5 neis.extraction.max-items)\n");
+        out.append("  Verification timeout    : ").append(effectiveValue(
+                es.jllopez.neis.application.SettingsService.VERIFICATION_TIMEOUT,
+                "(default)")).append(" s\n");
         out.append("AI provider (US-15.3):\n");
         out.append("  Status                  : ").append(ai.isAvailable() ? "active" : "disabled (neis.ai.enabled=false)").append("\n");
-        out.append("  Provider / model        : ").append(System.getProperty("neis.ai.provider", "melious")).append(" / ")
-                .append(System.getProperty("neis.ai.model", "(default)")).append("\n");
-        out.append("  Base URL                : ").append(System.getProperty("neis.ai.base-url", "(unset)")).append("\n");
-        out.append("  API key                 : via environment variable '").append(System.getProperty("neis.ai.api-key-ref", "MELIOUS_API_KEY")).append("' (never stored in config)\n");
+        out.append("  Provider / model        : ").append(environment.getProperty("neis.ai.provider", "melious")).append(" / ")
+                .append(environment.getProperty("neis.ai.model", "(default)")).append("\n");
+        out.append("  Base URL                : ").append(environment.getProperty("neis.ai.base-url", "(unset)")).append("\n");
+        out.append("  API key                 : via environment variable '").append(environment.getProperty("neis.ai.api-key-ref", "MELIOUS_API_KEY")).append("' (never stored in config)\n");
         out.append("Preconfigured selectors (US-12.1, neis.selectors.preconfigured): ")
                 .append(preconfiguredSelectors.preconfigured().isEmpty()
                         ? "<none configured>"
@@ -1255,6 +1289,28 @@ class ManagementTui {
             out.append("    <none configured (neis.schedule.entries)>\n");
         }
         return out.toString();
+    }
+
+    /**
+     * The layered, visually disambiguated display of a configuration
+     * key (US-16.7): a stored override is marked as such and wins, a
+     * value configured in the Environment (system properties over
+     * application.yml) is marked as configured — a YAML-only value now
+     * SHOWS instead of displaying as unset — and the unconfigured
+     * fallback text applies when neither layer has the key.
+     */
+    private String effectiveValue(String key, String unconfiguredText) {
+        if (settings != null) {
+            var override = settings.overrideOf(key);
+            if (override.isPresent()) {
+                return override.get() + "  [stored override]";
+            }
+        }
+        String fromEnv = environment.getProperty(key);
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            return fromEnv + "  (from configuration)";
+        }
+        return unconfiguredText;
     }
 
     /** Edit a setting (US-16.5): the validated, persisted edit path.

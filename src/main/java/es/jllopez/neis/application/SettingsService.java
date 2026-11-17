@@ -3,6 +3,7 @@ package es.jllopez.neis.application;
 import es.jllopez.neis.domain.port.SettingsStorePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -48,9 +49,15 @@ public class SettingsService {
             java.util.List.of(SCRAPE_CONNECTOR, EXTRACTION_MAX_ITEMS, VERIFICATION_TIMEOUT);
 
     private final SettingsStorePort store;
+    /** The live layered configuration (system properties over
+     * application.yml) — the source of the un-overridden effective
+     * values (US-16.7: system properties alone do NOT carry the YAML
+     * values). */
+    private final Environment environment;
 
-    public SettingsService(SettingsStorePort store) {
+    public SettingsService(SettingsStorePort store, Environment environment) {
         this.store = store;
+        this.environment = environment;
     }
 
     /** Whether the key may be edited through this use case. */
@@ -149,11 +156,16 @@ public class SettingsService {
     }
 
     /** The effective value of one key: the stored override, else the
-     * boot-bound configuration read from the system properties (the
-     * same channel application.yml populated at boot). */
+     * LIVE Environment (system properties layered over application.yml
+     * — US-16.7: reading system properties alone missed every value
+     * configured only in the YAML and displayed it as unset although
+     * it IS configured and effective). */
     public String effective(String key) {
         return store.find(key)
-                .orElseGet(() -> System.getProperty(key, ""));
+                .orElseGet(() -> {
+                    String fromEnv = environment.getProperty(key);
+                    return fromEnv == null ? "" : fromEnv;
+                });
     }
 
     private static String normalized(String key, String value) {
