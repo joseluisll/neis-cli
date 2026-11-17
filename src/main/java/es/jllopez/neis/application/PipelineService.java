@@ -216,7 +216,7 @@ public class PipelineService {
         // lands on the capture metadata (US-11.4).
         ClearedContent cleared = clearObstructions(address, scrape.html());
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html());
+                "scrape.html", cleared.html(), executionId);
         captureWithFilters(address, address.url(), scrapeFilters,
                 clearingRecord(cleared));
 
@@ -275,9 +275,17 @@ public class PipelineService {
                 } catch (RuntimeException e) {
                     break; // connector cannot address this page -> end of pagination
                 }
+                // Obstruction clearing (US-06.7, issue #75): every
+                // paginated page is cleared BEFORE its artifact is
+                // stored or its content consumed — the same rule as
+                // page 1 above and as the WEBSCRAPE task's own loop
+                // (US-06.7 review blocking finding B1: the chain's
+                // pagination pages were stored and extracted raw).
+                ClearedContent pageCleared = clearObstructions(flagged,
+                        pageScrape.html());
                 writeArtifact(flagged, "WEBSCRAPE", "page-html",
-                        "scrape-page" + (page + 1) + ".html", pageScrape.html(), executionId);
-                SimplifiedContent pageSimplified = simplifyPort.simplify(pageScrape.html());
+                        "scrape-page" + (page + 1) + ".html", pageCleared.html(), executionId);
+                SimplifiedContent pageSimplified = simplifyPort.simplify(pageCleared.html());
                 writeArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
                 int before = items.size();

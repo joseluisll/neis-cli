@@ -668,21 +668,27 @@ public class TaskWorkService {
     /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */
     private String simplify(Address address, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
+        // US-06.7 (review blocking finding B3): every re-scrape that
+        // (re)writes the stored scrape.html goes through the clearing,
+        // so a SIMPLIFY/ANALYZE/FILTER run never restores obstructions
+        // into the artifact the capture metadata describes.
+        var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html(), executionId);
-        var simplified = pipeline.simplifyPort.simplify(scrape.html());
+                "scrape.html", cleared.html(), executionId);
+        var simplified = pipeline.simplifyPort.simplify(cleared.html());
         Path artifact = pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
-        return "SIMPLIFY: " + scrape.sizeBytes() + " -> " + simplified.sizeBytes()
+        return "SIMPLIFY: " + cleared.sizeBytes() + " -> " + simplified.sizeBytes()
                 + " bytes (cap 102400) -> " + artifact;
     }
 
     /** ANALYZE (US-12/13/17 slice): + pagination, selector, capabilities. */
     private String analyze(Address address, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
+        var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html(), executionId);
-        var simplified = pipeline.simplifyPort.simplify(scrape.html());
+                "scrape.html", cleared.html(), executionId);
+        var simplified = pipeline.simplifyPort.simplify(cleared.html());
         pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
         PaginationInfo pagination = pipeline.paginationDetector.detect(simplified.html());
@@ -704,9 +710,10 @@ public class TaskWorkService {
      * is applied offline instead of an AI-chosen criterion. */
     private String filter(Address address, FilterSpec spec, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
+        var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html(), executionId);
-        var simplified = pipeline.simplifyPort.simplify(scrape.html());
+                "scrape.html", cleared.html(), executionId);
+        var simplified = pipeline.simplifyPort.simplify(cleared.html());
         pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
         PipelineService.SelectorSelection selection =

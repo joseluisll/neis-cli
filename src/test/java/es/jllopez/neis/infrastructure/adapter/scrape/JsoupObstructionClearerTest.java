@@ -153,4 +153,20 @@ class JsoupObstructionClearerTest {
         assertFalse(cleared.html().contains("Modal text"));
         assertTrue(cleared.html().contains("Content"));
     }
+
+    @Test
+    void nestedMatchesCountAsOneLogicalRemoval() {
+        // An ad wrapper that itself matches a second ad fragment: the
+        // descendant's remove() is a no-op on the detached subtree —
+        // the record must state ONE logical removal, not two select
+        // hits (review non-blocking finding).
+        String html = "<html><body><main><p>Content</p></main>"
+                + "<div class='ad-container'><div class='advert-box'>ad</div></div>"
+                + "</body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of());
+
+        assertEquals(1, cleared.removedCount());
+        assertFalse(cleared.html().contains("advert-box"));
+    }
 }

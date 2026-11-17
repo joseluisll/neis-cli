@@ -135,12 +135,20 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
                 removed, rulesApplied);
     }
 
-    /** Removes every match of the selector with NO guard. */
+    /** Removes every match of the selector with NO guard. An element
+     * already detached by an earlier match of the SAME sweep (a
+     * selector matching an ancestor and its descendant) is not
+     * counted — the removal record states logical removals, not
+     * jsoup select() hits (review non-blocking finding). Detached is
+     * tested with ownerDocument()==null: jsoup 1.24 keeps the parent
+     * pointer on a removed subtree, so hasParent() stays true there. */
     private int removeMatches(Document doc, String selector) {
         int count = 0;
         for (Element el : doc.select(selector)) {
-            el.remove();
-            count++;
+            if (el.ownerDocument() != null) {
+                el.remove();
+                count++;
+            }
         }
         return count;
     }
@@ -149,12 +157,14 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
      * Removes every match of the selector UNLESS the element carries
      * the page's main content (guard, class javadoc): the wrapper
      * stays; its obstructing children were removed by their own
-     * matching rules or stay when they are the content.
+     * matching rules or stay when they are the content. Detached
+     * elements (an ancestor match already removed them) are skipped
+     * and not counted.
      */
     private int removeGuarded(Document doc, String selector) {
         int count = 0;
         for (Element el : doc.select(selector)) {
-            if (carriesMainContent(el)) {
+            if (el.ownerDocument() == null || carriesMainContent(el)) {
                 continue;
             }
             el.remove();
