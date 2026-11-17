@@ -42,12 +42,27 @@ public class ContentRecordEntity {
     @Column(name = "created_at", nullable = false)
     private String createdAt;
 
+    /**
+     * The execution (run) that last produced this artifact (US-16.6,
+     * schema V14). Nullable: pre-existing records are unattributed.
+     */
+    @Column(name = "execution_id")
+    private String executionId;
+
     public String getId() {
         return id;
     }
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getExecutionId() {
+        return executionId;
+    }
+
+    public void setExecutionId(String executionId) {
+        this.executionId = executionId;
     }
 
     public String getAddressId() {

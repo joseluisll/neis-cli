@@ -492,13 +492,36 @@ class ManagementTui {
         out.append("  outcome  : ").append(e.outcome() == null ? "-" : e.outcome()).append("\n");
         if (e.addressId() != null) {
             List<ContentRecord> produced = contentStore.listByAddress(e.addressId());
-            if (!produced.isEmpty()) {
-                out.append("  content in the storage tree (US-11.4):\n");
-                for (ContentRecord record : produced) {
+            // US-16.6: run-scoped attribution — the records this run
+            // produced come first, visibly marked; unattributed
+            // (pre-existing) records still render, marked as such;
+            // records produced by OTHER runs are noise here and are
+            // left to those runs' details.
+            List<ContentRecord> thisRun = produced.stream()
+                    .filter(r -> e.id().equals(r.executionId()))
+                    .toList();
+            List<ContentRecord> unattributed = produced.stream()
+                    .filter(r -> r.executionId() == null)
+                    .toList();
+            if (!thisRun.isEmpty()) {
+                out.append("  content produced by this run (US-11.4):\n");
+                for (ContentRecord record : thisRun) {
                     out.append("    ").append(record.id())
                             .append("  [").append(record.taskCode()).append("]  ")
                             .append(record.path()).append("\n");
                 }
+            }
+            if (!unattributed.isEmpty()) {
+                out.append("  earlier content of the address ")
+                        .append("(pre-existing, unattributed):\n");
+                for (ContentRecord record : unattributed) {
+                    out.append("    ").append(record.id())
+                            .append("  [").append(record.taskCode()).append("]  ")
+                            .append(record.path()).append("\n");
+                }
+            }
+            if (thisRun.isEmpty() && unattributed.isEmpty()) {
+                out.append("  no content records for this run or address\n");
             }
         }
         return out.toString();

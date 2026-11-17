@@ -78,6 +78,12 @@ public class ContentStoreConnector implements ContentStorePort {
         entity.setKind(record.kind());
         entity.setPath(record.path());
         entity.setCreatedAt(record.createdAt() == null ? null : record.createdAt().toString());
+        // US-16.6: the producing run's id — null wipes nothing on an
+        // unattributed write (an upsert from a run-free path keeps the
+        // stored attribution).
+        if (record.executionId() != null) {
+            entity.setExecutionId(record.executionId());
+        }
         records.save(entity);
         return record;
     }
@@ -88,8 +94,7 @@ public class ContentStoreConnector implements ContentStorePort {
         return records.findAll(org.springframework.data.domain.Sort.by(
                         org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))
                 .stream()
-                .map(e -> new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
-                        e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant()))
+                .map(ContentStoreConnector::toRecord)
                 .toList();
     }
 
@@ -97,8 +102,7 @@ public class ContentStoreConnector implements ContentStorePort {
     @Transactional(readOnly = true)
     public List<ContentRecord> findByAddress(String addressId) {
         return records.findByAddressIdOrderByCreatedAtDesc(addressId).stream()
-                .map(e -> new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
-                        e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant()))
+                .map(ContentStoreConnector::toRecord)
                 .toList();
     }
 
@@ -106,7 +110,12 @@ public class ContentStoreConnector implements ContentStorePort {
     @Transactional(readOnly = true)
     public Optional<ContentRecord> findById(String id) {
         return records.findById(id)
-                .map(e -> new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
-                        e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant()));
+                .map(ContentStoreConnector::toRecord);
+    }
+
+    private static ContentRecord toRecord(ContentRecordEntity e) {
+        return new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
+                e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant(),
+                e.getExecutionId());
     }
 }

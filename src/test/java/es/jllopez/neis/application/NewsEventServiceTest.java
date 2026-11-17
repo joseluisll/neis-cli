@@ -43,7 +43,7 @@ class NewsEventServiceTest {
         seedExecution("exec-1");
         contents.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
                 "CONT-abc", "ADDR-001", "cap-abc", "WEBSCRAPE", "listing-html",
-                "/tmp/x.html", Instant.parse("2026-11-14T10:00:00Z")));
+                "/tmp/x.html", Instant.parse("2026-11-14T10:00:00Z"), null));
         store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
                 "ADDR-001", "news", "Item", null, "https://x.eu/1", null)),
                 "exec-1", "CONT-abc");

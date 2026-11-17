@@ -149,6 +149,19 @@ public class ContentStoreService {
      */
     public Path writeTaskOutput(Address address, String url, String taskCode,
                                 String kind, String fileName, String content) {
+        return writeTaskOutput(address, url, taskCode, kind, fileName, content, null);
+    }
+
+    /**
+     * Same as {@link #writeTaskOutput(Address, String, String, String,
+     * String, String)} with the id of the execution (run) producing the
+     * output (US-16.6): recorded on the content record so a run's
+     * detail can list ITS artifacts. Null = unattributed (pre-existing
+     * semantics).
+     */
+    public Path writeTaskOutput(Address address, String url, String taskCode,
+                                String kind, String fileName, String content,
+                                String executionId) {
         requireSafePathSegment(taskCode, "task code");
         requireSafePathSegment(fileName, "file name");
         Path captureDir = captureDir(address, url);
@@ -162,7 +175,7 @@ public class ContentStoreService {
         }
         String recordId = contentRecordId(address, taskCode, fileName);
         store.saveContent(new ContentRecord(recordId, address.id(), captureId(url),
-                taskCode, kind, file.toString(), Instant.now()));
+                taskCode, kind, file.toString(), Instant.now(), executionId));
         return file;
     }
 

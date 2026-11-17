@@ -82,9 +82,10 @@ class SchemaRoundTripTest {
         // command); V10 = the webpage-type columns (US-06.5); V11 = the
         // capture filters column (US-06.6); V12 = the execution
         // parameters column (US-16.3, issue #97); V13 = the settings
-        // overrides table (US-16.5 edit path, issue #97).
-        assertEquals(13, applied.size(),
-                "the V1..V13 migrations should be applied");
+        // overrides table (US-16.5 edit path, issue #97); V14 = the
+        // content-record execution attribution (US-16.6, issue #102).
+        assertEquals(14, applied.size(),
+                "the V1..V14 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
         // SQLite stores booleans as integers: 1 = success.

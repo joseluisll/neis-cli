@@ -200,13 +200,13 @@ public class PipelineService {
                 ? scrapePort.scrape(address)
                 : scrapePort.scrapeWithFilters(address, scrapeFilters, null);
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html());
+                "scrape.html", scrape.html(), executionId);
         captureWithFilters(address, address.url(), scrapeFilters);
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
         SimplifiedContent simplified = simplifyPort.simplify(scrape.html());
         Path simplifyArtifact = writeArtifact(address, "SIMPLIFY", "simplified-html",
-                "simplified.html", simplified.html());
+                "simplified.html", simplified.html(), executionId);
 
         // ANALYZE (US-12.4 slice): pagination detection (evidence for the flag).
         PaginationInfo pagination = paginationDetector.detect(simplified.html());
@@ -259,10 +259,10 @@ public class PipelineService {
                     break; // connector cannot address this page -> end of pagination
                 }
                 writeArtifact(flagged, "WEBSCRAPE", "page-html",
-                        "scrape-page" + (page + 1) + ".html", pageScrape.html());
+                        "scrape-page" + (page + 1) + ".html", pageScrape.html(), executionId);
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageScrape.html());
                 writeArtifact(flagged, "SIMPLIFY", "simplified-html",
-                        "simplified-page" + (page + 1) + ".html", pageSimplified.html());
+                        "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
                 int before = items.size();
                 for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
                         selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
@@ -314,7 +314,8 @@ public class PipelineService {
         // addresses; the code encodes no site-specific filter knowledge.
         FilterApplication application = null;
         if (flagged.hasCapability(AddressCapability.FILTERING)) {
-            application = applyFilter(flagged, selection, filterOutcome, filterSpec);
+            application = applyFilter(flagged, selection, filterOutcome, filterSpec,
+                    executionId);
         }
 
         return new PipelineResult(flagged, scrapeArtifact.toString(),
@@ -639,7 +640,8 @@ public class PipelineService {
      * the connector's servable requests, fully offline.</p>
      */
     FilterApplication applyFilter(Address address, SelectorSelection selection,
-                                          FilterOutcome outcome, FilterSpec spec) {
+                                          FilterOutcome outcome, FilterSpec spec,
+                                          String executionId) {
         if (outcome.filters().isEmpty()) {
             return FilterApplication.skipped(
                     "no filter definitions extracted — nothing to apply");
@@ -649,7 +651,8 @@ public class PipelineService {
         final List<FilterRequestOption> supported =
                 scrapePort.supportedFilterRequests(address);
         if (spec != null) {
-            return applySpecifiedFilter(address, selection, outcome, spec, supported);
+            return applySpecifiedFilter(address, selection, outcome, spec, supported,
+                    executionId);
         }
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai == null) {
@@ -692,7 +695,8 @@ public class PipelineService {
                         supported.stream().map(FilterRequestOption::criterion).toList()) + ")");
             }
         }
-        return applyAndExtract(address, selection, field, value, request, "ai");
+        return applyAndExtract(address, selection, field, value, request, "ai",
+                executionId);
     }
 
     /**
@@ -706,7 +710,8 @@ public class PipelineService {
     private FilterApplication applySpecifiedFilter(Address address,
                                                    SelectorSelection selection,
                                                    FilterOutcome outcome, FilterSpec spec,
-                                                   List<FilterRequestOption> supported) {
+                                                   List<FilterRequestOption> supported,
+                                                   String executionId) {
         log.info("[AI] {}: filter application from the chain spec - AI bypassed: "
                 + "field={} value={}", address.id(), spec.field(), spec.value());
         // The spec's field must exist in the address's filter catalogue.
@@ -749,7 +754,7 @@ public class PipelineService {
                     + spec.value() + "'");
         }
         return applyAndExtract(address, selection, definition.name(), spec.value(),
-                option.request(), "chain spec");
+                option.request(), "chain spec", executionId);
     }
 
     /** Shared tail of both application paths: filter the response and
@@ -757,7 +762,8 @@ public class PipelineService {
     private FilterApplication applyAndExtract(Address address,
                                               SelectorSelection selection,
                                               String field, String value,
-                                              String request, String source) {
+                                              String request, String source,
+                                              String executionId) {
         ScrapeResult filteredScrape;
         try {
             filteredScrape = scrapePort.scrapeFiltered(address, request);
@@ -766,10 +772,10 @@ public class PipelineService {
                     + "' not applied: " + e.getMessage());
         }
         Path filteredArtifact = writeArtifact(address, "FILTER", "filtered-html",
-                "scrape-filtered.html", filteredScrape.html());
+                "scrape-filtered.html", filteredScrape.html(), executionId);
         SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredScrape.html());
         writeArtifact(address, "FILTER", "filtered-html",
-                "simplified-filtered.html", filteredSimplified.html());
+                "simplified-filtered.html", filteredSimplified.html(), executionId);
         List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
                 address.id(), MAX_ITEMS, address.url()));
@@ -1085,8 +1091,18 @@ public class PipelineService {
      */
     Path writeArtifact(Address address, String taskCode, String kind,
                        String fileName, String content) {
+        return writeArtifact(address, taskCode, kind, fileName, content, null);
+    }
+
+    /**
+     * Same as {@link #writeArtifact(Address, String, String, String,
+     * String)} with the producing run's id (US-16.6): recorded on the
+     * content record for run-scoped attribution. Null = unattributed.
+     */
+    Path writeArtifact(Address address, String taskCode, String kind,
+                       String fileName, String content, String executionId) {
         return contentStore.writeTaskOutput(address, address.url(), taskCode,
-                kind, fileName, content);
+                kind, fileName, content, executionId);
     }
 
     /** The deterministic content-record id of a task output (US-14.2

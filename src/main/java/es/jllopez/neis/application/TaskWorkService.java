@@ -218,11 +218,11 @@ public class TaskWorkService {
             }
             case "SIMPLIFY" -> {
                 requireNoParameters(taskCode, parameters);
-                yield simplify(address);
+                yield simplify(address, executionId);
             }
             case "ANALYZE" -> {
                 requireNoParameters(taskCode, parameters);
-                yield analyze(address);
+                yield analyze(address, executionId);
             }
             case "FILTER" -> {
                 // A chain's FILTER step carries the filter spec as its
@@ -232,7 +232,7 @@ public class TaskWorkService {
                         ? chainFilterSpec : FilterSpec.of(parameters);
                 requireNoParameters(taskCode, parameters,
                         FilterSpec.FIELD_KEY, FilterSpec.VALUE_KEY);
-                yield filter(address, spec);
+                yield filter(address, spec, executionId);
             }
             case "PRINT", "CHAIN" -> fullChain(address, parameters, chainName,
                     chainFilterSpec, executionId);
@@ -374,7 +374,7 @@ public class TaskWorkService {
         byte[] feedBytes = feedSource.fetch(address);
         String xml = feedSource.toDocumentText(feedBytes);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "feed-xml",
-                "feed.xml", xml);
+                "feed.xml", xml, executionId);
         List<NewsEventItem> items = feedSource.parse(feedBytes, address.id(),
                 address.itemKind(), maxItems, address.url());
         if (items.isEmpty()) {
@@ -383,7 +383,7 @@ public class TaskWorkService {
                     + " aborted");
         }
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
-                "items-json", "items.json", itemsJson(items));
+                "items-json", "items.json", itemsJson(items), executionId);
         // US-14.1/14.2: the same repository persistence and provenance
         // as the scrape path — the feed document is the content record
         // the items came from.
@@ -407,7 +407,7 @@ public class TaskWorkService {
                 ? pipeline.scrapePort.scrape(address, connectorOverride)
                 : pipeline.scrapePort.scrapeWithFilters(address, filters, connectorOverride);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html());
+                "scrape.html", scrape.html(), executionId);
         pipeline.captureWithFilters(address, address.url(), filters);
         String filtersNote = filters == null || filters.isEmpty() ? ""
                 : "; filters: " + filterSummary(filters);
@@ -516,7 +516,7 @@ public class TaskWorkService {
             }
             pages++;
             pipeline.writeArtifact(address, "WEBSCRAPE", "page-html",
-                    "scrape-page" + pages + ".html", page.html());
+                    "scrape-page" + pages + ".html", page.html(), executionId);
             int before = items.size();
             for (NewsEventItem item : pipeline.extractionPort.extract(page.html(),
                     selector.get(), address.itemKind(), address.id(),
@@ -544,7 +544,7 @@ public class TaskWorkService {
         }
 
         Path itemsArtifact = pipeline.writeArtifact(address, "WEBSCRAPE",
-                "items-json", "items.json", itemsJson(items));
+                "items-json", "items.json", itemsJson(items), executionId);
         // US-14.1 (issue #55): the extracted items are persisted as
         // repository entities, not only as content files — idempotent
         // upsert per (address, detail URL). US-14.2 (issue #56): each
@@ -650,25 +650,25 @@ public class TaskWorkService {
     }
 
     /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */
-    private String simplify(Address address) {
+    private String simplify(Address address, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html());
+                "scrape.html", scrape.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(scrape.html());
         Path artifact = pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
-                "simplified.html", simplified.html());
+                "simplified.html", simplified.html(), executionId);
         return "SIMPLIFY: " + scrape.sizeBytes() + " -> " + simplified.sizeBytes()
                 + " bytes (cap 102400) -> " + artifact;
     }
 
     /** ANALYZE (US-12/13/17 slice): + pagination, selector, capabilities. */
-    private String analyze(Address address) {
+    private String analyze(Address address, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html());
+                "scrape.html", scrape.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(scrape.html());
         pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
-                "simplified.html", simplified.html());
+                "simplified.html", simplified.html(), executionId);
         PaginationInfo pagination = pipeline.paginationDetector.detect(simplified.html());
         PipelineService.SelectorSelection selection =
                 pipeline.selectSelector(address, simplified.html());
@@ -686,13 +686,13 @@ public class TaskWorkService {
     /** FILTER (US-17/US-06.6 slice): + filter extraction and application.
      * The chain's filter spec (owner decision 2026-11-12), when present,
      * is applied offline instead of an AI-chosen criterion. */
-    private String filter(Address address, FilterSpec spec) {
+    private String filter(Address address, FilterSpec spec, String executionId) {
         var scrape = pipeline.scrapePort.scrape(address);
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", scrape.html());
+                "scrape.html", scrape.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(scrape.html());
         pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
-                "simplified.html", simplified.html());
+                "simplified.html", simplified.html(), executionId);
         PipelineService.SelectorSelection selection =
                 pipeline.selectSelector(address, simplified.html());
         PipelineService.CapabilityDetection capabilities =
@@ -713,7 +713,7 @@ public class TaskWorkService {
                 .append(outcome.source() == null ? "no zone" : outcome.source()).append(")");
         if (!outcome.filters().isEmpty()) {
             PipelineService.FilterApplication application =
-                    pipeline.applyFilter(flagged, selection, outcome, spec);
+                    pipeline.applyFilter(flagged, selection, outcome, spec, executionId);
             if (application.field() != null) {
                 summary.append("; applied ").append(application.field()).append("=")
                         .append(application.value())
@@ -758,7 +758,7 @@ public class TaskWorkService {
         String report = PipelineReport.render(
                 chainName != null ? chainName : "PRINT", result);
         Path reportArtifact = pipeline.writeArtifact(address, "PRINT", "report",
-                "report.txt", report);
+                "report.txt", report, executionId);
         return "CHAIN: " + result.items().size() + " items, pages=" + result.pagesScraped()
                 + ", classification=" + (result.analysis() == null ? "n/a" : "done")
                 + ", capabilities=" + result.capabilities()

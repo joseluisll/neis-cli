@@ -20,6 +20,8 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -124,7 +126,7 @@ class ContentStorePersistenceTest {
                 Instant.parse("2026-11-11T10:00:00Z")));
         ContentRecord record = new ContentRecord("CONT-1", "ADDR-C2", "cap-def456",
                 "WEBSCRAPE", "listing-html", "/work/ADDR-C2/cap-def456/content/WEBSCRAPE/scrape.html",
-                Instant.parse("2026-11-11T10:01:00Z"));
+                Instant.parse("2026-11-11T10:01:00Z"), null);
         store.saveContent(record);
 
         ContentRecord reloaded = store.findByAddress("ADDR-C2").get(0);
@@ -133,10 +135,49 @@ class ContentStorePersistenceTest {
 
         store.saveContent(new ContentRecord("CONT-1", "ADDR-C2", "cap-def456",
                 "WEBSCRAPE", "listing-html", "/work/ADDR-C2/cap-def456/content/WEBSCRAPE/scrape.html",
-                Instant.parse("2026-11-11T10:05:00Z")));
+                Instant.parse("2026-11-11T10:05:00Z"), null));
         assertEquals(1, store.findByAddress("ADDR-C2").size(),
                 "the deterministic id makes a re-run an UPDATE, not a duplicate");
-        assertEquals(1, store.findAll().size());
+        // findAll is store-global (the class shares one SQLite file
+        // across its tests): assert THIS record exactly once, not the
+        // whole store's size.
+        assertEquals(1, store.findAll().stream()
+                .filter(r -> "CONT-1".equals(r.id())).count());
+    }
+
+    @Test
+    void executionAttributionRoundTripsAndFollowsTheLatestRun() {
+        // US-16.6 (issue #102): a record written by a run carries that
+        // run's execution id; a re-run by ANOTHER run UPDATES the
+        // attribution (the deterministic id makes it the same row), and
+        // an unattributed (pre-existing) record stays null.
+        seedAddress("ADDR-C3");
+        seedAddress("ADDR-C4");
+        store.saveCapture(new Capture("ADDR-C3", "cap-exec111", "https://example.org/e",
+                Instant.parse("2026-11-16T10:00:00Z")));
+        store.saveCapture(new Capture("ADDR-C4", "cap-pre222", "https://example.org/p",
+                Instant.parse("2026-11-16T10:00:00Z")));
+
+        store.saveContent(new ContentRecord("CONT-att", "ADDR-C3", "cap-exec111",
+                "WEBSCRAPE", "listing-html", "/work/C3/scrape.html",
+                Instant.parse("2026-11-16T10:01:00Z"), "EXEC-1"));
+        assertEquals("EXEC-1", store.findById("CONT-att").orElseThrow().executionId(),
+                "the run's id is stored with the record");
+
+        // Re-run by another execution: the SAME row, new attribution.
+        store.saveContent(new ContentRecord("CONT-att", "ADDR-C3", "cap-exec111",
+                "WEBSCRAPE", "listing-html", "/work/C3/scrape.html",
+                Instant.parse("2026-11-16T10:05:00Z"), "EXEC-2"));
+        assertEquals(1, store.findByAddress("ADDR-C3").size());
+        assertEquals("EXEC-2", store.findByAddress("ADDR-C3").get(0).executionId(),
+                "the attribution follows the latest producing run");
+
+        // An unattributed record round-trips as null.
+        store.saveContent(new ContentRecord("CONT-pre", "ADDR-C4", "cap-pre222",
+                "SIMPLIFY", "simplified-html", "/work/C4/simplified.html",
+                Instant.parse("2026-11-16T10:02:00Z"), null));
+        assertNull(store.findById("CONT-pre").orElseThrow().executionId(),
+                "pre-existing records stay address-scoped (unattributed)");
     }
 
     @Test

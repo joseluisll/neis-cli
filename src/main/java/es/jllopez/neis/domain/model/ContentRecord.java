@@ -10,9 +10,16 @@ import java.time.Instant;
  * record id is derived deterministically from
  * address+capture+task+file, so re-running a task over the same
  * webpage UPDATES its record instead of duplicating it.
+ *
+ * <p>US-16.6: the record carries the id of the execution (run) that
+ * last produced it, so a run's detail can list ITS content instead of
+ * every capture of the address. Nullable by design — records written
+ * before the feature (and artifacts written outside a run) are
+ * address-scoped and stay visible.</p>
  */
 public record ContentRecord(String id, String addressId, String captureId,
-                            String taskCode, String kind, String path, Instant createdAt) {
+                            String taskCode, String kind, String path, Instant createdAt,
+                            String executionId) {
 
     public ContentRecord {
         if (addressId == null || addressId.isBlank()) {
@@ -30,5 +37,7 @@ public record ContentRecord(String id, String addressId, String captureId,
         if (path == null || path.isBlank()) {
             throw new IllegalArgumentException("A content record needs a path");
         }
+        // executionId is intentionally nullable: pre-existing records
+        // are unattributed (US-16.6).
     }
 }

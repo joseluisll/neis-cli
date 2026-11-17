@@ -767,7 +767,7 @@ class ManagementTuiTest {
         InMemoryContentStorePort port = new InMemoryContentStorePort();
         port.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
                 "CONT-test", "ADDR-001", "cap-abc123", "WEBSCRAPE", "html",
-                file.toString(), java.time.Instant.now()));
+                file.toString(), java.time.Instant.now(), null));
         ContentStoreService store = new ContentStoreService(port, work.toString());
         ScriptedConsole io = new ScriptedConsole(
                 "r",
@@ -812,5 +812,52 @@ class ManagementTuiTest {
         for (java.nio.file.Path p : all) {
             java.nio.file.Files.deleteIfExists(p);
         }
+    }
+
+    @Test
+    void executionDetailListsRunScopedContentAndKeepsUnattributedVisible() {
+        // US-16.6 (issue #102): the run detail lists THE RUN's content
+        // records (execution id on the record), keeps pre-existing
+        // unattributed records visible under their own heading, and
+        // does NOT drag in records produced by other runs of the same
+        // address (the old address-scoped listing).
+        seedVerifiedAddress();
+        es.jllopez.neis.domain.model.TaskExecution run =
+                executions.submit("WEBSCRAPE", "ADDR-001", TriggerType.MANUAL);
+        InMemoryContentStorePort port = new InMemoryContentStorePort();
+        java.time.Instant now = java.time.Instant.now();
+        port.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
+                "CONT-run", "ADDR-001", "cap-1", "WEBSCRAPE", "listing-html",
+                "/work/ADDR-001/cap-1/content/WEBSCRAPE/scrape.html",
+                now, run.id()));
+        port.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
+                "CONT-pre", "ADDR-001", "cap-1", "WEBSCRAPE", "listing-html",
+                "/work/ADDR-001/cap-1/content/WEBSCRAPE/old.html",
+                now, null));
+        port.saveContent(new es.jllopez.neis.domain.model.ContentRecord(
+                "CONT-other", "ADDR-001", "cap-1", "WEBSCRAPE", "listing-html",
+                "/work/ADDR-001/cap-1/content/WEBSCRAPE/other.html",
+                now, "EXEC-other"));
+        ScriptedConsole io = new ScriptedConsole("e", "1", "b", "q");
+        ManagementTui screen = new ManagementTui(catalog, chains, executions,
+                newsEvents, new ContentStoreService(port, "work"), info(),
+                new ScheduleProperties(List.of()),
+                mock(AiAssistantService.class), mock(SelectorStorePort.class),
+                new es.jllopez.neis.application.PreconfiguredSelectorProperties(List.of()),
+                new es.jllopez.neis.application.PreconfiguredFilterProperties(List.of()),
+                io);
+
+        screen.run();
+
+        String transcript = io.transcript();
+        assertTrue(transcript.contains("content produced by this run"), transcript);
+        assertTrue(transcript.contains("CONT-run"), transcript);
+        assertTrue(transcript.contains("earlier content of the address")
+                        && transcript.contains("unattributed"),
+                "pre-existing records still render: " + transcript);
+        assertTrue(transcript.contains("CONT-pre"), transcript);
+        assertFalse(transcript.contains("CONT-other"),
+                "another run's records are not this run's content:\n" + transcript);
+        assertTrue(io.fedAllInputs());
     }
 }
