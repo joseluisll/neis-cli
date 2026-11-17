@@ -224,7 +224,7 @@ public class PipelineService {
         Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
         // US-06.9: the pruned element tree + catalog + change digest.
-        analyzeDom(address, cleared.html());
+        analyzeDom(address, cleared.html(), executionId);
         captureWithFilters(address, address.url(), scrapeFilters,
                 clearingRecord(cleared));
 
@@ -294,7 +294,7 @@ public class PipelineService {
                 writeArtifact(flagged, "WEBSCRAPE", "page-html",
                         "scrape-page" + (page + 1) + ".html", pageCleared.html(), executionId);
                 // US-06.9: per-page element catalog + digest.
-                analyzeDom(flagged, pageCleared.html());
+                analyzeDom(flagged, pageCleared.html(), executionId);
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageCleared.html());
                 writeArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
@@ -1254,10 +1254,13 @@ public class PipelineService {
      * (an empty page) still stores its digest: "no relevant elements"
      * is itself a comparable state.
      */
-    ElementCatalog analyzeDom(Address address, String clearedHtml) {
+    ElementCatalog analyzeDom(Address address, String clearedHtml, String executionId) {
         ElementCatalog catalog = domAnalysisPort.analyze(clearedHtml);
+        // The catalog artifact carries the run attribution like every
+        // other artifact (review B3 finding: the 5-arg write produced
+        // unattributed content records — the US-06.7 B2 lesson).
         writeArtifact(address, "WEBSCRAPE", "element-catalog",
-                "element-catalog.json", catalogJson(catalog));
+                "element-catalog.json", catalogJson(catalog), executionId);
         captureMetadata(address, address.url(), null, null, catalog.digest());
         return catalog;
     }
@@ -1273,7 +1276,7 @@ public class PipelineService {
      * consume — elements in document order, digest and placeholders.
      * Shared escaping via ContentStoreService.jsonEscape.
      */
-    static String catalogJson(ElementCatalog catalog) {
+    public static String catalogJson(ElementCatalog catalog) {
         StringBuilder json = new StringBuilder("{\"digest\":\"")
                 .append(ContentStoreService.jsonEscape(catalog.digest()))
                 .append("\",\"elements\":[");

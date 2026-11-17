@@ -26,7 +26,13 @@ public record ElementCatalog(List<PrunedElement> elements, String digest,
 
     public ElementCatalog {
         elements = elements == null ? List.of() : List.copyOf(elements);
-        placeholders = placeholders == null ? Map.of() : Map.copyOf(placeholders);
+        // Deterministic rendering (US-06.9 review B2 finding): the
+        // placeholder map's iteration order flows into the catalog
+        // JSON and the digest — a hash-ordered copy would make the
+        // rendering JVM-dependent; insertion order is preserved.
+        placeholders = placeholders == null || placeholders.isEmpty()
+                ? Map.of() : java.util.Collections.unmodifiableMap(
+                        new java.util.LinkedHashMap<>(placeholders));
         if (digest == null || digest.isBlank()) {
             throw new IllegalArgumentException("An element catalog needs a digest");
         }

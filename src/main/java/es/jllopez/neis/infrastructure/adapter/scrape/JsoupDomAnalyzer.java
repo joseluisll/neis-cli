@@ -243,7 +243,12 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
                 step.append(":nth-of-type(").append(index).append(")");
             }
         }
-        return parentPath.isEmpty() ? step.toString()
+        // A body-level root step is scoped to body: without it, two
+        // first-of-tag elements under DIFFERENT parents (body and a
+        // nested container) both match "div:nth-of-type(1)" — the
+        // id-to-CSS map contract is that every path resolves to
+        // EXACTLY the element it was emitted for (review B1 finding).
+        return parentPath.isEmpty() ? "body > " + step
                 : parentPath + " > " + step;
     }
 

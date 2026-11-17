@@ -419,7 +419,7 @@ public class TaskWorkService {
                 "scrape.html", cleared.html(), executionId);
         // US-06.9: the pruned element tree + catalog + change digest
         // (page 1; pagination pages are analyzed below per page).
-        pipeline.analyzeDom(address, cleared.html());
+        pipeline.analyzeDom(address, cleared.html(), executionId);
         pipeline.captureWithFilters(address, address.url(), filters,
                 PipelineService.clearingRecord(cleared));
         String filtersNote = filters == null || filters.isEmpty() ? ""
@@ -538,7 +538,7 @@ public class TaskWorkService {
                     "scrape-page" + pages + ".html", pageCleared.html(), executionId);
             // US-06.9: per-page element catalog + digest (its own
             // artifact; the capture digest follows page 1's tree).
-            pipeline.analyzeDom(address, pageCleared.html());
+            pipeline.analyzeDom(address, pageCleared.html(), executionId);
             int before = items.size();
             for (NewsEventItem item : pipeline.extractionPort.extract(pageCleared.html(),
                     selector.get(), address.itemKind(), address.id(),

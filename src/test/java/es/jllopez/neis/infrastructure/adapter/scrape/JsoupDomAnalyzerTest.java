@@ -1,5 +1,6 @@
 package es.jllopez.neis.infrastructure.adapter.scrape;
 
+import es.jllopez.neis.application.PipelineService;
 import es.jllopez.neis.domain.model.ElementCatalog;
 import es.jllopez.neis.domain.model.PrunedElement;
 import org.junit.jupiter.api.Test;
@@ -182,5 +183,55 @@ class JsoupDomAnalyzerTest {
 
         assertTrue(catalog.elements().isEmpty());
         assertEquals(64, catalog.digest().length());
+    }
+
+    @Test
+    void cssPathsResolveUniquelyWithoutIdAnchors() {
+        // Review B1 counterexample: body-level containers whose tag
+        // repeats in the document (a nested div is also a first-of-tag
+        // child of ITS parent). Every emitted path must resolve to
+        // exactly one element on a re-parse — no id anchors to mask it.
+        String html = "<html><body>"
+                + "<div><div>x</div></div>"
+                + "<div>y</div>"
+                + "<section><p>a</p></section>"
+                + "<p>b</p>"
+                + "</body></html>";
+
+        ElementCatalog catalog = analyzer.analyze(html);
+
+        assertFalse(catalog.elements().isEmpty());
+        org.jsoup.nodes.Document reparsed = org.jsoup.Jsoup.parse(html);
+        for (PrunedElement e : catalog.elements()) {
+            assertEquals(1, reparsed.select(e.cssPath()).size(),
+                    "css path of " + e.id() + " must resolve uniquely: " + e.cssPath());
+        }
+    }
+
+    @Test
+    void theCatalogRendersIdenticallyAcrossAttributeOrders() {
+        // Review B2: the whitelist order is FIXED (a List, not a
+        // salted-per-JVM Set) — the same page must render the same
+        // attrs sequence and the same digest in ANY JVM. Pinned by
+        // rendering the JSON twice and comparing byte-for-byte, and by
+        // asserting the attrs order matches the whitelist declaration
+        // order (not a hash order).
+        String html = "<html><body><main>"
+                + "<a href='/1' title='T' class='c' role='link' rel='next'>L</a>"
+                + "</main></body></html>";
+
+        ElementCatalog first = analyzer.analyze(html);
+        ElementCatalog second = analyzer.analyze(html);
+
+        assertEquals(PipelineService.catalogJson(first),
+                PipelineService.catalogJson(second),
+                "the catalog JSON is deterministic");
+        var attrs = first.elements().stream()
+                .filter(e -> e.tag().equals("a")).findFirst().orElseThrow()
+                .attributes();
+        var expectedOrder = PrunedElement.WHITELISTED_ATTRIBUTES.stream()
+                .filter(attrs::containsKey).toList();
+        assertEquals(expectedOrder, List.copyOf(attrs.keySet()),
+                "attrs keep the whitelist's fixed order");
     }
 }

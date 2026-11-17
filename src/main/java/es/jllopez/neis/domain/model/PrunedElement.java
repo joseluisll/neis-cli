@@ -33,9 +33,15 @@ public record PrunedElement(String id, String tag, String cssPath, String role,
                             String text, Map<String, String> attributes,
                             boolean interactable, boolean dropped) {
 
-    /** The attributes of interest (Skyvern's reserved attributes). */
-    public static final java.util.Set<String> WHITELISTED_ATTRIBUTES =
-            java.util.Set.of("id", "class", "role", "href", "name", "type",
+    /** The attributes of interest (Skyvern's reserved attributes), in
+     * FIXED order: the whitelist is a List, not a Set — the attribute
+     * order flows into the canonical digest line and the catalog JSON,
+     * and a Set.of iteration order is salted per JVM (JDK 9+), which
+     * made the digest of a byte-identical page differ between CLI runs
+     * (review B2 finding: determinism is the whole point of the
+     * change-detection digest). */
+    public static final java.util.List<String> WHITELISTED_ATTRIBUTES =
+            java.util.List.of("id", "class", "role", "href", "name", "type",
                     "value", "placeholder", "aria-label", "aria-disabled",
                     "disabled", "title", "alt", "for", "action", "method",
                     "rel", "datetime", "checked", "selected", "required",
@@ -48,7 +54,14 @@ public record PrunedElement(String id, String tag, String cssPath, String role,
     public static final int MAX_URL_LENGTH = 2048;
 
     public PrunedElement {
-        attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
+        // Deterministic ordering (US-06.9 review B2 finding): the
+        // attrs map's iteration order flows into the canonical digest
+        // line and the catalog JSON — Map.copyOf returns an
+        // unspecified (typically hash-ordered) map, so preserve the
+        // whitelist's insertion order instead.
+        attributes = attributes == null || attributes.isEmpty() ? Map.of()
+                : java.util.Collections.unmodifiableMap(
+                        new java.util.LinkedHashMap<>(attributes));
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("A pruned element needs an id");
         }
