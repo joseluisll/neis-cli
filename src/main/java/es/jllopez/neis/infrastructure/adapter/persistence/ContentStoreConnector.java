@@ -64,6 +64,9 @@ public class ContentStoreConnector implements ContentStorePort {
         if (capture.domDigest() != null) {
             entity.setDomDigest(capture.domDigest());
         }
+        if (capture.sideTable() != null) {
+            entity.setSideTable(capture.sideTable());
+        }
         captures.save(entity);
         return capture;
     }
@@ -74,7 +77,7 @@ public class ContentStoreConnector implements ContentStorePort {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
                         e.createdAtInstant(), e.getWebpageType(), e.getFilters(),
-                        e.getCleared(), e.getDomDigest()));
+                        e.getCleared(), e.getDomDigest(), e.getSideTable()));
     }
 
     @Override

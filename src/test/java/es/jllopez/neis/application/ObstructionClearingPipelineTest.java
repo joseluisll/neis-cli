@@ -82,6 +82,7 @@ class ObstructionClearingPipelineTest {
                 newsEventStore, new ContentStoreService(store, workDir.toString()),
                 new JsoupObstructionClearer(), selectors(List.of()),
                 new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
+                null,
                 workDir.toString());
 
         pipeline.run(address);
@@ -138,6 +139,7 @@ class ObstructionClearingPipelineTest {
                 newsEventStore, contentStore,
                 new JsoupObstructionClearer(), selectors(List.of()),
                 new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
+                null,
                 workDir.toString());
 
         // A capture of a page that yields NO removals: the stored

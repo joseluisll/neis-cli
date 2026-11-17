@@ -16,6 +16,10 @@ import java.time.Instant;
  * filters never wipes a stored set (the same rule as the webpage
  * type).</p>
  *
+ * <p>{@code sideTable} (US-07.6, issue #89): the hashed-URL side
+ * table of the lean SIMPLIFY tier (placeholder → full URL, JSON); a
+ * re-render without hashing never wipes a stored table.</p>
+ *
  * <p>{@code cleared} (US-06.7, issue #75): the obstruction-clearing
  * record of the capture, as a JSON object string — the removed
  * element count and the rules that removed at least one element; null
@@ -24,26 +28,26 @@ import java.time.Instant;
  */
 public record Capture(String addressId, String captureId, String url,
                       Instant createdAt, String webpageType, String filters,
-                      String cleared, String domDigest) {
+                      String cleared, String domDigest, String sideTable) {
 
     public Capture(String addressId, String captureId, String url, Instant createdAt) {
-        this(addressId, captureId, url, createdAt, null, null, null, null);
+        this(addressId, captureId, url, createdAt, null, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType) {
-        this(addressId, captureId, url, createdAt, webpageType, null, null, null);
+        this(addressId, captureId, url, createdAt, webpageType, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType, String filters) {
-        this(addressId, captureId, url, createdAt, webpageType, filters, null, null);
+        this(addressId, captureId, url, createdAt, webpageType, filters, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType, String filters,
                    String cleared) {
-        this(addressId, captureId, url, createdAt, webpageType, filters, cleared, null);
+        this(addressId, captureId, url, createdAt, webpageType, filters, cleared, null, null);
     }
 
     public Capture {

@@ -79,6 +79,48 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
             Map.entry("li", "listitem"), Map.entry("img", "img"),
             Map.entry("input", "textbox"));
 
+    /**
+     * The US-07.6 prune AS A DOM TRANSFORM: a copy of the input
+     * document with the same semantics the catalog walk applies —
+     * irrelevant/hidden NON-interactable elements removed entirely,
+     * dropped INTERACTABLE ones kept as bare tags (attributes gone),
+     * and every surviving element reduced to its whitelisted
+     * attributes (long URLs hashed into the returned placeholder map).
+     * The SIMPLIFY tiered rendering renders FROM this pruned tree.
+     */
+    public Document prune(String html, Map<String, String> placeholders) {
+        Document doc = Jsoup.parse(html == null ? "" : html);
+        pruneNode(doc.body(), placeholders);
+        return doc;
+    }
+
+    /** The recursive prune (the walk's DOM-transform counterpart). */
+    private void pruneNode(Element el, Map<String, String> placeholders) {
+        String tag = el.tagName().toLowerCase(Locale.ROOT);
+        boolean irrelevant = IRRELEVANT_TAGS.contains(tag);
+        boolean dropped = irrelevant || isHidden(el);
+        boolean interactable = isInteractable(el);
+        if (dropped && !interactable) {
+            el.remove();
+            return;
+        }
+        if (dropped) { // dropped interactable: bare tag
+            el.attributes().asList().forEach(a -> el.removeAttr(a.getKey()));
+        } else {
+            Map<String, String> keep = whitelist(el, placeholders);
+            for (org.jsoup.nodes.Attribute a
+                    : new ArrayList<>(el.attributes().asList())) {
+                el.removeAttr(a.getKey());
+            }
+            keep.forEach(el::attr);
+        }
+        for (Element child : new ArrayList<>(el.children())) {
+            if (child.ownerDocument() != null) { // not removed above
+                pruneNode(child, placeholders);
+            }
+        }
+    }
+
     @Override
     public ElementCatalog analyze(String html) {
         Document doc = Jsoup.parse(html == null ? "" : html);

@@ -80,7 +80,7 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
      * decides alone). Feed-type pages never reach this port (parsed by
      * Rome, US-06.8), so no feed handling here.
      */
-    public SimplifiedContent simplify(String rawHtml, String webpageType) {
+    public SimplifiedContent simplifyWithType(String rawHtml, String webpageType) {
         if (isArticleLike(rawHtml)) {
             SimplifiedContent article = simplifyWithReadability(rawHtml);
             if (article != null) {
@@ -90,6 +90,32 @@ public class ReadabilitySimplifyRouter implements SimplifyPort {
                     + "falling back to the jsoup Safelist rules");
         }
         return jsoupCleanse.simplify(rawHtml);
+    }
+
+    /**
+     * US-07.6: the tiered rendering. The router routes the FULL tier
+     * per page structure (article vs non-article); the economy/lean
+     * tiers render from the pruned element tree of the SAME page via
+     * the jsoup connector's tiered path — the tier is a reduction of
+     * the tree, not a different extractor.
+     */
+    @Override
+    public SimplifiedContent simplify(String rawHtml, String variant) {
+        // Normalize BEFORE the branch: the param may be null/blank (the
+        // 1-arg overload and the no-variant call sites delegate here
+        // with null) — checking the RAW value against FULL sent the
+        // default tier down the jsoup connector's path, BYPASSING the
+        // Readability routing entirely (probe-verified: the 1-arg
+        // simplify returned the cleanse output, the article title h1
+        // never re-attached). Null/blank == full.
+        String tier = variant == null || variant.isBlank()
+                ? es.jllopez.neis.domain.model.SimplifyVariant.FULL
+                : variant.trim();
+        new es.jllopez.neis.domain.model.SimplifyVariant(tier); // validate
+        if (es.jllopez.neis.domain.model.SimplifyVariant.FULL.equals(tier)) {
+            return simplifyWithType(rawHtml, null);
+        }
+        return jsoupCleanse.simplify(rawHtml, tier);
     }
 
     /** Port-level US-07.4 contract: both extractors carry the check. */

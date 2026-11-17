@@ -85,8 +85,9 @@ class SchemaRoundTripTest {
         // overrides table (US-16.5 edit path, issue #97); V14 = the
         // content-record execution attribution (US-16.6, issue #102);
         // V15 = the capture clearing record (US-06.7, issue #75);
-        // V16 = the capture DOM-analysis digest (US-06.9, issue #88).
-        assertEquals(16, applied.size(),
+        // V16 = the capture DOM-analysis digest (US-06.9, issue #88);
+        // V17 = the capture SIMPLIFY side table (US-07.6, issue #89).
+        assertEquals(17, applied.size(),
                 "the V1..V16 migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));

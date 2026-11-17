@@ -37,9 +37,11 @@ public class InMemoryContentStorePort implements ContentStorePort {
                             ? fresh.cleared() : stored.cleared();
                     String domDigest = fresh.domDigest() != null
                             ? fresh.domDigest() : stored.domDigest();
+                    String sideTable = fresh.sideTable() != null
+                            ? fresh.sideTable() : stored.sideTable();
                     return new Capture(fresh.addressId(), fresh.captureId(),
                             fresh.url(), fresh.createdAt(), webpageType,
-                            filters, cleared, domDigest);
+                            filters, cleared, domDigest, sideTable);
                 });
         return capture;
     }

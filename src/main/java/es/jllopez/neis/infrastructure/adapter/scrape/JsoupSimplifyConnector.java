@@ -29,8 +29,16 @@ import java.util.Set;
         "jsoupSimplifyConnector")
 public class JsoupSimplifyConnector implements SimplifyPort {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(JsoupSimplifyConnector.class);
+
     /** Output cap, US-07.3. */
     static final int MAX_OUTPUT_BYTES = 100 * 1024;
+
+    /** US-07.6 collaborators (same infrastructure layer, optional at
+     * construction for the hand-rolled test graphs). */
+    private final JsoupDomAnalyzer domAnalyzer;
+    private final PrunedTreeHtmlRenderer treeRenderer;
 
     /**
      * US-07.4: elements whose presence makes the output non-compliant —
@@ -103,8 +111,60 @@ public class JsoupSimplifyConnector implements SimplifyPort {
             // (a SIMPLIFY input may come from other paths).
             "popup", "advert", "adsbygoogle"};
 
+    /** Test/hand-rolled constructor: no tiered rendering collaborators. */
+    public JsoupSimplifyConnector() {
+        this.domAnalyzer = null;
+        this.treeRenderer = null;
+    }
+
+    /** Spring constructor: the tiered rendering collaborators. */
+    public JsoupSimplifyConnector(JsoupDomAnalyzer domAnalyzer,
+                                  PrunedTreeHtmlRenderer treeRenderer) {
+        this.domAnalyzer = domAnalyzer;
+        this.treeRenderer = treeRenderer;
+    }
+
     @Override
     public SimplifiedContent simplify(String rawHtml) {
+        return simplify(rawHtml, es.jllopez.neis.domain.model.SimplifyVariant.FULL);
+    }
+
+    /**
+     * US-07.6: the tiered variant renders FROM THE PRUNED ELEMENT TREE
+     * when the collaborators are present (Spring wiring); without them
+     * (hand-rolled tests, and the FULL tier's backward-compatible
+     * default) the cleanse result is returned as before — the FULL
+     * tier IS the cleanse output, and the renderer is invoked for
+     * economy/lean.
+     */
+    @Override
+    public SimplifiedContent simplify(String rawHtml, String variant) {
+        es.jllopez.neis.domain.model.SimplifyVariant checked =
+                new es.jllopez.neis.domain.model.SimplifyVariant(variant);
+        if (domAnalyzer != null && treeRenderer != null) {
+            try {
+                java.util.Map<String, String> placeholders = new java.util.LinkedHashMap<>();
+                Document pruned = domAnalyzer.prune(rawHtml, placeholders);
+                SimplifiedContent rendered = treeRenderer.render(pruned, checked.id());
+                return rendered;
+            } catch (RuntimeException e) {
+                // The pruned-tree rendering is a US-07.6 enhancement; a
+                // failure falls back to the cleanse output (the data
+                // preservation rule outranks the tier). Never silent:
+                log.info("SIMPLIFY tiered rendering failed ({}) — "
+                        + "returning the full cleanse output", e.getMessage());
+            }
+        }
+        if (!es.jllopez.neis.domain.model.SimplifyVariant.FULL.equals(checked.id())) {
+            log.info("SIMPLIFY tiered rendering unavailable (no renderer "
+                    + "wired) — {} tier degrades to the full cleanse output",
+                    checked.id());
+        }
+        return cleanse(rawHtml);
+    }
+
+    /** The US-07.1/07.2 cleanse (the FULL tier's rendering). */
+    private SimplifiedContent cleanse(String rawHtml) {
         Document doc = Jsoup.parse(rawHtml);
         doc.outputSettings()
                 .prettyPrint(false)

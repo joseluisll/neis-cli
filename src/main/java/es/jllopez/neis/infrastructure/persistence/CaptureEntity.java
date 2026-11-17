@@ -53,6 +53,18 @@ public class CaptureEntity {
     @Column(name = "dom_digest")
     private String domDigest;
 
+    /** The SIMPLIFY side table of the capture (US-07.6, V17). */
+    @Column(name = "simplify_side_table")
+    private String sideTable;
+
+    public String getSideTable() {
+        return sideTable;
+    }
+
+    public void setSideTable(String sideTable) {
+        this.sideTable = sideTable;
+    }
+
     public String getDomDigest() {
         return domDigest;
     }

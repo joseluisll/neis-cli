@@ -120,6 +120,12 @@ public class PipelineService {
     /** DOM analysis: pruned element tree + catalog + digest (US-06.9). */
     final DomAnalysisPort domAnalysisPort;
 
+    /** US-07.6: the hashed-URL side-table source (infrastructure; null
+     * in hand-rolled test graphs — no table recorded, nothing wiped). */
+    public interface SimplifySideTableSource {
+        java.util.Map<String, String> sideTable(String clearedHtml);
+    }
+
     public PipelineService(ContentScrapePort scrapePort,
                            SimplifyPort simplifyPort,
                            SelectorExtractionPort extractionPort,
@@ -135,6 +141,8 @@ public class PipelineService {
                            ObstructionClearingPort clearingPort,
                            ClearingSelectors clearingSelectors,
                            DomAnalysisPort domAnalysisPort,
+                           @org.springframework.lang.Nullable
+                           SimplifySideTableSource sideTableSource,
                            @Value("${neis.core.work-dir:./core-work}") String workDir) {
         this.scrapePort = scrapePort;
         this.simplifyPort = simplifyPort;
@@ -151,6 +159,7 @@ public class PipelineService {
         this.clearingPort = clearingPort;
         this.clearingSelectors = clearingSelectors;
         this.domAnalysisPort = domAnalysisPort;
+        this.prunedTreeSideTableSource = sideTableSource;
     }
 
     /** Runs the whole pipeline for one address. */
@@ -1139,6 +1148,62 @@ public class PipelineService {
     }
 
     /**
+     * US-07.6/US-11.4: the tiered rendering's hashed-URL side table
+     * lands on the capture metadata (a JSON object of placeholder →
+     * full URL, column {@code captures.simplify_side_table}, V17) under
+     * the never-wipes rule: an empty table never wipes a stored one.
+     * The table comes from the SIMPLIFY port's own prune of the SAME
+     * cleared input (deterministic: same input, same hashes) via the
+     * port's tiered call — the port owns the mapping (US-01.4).
+     */
+    void recordSimplifySideTable(Address address, String clearedHtml,
+                                 String tier, String executionId) {
+        if (!es.jllopez.neis.domain.model.SimplifyVariant.LEAN.equals(tier)) {
+            return; // only the lean tier compresses URLs into placeholders
+        }
+        java.util.Map<String, String> placeholders =
+                simplifySideTable(clearedHtml);
+        if (placeholders.isEmpty()) {
+            return; // nothing hashed — no record, no wipe
+        }
+        StringBuilder json = new StringBuilder("{");
+        boolean first = true;
+        for (var e : placeholders.entrySet()) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append('"').append(ContentStoreService.jsonEscape(e.getKey()))
+                    .append("\":\"").append(ContentStoreService.jsonEscape(e.getValue()))
+                    .append('"');
+        }
+        captureMetadata(address, address.url(), null, null, null,
+                json.append('}').toString());
+    }
+
+    /**
+     * The hashed-URL side table of the lean tier: re-derives the
+     * placeholders from the cleared input through the SIMPLIFY port
+     * (a lean-tier render carries the same hashes as the stored
+     * artifact — the derivation is deterministic). Implemented via the
+     * DOM-analysis prune (the same whitelisting/hash rules the catalog
+     * uses), keeping the mapping logic in ONE place.
+     */
+    java.util.Map<String, String> simplifySideTable(String clearedHtml) {
+        // The port does not expose the placeholder map directly; the
+        // renderer's prune is deterministic — recompute via the
+        // infrastructure connector injected for this purpose.
+        if (prunedTreeSideTableSource == null) {
+            return java.util.Map.of();
+        }
+        return prunedTreeSideTableSource.sideTable(clearedHtml);
+    }
+
+    /** The side-table source (infrastructure connector); null in
+     * hand-rolled test graphs (no table recorded, nothing wiped). */
+    final SimplifySideTableSource prunedTreeSideTableSource;
+
+    /**
      * US-07.4: the guarded write of a SIMPLIFY artifact. The syntax and
      * non-data-exclusion check runs on the EXACT bytes about to be
      * stored — the artifact is the standard input for downstream tasks
@@ -1195,28 +1260,32 @@ public class PipelineService {
     void captureMetadata(Address address, String url,
                          java.util.Map<String, String> filters,
                          String clearedRecord, String domDigest) {
+        captureMetadata(address, url, filters, clearedRecord, domDigest, null);
+    }
+
+    /**
+     * Same, with the SIMPLIFY side table (US-07.6/US-11.4): the
+     * placeholder → full-URL mapping of the lean tier, stored on the
+     * capture metadata under the never-wipes rule.
+     */
+    void captureMetadata(Address address, String url,
+                         java.util.Map<String, String> filters,
+                         String clearedRecord, String domDigest,
+                         String sideTable) {
         String captureId = contentStore.captureId(url);
         es.jllopez.neis.domain.port.ContentStorePort store = contentStore.store();
         if ((filters == null || filters.isEmpty()) && clearedRecord == null
-                && domDigest == null) {
+                && domDigest == null && sideTable == null) {
             return;
         }
         store.findCapture(address.id(), captureId)
                 .ifPresentOrElse(
-                        existing -> store.saveCapture(new Capture(
-                                address.id(), captureId, url, existing.createdAt(),
-                                existing.webpageType(),
-                                mergeStored(existing.filters(),
-                                        filters == null || filters.isEmpty()
-                                                ? null : ContentStoreService.filtersJson(filters)),
-                                mergeStored(existing.cleared(), clearedRecord),
-                                mergeStored(existing.domDigest(), domDigest))),
-                        () -> store.saveCapture(new Capture(
-                                address.id(), captureId, url, java.time.Instant.now(),
-                                address.webpageType(),
-                                filters == null || filters.isEmpty()
-                                        ? null : ContentStoreService.filtersJson(filters),
-                                clearedRecord, domDigest)));
+                        existing -> store.saveCapture(captureWithSideTable(
+                                address, captureId, url, existing, filters,
+                                clearedRecord, domDigest, sideTable)),
+                        () -> store.saveCapture(captureWithSideTable(
+                                address, captureId, url, null, filters,
+                                clearedRecord, domDigest, sideTable)));
     }
 
     /**
@@ -1225,6 +1294,31 @@ public class PipelineService {
      */
     private static String mergeStored(String stored, String fresh) {
         return fresh != null ? fresh : stored;
+    }
+
+    /** Builds the capture snapshot with the side table merged in
+     * (existing = null for a fresh capture), preserving every other
+     * column (the never-wipes rule on all metadata). */
+    private Capture captureWithSideTable(Address address, String captureId,
+                                         String url, Capture existing,
+                                         java.util.Map<String, String> filters,
+                                         String clearedRecord, String domDigest,
+                                         String sideTable) {
+        if (existing != null) {
+            return new Capture(address.id(), captureId, url, existing.createdAt(),
+                    existing.webpageType(),
+                    mergeStored(existing.filters(),
+                            filters == null || filters.isEmpty()
+                                    ? null : ContentStoreService.filtersJson(filters)),
+                    mergeStored(existing.cleared(), clearedRecord),
+                    mergeStored(existing.domDigest(), domDigest),
+                    mergeStored(existing.sideTable(), sideTable));
+        }
+        return new Capture(address.id(), captureId, url, java.time.Instant.now(),
+                address.webpageType(),
+                filters == null || filters.isEmpty()
+                        ? null : ContentStoreService.filtersJson(filters),
+                clearedRecord, domDigest, sideTable);
     }
 
     /**

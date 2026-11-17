@@ -221,8 +221,12 @@ public class TaskWorkService {
                         parameters.get("connector"), filterSet(address, parameters));
             }
             case "SIMPLIFY" -> {
-                requireNoParameters(taskCode, parameters);
-                yield simplify(address, executionId);
+                // US-07.6: an optional variant parameter (full/economy/
+                // lean) pins the tier for this task/chain element; the
+                // default (absent) is full.
+                requireNoParameters(taskCode, parameters, "variant");
+                yield simplify(address, executionId,
+                        parameters.get("variant"));
             }
             case "ANALYZE" -> {
                 requireNoParameters(taskCode, parameters);
@@ -671,8 +675,13 @@ public class TaskWorkService {
         return s == null ? "null" : "\"" + ContentStoreService.jsonEscape(s) + "\"";
     }
 
-    /** SIMPLIFY (US-07 slice): + cleanse to action/data elements. */
-    private String simplify(Address address, String executionId) {
+    /** SIMPLIFY (US-07 slice): + cleanse to action/data elements.
+     * US-07.6: the optional {@code variant} parameter (full/economy/
+     * lean) pins the tier of the rendered output; the variant's
+     * hashed-URL side table (lean tier) lands on the capture metadata
+     * (US-11.4, never-wipes). */
+    private String simplify(Address address, String executionId,
+                            String variant) {
         var scrape = pipeline.scrapePort.scrape(address);
         // US-06.7 (review blocking finding B3): every re-scrape that
         // (re)writes the stored scrape.html goes through the clearing,
@@ -681,11 +690,15 @@ public class TaskWorkService {
         var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
-        var simplified = pipeline.simplifyPort.simplify(cleared.html());
+        String tier = variant == null || variant.isBlank()
+                ? es.jllopez.neis.domain.model.SimplifyVariant.FULL
+                : variant.trim();
+        var simplified = pipeline.simplifyPort.simplify(cleared.html(), tier);
+        pipeline.recordSimplifySideTable(address, cleared.html(), tier, executionId);
         Path artifact = pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
-        return "SIMPLIFY: " + cleared.sizeBytes() + " -> " + simplified.sizeBytes()
-                + " bytes (cap 102400) -> " + artifact;
+        return "SIMPLIFY(" + tier + "): " + cleared.sizeBytes() + " -> "
+                + simplified.sizeBytes() + " bytes (cap 102400) -> " + artifact;
     }
 
     /** ANALYZE (US-12/13/17 slice): + pagination, selector, capabilities. */

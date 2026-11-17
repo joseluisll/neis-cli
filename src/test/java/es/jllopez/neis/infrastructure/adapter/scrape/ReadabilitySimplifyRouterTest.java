@@ -141,7 +141,7 @@ class ReadabilitySimplifyRouterTest {
                 "addr-001-news.html", "addr-002-events.html",
                 "addr-003-news-spa-rendered.html", "addr-004-events-spa-rendered.html"}) {
             String html = fixture(name);
-            var sc = assertDoesNotThrow(() -> router.simplify(html, "static"),
+            var sc = assertDoesNotThrow(() -> router.simplifyWithType(html, "static"),
                     name + " must simplify through the router");
             assertFalse(sc.html().contains("<script"), name);
             assertFalse(sc.html().contains("<style"), name);
@@ -152,7 +152,7 @@ class ReadabilitySimplifyRouterTest {
 
     @Test
     void realRenderedNewsLinksSurviveThroughTheRouter() throws Exception {
-        String out = router.simplify(fixture("addr-003-news-spa-rendered.html"),
+        String out = router.simplifyWithType(fixture("addr-003-news-spa-rendered.html"),
                 "spa-angular").html();
         assertTrue(out.contains("support/news/"),
                 "news detail links must survive the routing simplify");
@@ -240,8 +240,11 @@ class ReadabilitySimplifyRouterTest {
         // B3: the title check must read the real body; the h1 (when the
         // <title> is not already present) comes BEFORE the content, and
         // an h1 carried by the article is not duplicated.
+        // Big enough for the article-like probe's 400-char floor: this
+        // must take the READABILITY path for the h1 re-attach (the B3
+        // guarantee lives there, not in the jsoup cleanse).
         String html = "<html><head><title>Test Article</title></head><body>"
-                + "<article><p>" + paragraph(40) + "</p></article></body></html>";
+                + "<article><p>" + paragraph(120) + "</p></article></body></html>";
         String out = simplify(html).html();
         long h1Count = out.split("<h1", -1).length - 1;
         assertTrue(h1Count >= 1, "the article title is attached as h1");
