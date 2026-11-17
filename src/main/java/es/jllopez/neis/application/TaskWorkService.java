@@ -682,7 +682,7 @@ public class TaskWorkService {
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
-        Path artifact = pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
+        Path artifact = pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
         return "SIMPLIFY: " + cleared.sizeBytes() + " -> " + simplified.sizeBytes()
                 + " bytes (cap 102400) -> " + artifact;
@@ -695,7 +695,7 @@ public class TaskWorkService {
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
-        pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
+        pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
         PaginationInfo pagination = pipeline.paginationDetector.detect(simplified.html());
         PipelineService.SelectorSelection selection =
@@ -720,7 +720,7 @@ public class TaskWorkService {
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
-        pipeline.writeArtifact(address, "SIMPLIFY", "simplified-html",
+        pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
         PipelineService.SelectorSelection selection =
                 pipeline.selectSelector(address, simplified.html());

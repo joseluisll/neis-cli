@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -199,5 +201,88 @@ class JsoupSimplifyConnectorTest {
         String simplified = connector.simplify(raw).html();
         assertTrue(simplified.contains("Patient safety"),
                 "a checkbox filter that mirrors no select option stays");
+    }
+
+    // US-07.4 (issue #76): syntactic correctness and non-data exclusion.
+
+    @Test
+    void outputReparsesWithoutHtml5ParseErrorsOnRealFixtures() throws Exception {
+        // The syntax check is part of simplify() itself: any output that
+        // fails the HTML5 re-parse throws (a task-run error). These real
+        // fixtures produce clean output — the assertion IS the check.
+        for (String name : new String[]{
+                "addr-001-news.html", "addr-002-events.html",
+                "addr-003-news-spa-rendered.html", "addr-004-events-spa-rendered.html"}) {
+            assertDoesNotThrow(() -> connector.simplify(fixture(name)),
+                    name + " must simplify to parseable HTML5");
+        }
+    }
+
+    @Test
+    void checkSyntaxRejectsTruncatedMarkup() {
+        // A truncated tag (the shape a broken cap-truncation would emit)
+        // must be refused by the shared check — the guard is fail-closed.
+        String broken = "<html><body><div class=\"x\"><p>text</p></div><a href=\"unfin";
+        assertThrows(JsoupSimplifyConnector.SimplifySyntaxException.class,
+                () -> JsoupSimplifyConnector.checkSyntax(broken),
+                "truncated markup must fail the HTML5 syntax check");
+    }
+
+    @Test
+    void checkSyntaxRejectsForbiddenElements() {
+        for (String snippet : new String[]{
+                "<html><body><p>ok</p><script>alert(1)</script></body></html>",
+                "<html><body><style>.a{}</style><p>ok</p></body></html>",
+                "<html><body><iframe src=\"x\"></iframe></body></html>",
+                "<html><body><img src=\"x.png\" alt=\"a\"></body></html>",
+                "<html><body><video src=\"x.mp4\"></video></body></html>",
+                "<html><body><object data=\"x\"></object></body></html>",
+                "<html><body><embed src=\"x\"></body></html>",
+                "<html><body><template><p>t</p></template></body></html>"}) {
+            assertThrows(JsoupSimplifyConnector.SimplifySyntaxException.class,
+                    () -> JsoupSimplifyConnector.checkSyntax(snippet),
+                    "forbidden non-data element must be refused: " + snippet);
+        }
+        assertDoesNotThrow(
+                () -> JsoupSimplifyConnector.checkSyntax(
+                        "<html><body><p>ok</p><a href=\"/l\">Link</a></body></html>"),
+                "data/action elements must pass the check");
+    }
+
+    @Test
+    void dropsEventHandlerAttributes() {
+        // Event handlers are dynamic code (US-07.4): every on* attribute
+        // goes, the element and its data stay.
+        String raw = "<html><body onload=\"boot()\">"
+                + "<button onclick=\"go()\" onmouseover=\"hi()\">Go</button>"
+                + "<p>Text stays</p></body></html>";
+        String simplified = connector.simplify(raw).html();
+        assertFalse(simplified.contains("onclick="), "onclick must go");
+        assertFalse(simplified.contains("onmouseover="), "onmouseover must go");
+        assertFalse(simplified.contains("onload="), "onload must go");
+        assertTrue(simplified.contains("<button"), "the button (action element) stays");
+        assertTrue(simplified.contains("Go"), "the button label (data) stays");
+        assertTrue(simplified.contains("Text stays"));
+    }
+
+    @Test
+    void simplifyOutputOfFixtureContainsNoForbiddenElements() throws Exception {
+        // The exclusion rule pinned end to end: re-parse the real
+        // fixtures' simplified output and assert none of the forbidden
+        // element names survives (an exact-name check, mirroring the
+        // connector's Set — a substring test would false-match).
+        java.util.Set<String> forbidden = java.util.Set.of(
+                "script", "style", "iframe", "object", "embed", "svg",
+                "img", "video", "audio", "canvas", "dialog", "template");
+        for (String name : new String[]{
+                "addr-001-news.html", "addr-002-events.html",
+                "addr-003-news-spa-rendered.html", "addr-004-events-spa-rendered.html"}) {
+            String html = connector.simplify(fixture(name)).html();
+            org.jsoup.nodes.Document doc = org.jsoup.Jsoup.parse(html);
+            for (org.jsoup.nodes.Element el : doc.select("*")) {
+                assertFalse(forbidden.contains(el.tagName().toLowerCase()),
+                        name + ": forbidden element <" + el.tagName() + "> survived");
+            }
+        }
     }
 }

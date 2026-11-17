@@ -229,8 +229,11 @@ public class PipelineService {
                 clearingRecord(cleared));
 
         // SIMPLIFY (US-07.1..3 slice): cleanse to action/data elements <= 100 KB.
+        // US-07.4: the artifact is syntax-checked (guarded write) — a
+        // non-compliant output fails the run instead of poisoning the
+        // downstream tasks with invalid HTML5.
         SimplifiedContent simplified = simplifyPort.simplify(cleared.html());
-        Path simplifyArtifact = writeArtifact(address, "SIMPLIFY", "simplified-html",
+        Path simplifyArtifact = writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
 
         // ANALYZE (US-12.4 slice): pagination detection (evidence for the flag).
@@ -296,7 +299,7 @@ public class PipelineService {
                 // US-06.9: per-page element catalog + digest.
                 analyzeDom(flagged, pageCleared.html(), executionId);
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageCleared.html());
-                writeArtifact(flagged, "SIMPLIFY", "simplified-html",
+                writeSimplifiedArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
                 int before = items.size();
                 for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
@@ -815,7 +818,7 @@ public class PipelineService {
         Path filteredArtifact = writeArtifact(address, "FILTER", "filtered-html",
                 "scrape-filtered.html", filteredCleared.html(), executionId);
         SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredCleared.html());
-        writeArtifact(address, "FILTER", "filtered-html",
+        writeSimplifiedArtifact(address, "FILTER", "filtered-html",
                 "simplified-filtered.html", filteredSimplified.html(), executionId);
         List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
@@ -1133,6 +1136,24 @@ public class PipelineService {
     Path writeArtifact(Address address, String taskCode, String kind,
                        String fileName, String content) {
         return writeArtifact(address, taskCode, kind, fileName, content, null);
+    }
+
+    /**
+     * US-07.4: the guarded write of a SIMPLIFY artifact. The syntax and
+     * non-data-exclusion check runs on the EXACT bytes about to be
+     * stored — the artifact is the standard input for downstream tasks
+     * and AI analysis, so a non-compliant artifact must never land.
+     * A failed check throws (the execution record goes FAILED with the
+     * reason). The check goes through the SIMPLIFY port (US-01.4: the
+     * port owns the output-compliance contract, the connector carries
+     * it) — never a direct infrastructure dependency.
+     */
+    Path writeSimplifiedArtifact(Address address, String taskCode, String kind,
+                                 String fileName, String simplifiedHtml,
+                                 String executionId) {
+        simplifyPort.verifySyntax(simplifiedHtml);
+        return writeArtifact(address, taskCode, kind, fileName,
+                simplifiedHtml, executionId);
     }
 
     /**
