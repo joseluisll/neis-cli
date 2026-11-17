@@ -23,6 +23,7 @@
         <spring-ai.version>2.0.2</spring-ai.version>
         <archunit.version>1.5.1</archunit.version>
         <jsoup.version>1.24.1</jsoup.version>
+        <readability4j.version>1.0.8</readability4j.version>
         <tika.version>4.2.0</tika.version>
         <playwright.version>1.65.0</playwright.version>
         <rome.version>2.1.0</rome.version>
@@ -47,6 +48,15 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>${jsoup.version}</version>
+        </dependency>
+        <!-- US-07.5 (issue #87): Readability4J main-content extraction —
+             the PRIMARY extractor for article-like pages behind
+             SimplifyPort (Apache 2.0; its POM declares jsoup 1.11.2,
+             verified compatible with the pinned jsoup 1.24.1 by probe). -->
+        <dependency>
+            <groupId>net.dankito.readability4j</groupId>
+            <artifactId>readability4j</artifactId>
+            <version>${readability4j.version}</version>
         </dependency>
         <!-- US-06.2 (issue #28): content-type/charset detection of the
              fetched pages (owner technology choice, 2026-11-11). -->

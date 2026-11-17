@@ -21,6 +21,12 @@ import java.util.Set;
  * caps the output at 100 KB (US-07.3).
  */
 @Component
+// Not the wired SimplifyPort bean: the router (US-07.5) is. This
+// connector is the jsoup Safelist extractor the router delegates to
+// (and the fallback for non-article structures) — two beans of the
+// port would break the single-candidate injection into PipelineService.
+@org.springframework.beans.factory.annotation.Qualifier(
+        "jsoupSimplifyConnector")
 public class JsoupSimplifyConnector implements SimplifyPort {
 
     /** Output cap, US-07.3. */

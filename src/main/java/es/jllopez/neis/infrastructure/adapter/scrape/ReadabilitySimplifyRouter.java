@@ -1,0 +1,174 @@
+package es.jllopez.neis.infrastructure.adapter.scrape;
+
+import es.jllopez.neis.domain.model.SimplifiedContent;
+import es.jllopez.neis.domain.port.SimplifyPort;
+import net.dankito.readability4j.Article;
+import net.dankito.readability4j.Readability4J;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * Router connector (driven adapter) implementing the SIMPLIFY port
+ * (US-07.5, issue #87): routes each page to the extractor that fits its
+ * structure, behind the SAME content port (US-01.4 replaceability):
+ *
+ * <ul>
+ *   <li><b>Article-like pages</b> — {@link Readability4J} (Apache 2.0,
+ *   Java port of Mozilla Readability) detects the main content region
+ *   (title, byline, body) and removes the boilerplate around it; the
+ *   extracted article is then handed through the SAME
+ *   jsoup action/data-element cleanse as every other page, so the
+ *   output contract (US-07.1..US-07.4: no scripts/styles/media,
+ *   syntactically correct, &lt;= 100 KB) holds regardless of the
+ *   extractor. Readability removes CONTENT too (boilerplate, repeated
+ *   link lists) — that is its purpose; the jsoup cleanse then reduces
+ *   what remains to action and data elements.</li>
+ *   <li><b>Non-article structures</b> (listings, tables, filter
+ *   grids) — the existing {@link JsoupSimplifyConnector} Safelist rules
+ *   directly, with no readability pass: Readability's heuristics score
+ *   text-heavy articles and would mis-fire on a listing.</li>
+ * </ul>
+ *
+ * <p>The article-like decision is a deterministic structure probe (no
+ * site-specific knowledge): the page carries a semantic article marker
+ * ({@code <article>}, {@code [itemtype*=schema.org/NewsArticle]},
+ * {@code [role=article]}, a schema.org BlogPosting/NewsArticle JSON-LD
+ * block) AND reads as prose rather than a listing — a listing carries
+ * many similar item containers/tables and little paragraph text, an
+ * article carries substantial paragraph text. When Readability itself
+ * cannot isolate a main region (its parse yields no content), the
+ * router falls back to the jsoup cleanse too — never a failed run for
+ * using the primary extractor.</p>
+ */
+@Component
+@org.springframework.context.annotation.Primary
+public class ReadabilitySimplifyRouter implements SimplifyPort {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(ReadabilitySimplifyRouter.class);
+
+    private final JsoupSimplifyConnector jsoupCleanse;
+
+    public ReadabilitySimplifyRouter(JsoupSimplifyConnector jsoupCleanse) {
+        this.jsoupCleanse = jsoupCleanse;
+    }
+
+    @Override
+    public SimplifiedContent simplify(String rawHtml) {
+        return simplify(rawHtml, null);
+    }
+
+    /**
+     * Same routing, with the address's classified webpage type (the
+     * caller may pass it; null = type unknown, the structure probe
+     * decides alone). Feed-type pages never reach this port (parsed by
+     * Rome, US-06.8), so no feed handling here.
+     */
+    public SimplifiedContent simplify(String rawHtml, String webpageType) {
+        if (isArticleLike(rawHtml)) {
+            SimplifiedContent article = simplifyWithReadability(rawHtml);
+            if (article != null) {
+                return article;
+            }
+            log.info("SIMPLIFY: Readability4J produced no content — "
+                    + "falling back to the jsoup Safelist rules");
+        }
+        return jsoupCleanse.simplify(rawHtml);
+    }
+
+    /** Port-level US-07.4 contract: both extractors carry the check. */
+    @Override
+    public void verifySyntax(String html) {
+        jsoupCleanse.verifySyntax(html);
+    }
+
+    /**
+     * The article-like probe (deterministic, structure-only): a
+     * semantic article marker AND prose dominance (substantial
+     * paragraph text relative to the page's text — a listing's text
+     * lives in links/table cells, an article's in paragraphs).
+     */
+    boolean isArticleLike(String html) {
+        if (html == null || html.isBlank()) {
+            return false;
+        }
+        Document doc = Jsoup.parse(html);
+        boolean hasArticleMarker =
+                !doc.select("article, [role=article], "
+                        + "[itemtype*=schema.org/NewsArticle], "
+                        + "[itemtype*=schema.org/BlogPosting], "
+                        + "[itemtype*=schema.org/Article]").isEmpty()
+                || doc.select("script[type*=ld+json]").stream().anyMatch(s ->
+                        s.data().contains("BlogPosting")
+                                || s.data().contains("NewsArticle")
+                                || s.data().contains("\"@type\":\"Article\""));
+        if (!hasArticleMarker) {
+            return false;
+        }
+        // Prose dominance: paragraph text vs. total text (a listing
+        // keeps most of its text inside links/table cells).
+        String paragraphText = doc.select("p").text();
+        String totalText = doc.body() == null ? "" : doc.body().text();
+        if (totalText.length() < 400) {
+            return false; // too small to be an article worth extracting
+        }
+        return paragraphText.length() * 2 >= totalText.length();
+    }
+
+    /**
+     * The Readability pass: extract the article, then run the SAME
+     * jsoup cleanse over the extracted region (the output contract is
+     * the connector's, not the extractor's). Returns null when
+     * Readability cannot isolate a main region — the router falls back.
+     */
+    private SimplifiedContent simplifyWithReadability(String rawHtml) {
+        try {
+            Readability4J readability = new Readability4J(baseUri(rawHtml), rawHtml);
+            Article article = readability.parse();
+            org.jsoup.nodes.Element content = article.getArticleContent();
+            if (content == null || content.text().isBlank()) {
+                return null;
+            }
+            Document articleDoc = new Document(baseUri(rawHtml));
+            articleDoc.appendChild(content.clone());
+            // The article title is data (US-07.2): re-attach it as an
+            // h1 when Readability dropped it from the content region.
+            String title = article.getTitle();
+            if (title != null && !title.isBlank()
+                    && !articleDoc.body().text().contains(title)) {
+                org.jsoup.nodes.Element h1 =
+                        articleDoc.createElement("h1").text(title.trim());
+                articleDoc.body().prependChild(h1);
+            }
+            return jsoupCleanse.simplify(articleDoc.html());
+        } catch (RuntimeException e) {
+            log.info("SIMPLIFY: Readability4J failed ({}) — falling back "
+                    + "to the jsoup Safelist rules", e.getMessage());
+            return null;
+        }
+    }
+
+    /** A base URI for the parse (relative-URL resolution); the raw
+     * HTML's base when it declares one, else a neutral placeholder. */
+    private String baseUri(String html) {
+        try {
+            Document doc = Jsoup.parse(html);
+            String base = doc.selectFirst("base[href]") != null
+                    ? doc.selectFirst("base[href]").attr("href")
+                    : doc.location();
+            if (base != null && !base.isBlank()) {
+                URI.create(base);
+                return base;
+            }
+        } catch (RuntimeException e) {
+            // fall through to the placeholder
+        }
+        return "https://localhost/";
+    }
+}
