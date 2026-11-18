@@ -6,11 +6,12 @@ package es.jllopez.neis.domain.port;
  * HTTP status, content type, size and shell indicators (a rendered
  * probe when the static fetch yields an application shell), classifies
  * the address into the webpage-type taxonomy (US-06.5) and estimates
- * the retrieval connector for the executor (HttpClient 5 / Playwright
+ * connector for the executor (HttpClient 5 / Playwright
  * / fixtures behind the fetching port). Infrastructure provides the
- * connector; the AI (or deterministic heuristics as fallback) performs
- * the estimation through the provider-agnostic integration point
- * (US-13.1).
+ * connector; the estimation is performed by the deterministic
+ * webpage-type heuristics (US-06.5) — the requirement's "AI or
+ * deterministic heuristics" either/or (US-13.6); an AI estimation
+ * layer may be added behind the same port later.
  *
  * <p>The probe's full evidence is a JSON object string (the capture
  * metadata column {@code captures.preflight}); the caller-facing

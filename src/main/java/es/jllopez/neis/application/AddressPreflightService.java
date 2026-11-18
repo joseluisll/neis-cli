@@ -15,9 +15,11 @@ import org.springframework.stereotype.Service;
  *
  * <p>The estimate is a suggestion the user can override ('address
  * webpage-type', the per-run connector parameter) — never a silent
- * reconfiguration. The AI (or deterministic heuristics as fallback,
- * which is what the deterministic classifier is) performs the
- * estimation through the provider-agnostic integration point.</p>
+ * reconfiguration. The estimation is performed by the deterministic
+ * webpage-type heuristics (US-06.5) — the requirement's "AI or
+ * deterministic heuristics" either/or; the classification rides the
+ * same webpage-type metadata the executor consults before scheduling
+ * WEBSCRAPE runs.</p>
  */
 @Service
 public class AddressPreflightService {
