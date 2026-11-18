@@ -102,4 +102,25 @@ class WebpageTypeCatalogTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new WebpageTypeCatalog(properties));
     }
+
+    @Test
+    void allRendersInDeclarationOrderDeterministically() {
+        // US-06.10 review non-blocking finding: the taxonomy lived in
+        // Map.of/Map.copyOf copies whose iteration order is salted per
+        // JVM (JDK 9+) — the same configuration listed the types in a
+        // different order in every CLI run. Pinned: all() equals the
+        // documented built-in declaration order (then the configured
+        // extensions in configuration order).
+        WebpageTypeProperties properties = new WebpageTypeProperties();
+        WebpageTypeProperties.Entry svelte = new WebpageTypeProperties.Entry();
+        svelte.setStrategy("rendered");
+        properties.getTypes().put("spa-svelte", svelte);
+
+        WebpageTypeCatalog catalog = new WebpageTypeCatalog(properties);
+
+        var ids = catalog.all().stream().map(WebpageType::id).toList();
+        assertEquals(java.util.List.of("static", "spa", "spa-angular",
+                "spa-react", "spa-vue", "hybrid", "feed", "other",
+                "spa-svelte"), ids);
+    }
 }

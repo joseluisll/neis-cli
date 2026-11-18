@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Catalog of the page-specific obstructing selectors (US-06.7, issue
@@ -61,16 +60,5 @@ public class ClearingSelectors {
             }
         }
         return selectors;
-    }
-
-    /** All configured entries (boot-check and management views). */
-    public List<ClearingProperties.Entry> all() {
-        return properties.selectors();
-    }
-
-    /** Optional single-lookup helper for tests and tooling. */
-    public Optional<String> first(String addressId, String kind) {
-        List<String> found = find(addressId, kind);
-        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 }

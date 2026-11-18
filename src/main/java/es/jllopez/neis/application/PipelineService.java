@@ -305,8 +305,11 @@ public class PipelineService {
                         pageScrape.html());
                 writeArtifact(flagged, "WEBSCRAPE", "page-html",
                         "scrape-page" + (page + 1) + ".html", pageCleared.html(), executionId);
-                // US-06.9: per-page element catalog + digest.
-                analyzeDom(flagged, pageCleared.html(), executionId);
+                // US-06.9: per-page element catalog + digest — each page
+                // keeps its OWN catalog artifact (review non-blocking
+                // finding: one shared name was overwritten per page,
+                // last page wins); the capture digest stays page 1's.
+                analyzeDom(flagged, pageCleared.html(), executionId, page + 1);
                 SimplifiedContent pageSimplified = simplifyPort.simplify(pageCleared.html());
                 writeSimplifiedArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
@@ -1197,16 +1200,6 @@ public class PipelineService {
     }
 
     /**
-     * Writes one chain artifact through the content store (US-11):
-     * the deterministic capture folder of the address's listing page,
-     * under the task's own content folder (US-11.3).
-     */
-    Path writeArtifact(Address address, String taskCode, String kind,
-                       String fileName, String content) {
-        return writeArtifact(address, taskCode, kind, fileName, content, null);
-    }
-
-    /**
      * US-07.6/US-11.4: the tiered rendering's hashed-URL side table
      * lands on the capture metadata (a JSON object of placeholder →
      * full URL, column {@code captures.simplify_side_table}, V17) under
@@ -1281,9 +1274,15 @@ public class PipelineService {
     }
 
     /**
-     * Same as {@link #writeArtifact(Address, String, String, String,
-     * String)} with the producing run's id (US-16.6): recorded on the
-     * content record for run-scoped attribution. Null = unattributed.
+     * Writes one chain artifact through the content store (US-11):
+     * the deterministic capture folder of the address's listing page,
+     * under the task's own content folder (US-11.3), with the
+     * producing run's id (US-16.6) recorded on the content record.
+     * The former 5-arg overload (null executionId) was REMOVED
+     * (US-06.9 review round-2 non-blocking finding: caller-less dead
+     * code of the exact shape the US-06.7 B2/B2-R2 findings showed to
+     * be a silent-provenance regression waiting to happen — an
+     * unattributed artifact write can no longer be expressed).
      */
     Path writeArtifact(Address address, String taskCode, String kind,
                        String fileName, String content, String executionId) {
@@ -1454,21 +1453,41 @@ public class PipelineService {
     /**
      * DOM analysis (US-06.9, issue #88): the cleared HTML5 is walked
      * into the pruned element tree — the element catalog artifact
-     * (element-catalog.json, the AI's numbered-tree view for US-13.3/
-     * US-13.4) is stored with the capture, and the tree's change
-     * digest lands on the capture metadata (US-11.4) so unchanged
-     * pages are detected between runs. A catalog with zero elements
-     * (an empty page) still stores its digest: "no relevant elements"
-     * is itself a comparable state.
+     * (the AI's numbered-tree view for US-13.3/US-13.4) is stored
+     * with the capture, and the tree's change digest lands on the
+     * capture metadata (US-11.4) so unchanged pages are detected
+     * between runs. A catalog with zero elements (an empty page)
+     * still stores its digest: "no relevant elements" is itself a
+     * comparable state.
+     *
+     * <p>The artifact name carries the PAGE for paginated scrapes
+     * (US-06.9 review non-blocking finding: a single shared
+     * {@code element-catalog.json} was overwritten per page — last
+     * page wins — while the HTML artifacts keep per-page names; the
+     * per-page catalogs are the AI's per-page tree view and are kept
+     * like the pages they describe). Page 1 keeps the plain name (the
+     * capture's primary catalog).</p>
      */
     ElementCatalog analyzeDom(Address address, String clearedHtml, String executionId) {
+        return analyzeDom(address, clearedHtml, executionId, 1);
+    }
+
+    ElementCatalog analyzeDom(Address address, String clearedHtml,
+                              String executionId, int page) {
         ElementCatalog catalog = domAnalysisPort.analyze(clearedHtml);
         // The catalog artifact carries the run attribution like every
         // other artifact (review B3 finding: the 5-arg write produced
         // unattributed content records — the US-06.7 B2 lesson).
+        String fileName = page <= 1
+                ? "element-catalog.json"
+                : "element-catalog-page" + page + ".json";
         writeArtifact(address, "WEBSCRAPE", "element-catalog",
-                "element-catalog.json", catalogJson(catalog), executionId);
-        captureMetadata(address, address.url(), null, null, catalog.digest());
+                fileName, catalogJson(catalog), executionId);
+        if (page <= 1) {
+            // The capture-level change digest follows page 1's tree —
+            // the change detection compares the listing's entry page.
+            captureMetadata(address, address.url(), null, null, catalog.digest());
+        }
         return catalog;
     }
 

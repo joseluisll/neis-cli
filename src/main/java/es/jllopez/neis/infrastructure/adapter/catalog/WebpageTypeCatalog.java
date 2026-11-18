@@ -35,16 +35,24 @@ public class WebpageTypeCatalog implements WebpageTypeCatalogPort {
 
     private static final Logger log = LoggerFactory.getLogger(WebpageTypeCatalog.class);
 
-    /** The built-in taxonomy: id -> retrieval strategy. */
-    private static final Map<String, String> BUILT_INS = Map.of(
-            "static", WebpageType.STRATEGY_HTTP,
-            "spa", WebpageType.STRATEGY_RENDERED,
-            "spa-angular", WebpageType.STRATEGY_RENDERED,
-            "spa-react", WebpageType.STRATEGY_RENDERED,
-            "spa-vue", WebpageType.STRATEGY_RENDERED,
-            "hybrid", WebpageType.STRATEGY_RENDERED,
-            "feed", WebpageType.STRATEGY_FEED,
-            "other", WebpageType.STRATEGY_HTTP);
+    /** The built-in taxonomy: id -> retrieval strategy. Entries are
+     * inserted in DECLARATION order into a LinkedHashMap (a Map.of/
+     * Map.copyOf iteration order is salted per JVM, JDK 9+ — the
+     * catalog's all() order flows into user-facing type lists and must
+     * be deterministic across CLI runs; US-06.10 review non-blocking
+     * finding, the repo's determinism rule from US-06.9 review B2). */
+    private static final Map<String, String> BUILT_INS =
+            new LinkedHashMap<>();
+    static {
+        BUILT_INS.put("static", WebpageType.STRATEGY_HTTP);
+        BUILT_INS.put("spa", WebpageType.STRATEGY_RENDERED);
+        BUILT_INS.put("spa-angular", WebpageType.STRATEGY_RENDERED);
+        BUILT_INS.put("spa-react", WebpageType.STRATEGY_RENDERED);
+        BUILT_INS.put("spa-vue", WebpageType.STRATEGY_RENDERED);
+        BUILT_INS.put("hybrid", WebpageType.STRATEGY_RENDERED);
+        BUILT_INS.put("feed", WebpageType.STRATEGY_FEED);
+        BUILT_INS.put("other", WebpageType.STRATEGY_HTTP);
+    }
 
     private final Map<String, WebpageType> types;
 
@@ -71,7 +79,11 @@ public class WebpageTypeCatalog implements WebpageTypeCatalogPort {
             }
             map.put(id, new WebpageType(id, strategy.trim()));
         });
-        this.types = Map.copyOf(map);
+        // Insertion order preserved (LinkedHashMap, unmodifiable copy):
+        // the taxonomy's all() order is user-facing and must be
+        // deterministic across JVMs (US-06.10 review non-blocking
+        // finding; the Map.copyOf hash order is JVM-salted).
+        this.types = java.util.Collections.unmodifiableMap(map);
         log.info("Webpage type taxonomy: {} types ({} configured extensions)",
                 types.size(), properties.getTypes().size());
     }

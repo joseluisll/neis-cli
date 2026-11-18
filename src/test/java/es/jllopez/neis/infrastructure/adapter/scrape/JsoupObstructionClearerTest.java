@@ -104,18 +104,22 @@ class JsoupObstructionClearerTest {
     }
 
     @Test
-    void theGuardKeepsAWrapperWithMultipleArticles() {
-        // A configured selector aimed too wide (the listing container)
-        // must not delete the data: a wrapper with >1 article is content.
+    void aConfiguredSelectorRemovesAContentBearingWrapperItAimsAt() {
+        // US-06.7 review non-blocking finding 2: the guard used to keep
+        // a wrapper with >1 article even when the operator's configured
+        // selector explicitly aimed at it. Configured selectors are the
+        // override — the target is removed; the guard stays for the
+        // generic rules only (see theGenericRulesStillRespectTheGuard).
         String html = "<html><body><div id='site-overlay'>"
                 + "<article>One</article><article>Two</article>"
                 + "</div></body></html>";
 
         ClearedContent cleared = clearer.clear(html, List.of("#site-overlay"));
 
-        assertTrue(cleared.html().contains("One"));
-        assertTrue(cleared.html().contains("Two"));
-        assertEquals(0, cleared.removedCount());
+        assertFalse(cleared.html().contains("One"));
+        assertFalse(cleared.html().contains("Two"));
+        assertEquals(1, cleared.removedCount());
+        assertTrue(cleared.rulesApplied().contains("#site-overlay"));
     }
 
     @Test
@@ -168,5 +172,57 @@ class JsoupObstructionClearerTest {
 
         assertEquals(1, cleared.removedCount());
         assertFalse(cleared.html().contains("advert-box"));
+    }
+
+    @Test
+    void theAdVocabularyDoesNotDeleteASiteResultsContainer() {
+        // US-06.7 review non-blocking finding 1: the open
+        // [class*=advert-] fragment matched a site's OWN results
+        // container (advert-results-list) and silently deleted listing
+        // content. Narrowed away — such a class is not removed by the
+        // generic ad rule (a true ad nuisance there is the configured
+        // page-specific selectors' job).
+        String html = "<html><body><main>"
+                + "<ul class='advert-results-list'><li>Listing item</li></ul>"
+                + "</main></body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of());
+
+        assertEquals(0, cleared.removedCount());
+        assertTrue(cleared.html().contains("Listing item"),
+                "the site's own listing must survive the generic ad rule");
+    }
+
+    @Test
+    void aConfiguredSelectorOverridesTheMainContentGuard() {
+        // US-06.7 review non-blocking finding 2: the guard kept a
+        // signup/country modal WITH a select even when the operator's
+        // configured selector explicitly aimed at it — configured
+        // selectors are the override and bypass the guard.
+        String html = "<html><body><main><ul class='news-list'><li>Item</li></ul></main>"
+                + "<div id='country-modal'><form><select><option>EN</option></select></form></div>"
+                + "</body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of("#country-modal"));
+
+        assertFalse(cleared.html().contains("country-modal"),
+                "the operator's selector removes its target even when it carries a form select");
+        assertEquals(1, cleared.removedCount());
+        assertTrue(cleared.rulesApplied().contains("#country-modal"));
+    }
+
+    @Test
+    void theGenericRulesStillRespectTheGuard() {
+        // The guard stays for the GENERIC sweeps: a dialog wrapper
+        // carrying a form select (the filter-widget signal) is kept.
+        String html = "<html><body>"
+                + "<div role='dialog'><form><select><option>x</option></select></form></div>"
+                + "<main><p>Content</p></main></body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of());
+
+        assertTrue(cleared.html().contains("role='dialog'")
+                        || cleared.html().contains("role=\"dialog\""),
+                "the guarded generic rule keeps the content-bearing wrapper");
     }
 }

@@ -33,16 +33,20 @@ import java.util.List;
  *   configuration time), complementing the generic rules.</li>
  * </ol>
  *
- * <p><b>Main-content guard</b>: a rule never removes an element that
- * CONTAINS the page's main listing content. When a candidate overlay
- * wraps {@code <main>}, {@code [role=main]} or the body's dominant
- * content, the wrapper is kept and only its chrome children are
- * removed (an overlay wrapper is harmless once its obstructing
- * children are gone). The rule: a removal candidate that contains a
- * {@code main}/{@code [role=main]} element, more than one {@code
- * <article>}, or a {@code <form>} with a {@code <select>} is never
- * removed itself — its qualifying children are, so the obstructing
- * pieces die either way without risking the data.</p>
+ * <p><b>Main-content guard</b>: a GENERIC rule never removes an
+ * element that CONTAINS the page's main listing content. When a
+ * candidate overlay wraps {@code <main>}, {@code [role=main]} or the
+ * body's dominant content, the wrapper is kept and only its chrome
+ * children are removed (an overlay wrapper is harmless once its
+ * obstructing children are gone). The rule: a removal candidate that
+ * contains a {@code main}/{@code [role=main]} element, more than one
+ * {@code <article>}, or a {@code <form>} with a {@code <select>} is
+ * never removed by the generic sweeps — its qualifying children are,
+ * so the obstructing pieces die either way without risking the data.
+ * The CONFIGURED page-specific selectors are the operator's explicit
+ * override and bypass the guard (review non-blocking finding 2: a
+ * modal with a select survived its own configured selector
+ * otherwise).</p>
  */
 @Component
 public class JsoupObstructionClearer implements ObstructionClearingPort {
@@ -74,13 +78,21 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
 
     /**
      * Generic advertisement containers: the standard ad element and
-     * the common id/class vocabulary.
+     * the common id/class vocabulary. The open class fragment
+     * {@code [class*=advert-]} was NARROWED AWAY (US-06.7 review
+     * non-blocking finding 1): a class merely containing "advert-"
+     * (e.g. a site's own {@code advert-results-list}) is not
+     * necessarily an ad container, and an unguarded removal there
+     * silently deletes listing content — the rule now keeps only the
+     * unambiguous standard forms (advertisement/ad-banner/
+     * ad-container) and the structural ad ids/elements; anything
+     * beyond them is the configured page-specific selectors' job
+     * (US-12).
      */
     private static final String AD_SELECTOR =
             "ins.adsbygoogle, [id^=google_ads], [id^=div-gpt-ad], "
                     + "[class*=advertisement], [class*=ad-banner], "
-                    + "[class*=ad-container], [class*=advert-], "
-                    + "[aria-label*=advertisement i]";
+                    + "[class*=ad-container], [aria-label*=advertisement i]";
 
     @Override
     public ClearedContent clear(String html, List<String> configuredSelectors) {
@@ -114,14 +126,21 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
             rulesApplied.add("advertisements");
         }
 
-        // 4. The configured page-specific selectors (US-12), each
-        //    guarded by the same main-content rule.
+        // 4. The configured page-specific selectors (US-12), applied
+        //    WITHOUT the main-content guard (US-06.7 review
+        //    non-blocking finding 2): the operator explicitly aimed
+        //    the selector at that element (US-12.3 validated it at
+        //    configuration time) — an implicit guard second-guessing
+        //    the configuration made the target unremovable (a
+        //    signup modal with a filter-like select survived its own
+        //    configured selector). The configured selector is the
+        //    override; the guard protects only the generic rules.
         if (configuredSelectors != null) {
             for (String selector : configuredSelectors) {
                 if (selector == null || selector.isBlank()) {
                     continue;
                 }
-                n = removeGuarded(doc, selector.trim());
+                n = removeMatches(doc, selector.trim());
                 if (n > 0) {
                     removed += n;
                     rulesApplied.add(selector.trim());

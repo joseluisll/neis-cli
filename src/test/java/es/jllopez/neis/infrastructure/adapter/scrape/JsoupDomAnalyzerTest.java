@@ -234,4 +234,65 @@ class JsoupDomAnalyzerTest {
         assertEquals(expectedOrder, List.copyOf(attrs.keySet()),
                 "attrs keep the whitelist's fixed order");
     }
+
+    @Test
+    void inputRolesFollowTheInputType() {
+        // Review non-blocking finding: the flat input→textbox mapping
+        // mislabeled every non-text control. The role follows the
+        // input's type; an explicit role attribute still wins.
+        String html = "<html><body><main>"
+                + "<input type='checkbox' name='flags'>"
+                + "<input type='radio' name='group'>"
+                + "<input type='submit' value='Go'>"
+                + "<input type='range' min='0' max='10'>"
+                + "<input type='text' name='query'>"
+                + "</main></body></html>";
+
+        ElementCatalog catalog = analyzer.analyze(html);
+
+        var byRole = catalog.elements().stream()
+                .filter(e -> e.tag().equals("input"))
+                .collect(java.util.stream.Collectors.toMap(
+                        e -> e.attributes().getOrDefault("type", ""),
+                        e -> e.role(),
+                        (a, b) -> a));
+        assertEquals("checkbox", byRole.get("checkbox"));
+        assertEquals("radio", byRole.get("radio"));
+        assertEquals("button", byRole.get("submit"));
+        assertEquals("slider", byRole.get("range"));
+        assertEquals("textbox", byRole.get("text"));
+    }
+
+    @Test
+    void anExplicitRoleStillWinsOverTheImplicitMapping() {
+        String html = "<html><body><main>"
+                + "<input type='submit' role='search' value='Find'>"
+                + "</main></body></html>";
+
+        ElementCatalog catalog = analyzer.analyze(html);
+
+        PrunedElement input = catalog.elements().stream()
+                .filter(e -> e.tag().equals("input")).findFirst().orElseThrow();
+        assertEquals("search", input.role());
+    }
+
+    @Test
+    void hiddenDetectionToleratesStyleWhitespaceAndCase() {
+        // Review non-blocking finding: 'display :  none' (spaces around
+        // the colon, mixed case) is as hidden as 'display:none'.
+        String html = "<html><body><main><p>Visible</p></main>"
+                + "<div style='display :  none'>spacing variant</div>"
+                + "<div style='DISPLAY:NONE'>case variant</div>"
+                + "<div style='visibility : hidden'>visibility variant</div>"
+                + "</body></html>";
+
+        ElementCatalog catalog = analyzer.analyze(html);
+
+        String all = catalog.elements().stream()
+                .map(e -> e.text()).reduce("", String::concat);
+        assertFalse(all.contains("spacing variant"));
+        assertFalse(all.contains("case variant"));
+        assertFalse(all.contains("visibility variant"));
+        assertTrue(all.contains("Visible"));
+    }
 }

@@ -555,9 +555,11 @@ public class TaskWorkService {
             var pageCleared = pipeline.clearObstructions(address, page.html());
             pipeline.writeArtifact(address, "WEBSCRAPE", "page-html",
                     "scrape-page" + pages + ".html", pageCleared.html(), executionId);
-            // US-06.9: per-page element catalog + digest (its own
-            // artifact; the capture digest follows page 1's tree).
-            pipeline.analyzeDom(address, pageCleared.html(), executionId);
+            // US-06.9: per-page element catalog + digest — each page
+            // keeps its OWN catalog artifact (review non-blocking
+            // finding: one shared name was overwritten per page, last
+            // page wins); the capture digest follows page 1's tree.
+            pipeline.analyzeDom(address, pageCleared.html(), executionId, pages);
             int before = items.size();
             for (NewsEventItem item : pipeline.extractionPort.extract(pageCleared.html(),
                     selector.get(), address.itemKind(), address.id(),

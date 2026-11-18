@@ -177,15 +177,19 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
         }
     }
 
-    /** The visibility/relevance filter (DOM-level signals). */
+    /** The visibility/relevance filter (DOM-level signals). Style
+     * matching tolerates whitespace variants and case around the
+     * colon ({@code display :  none}, {@code DISPLAY:NONE}) — the
+     * exact-substring test missed them (review non-blocking finding);
+     * stylesheet-driven hiding stays out of scope by design. */
     private boolean isHidden(Element el) {
         if (el.hasAttr("hidden") || "true".equalsIgnoreCase(el.attr("aria-hidden"))) {
             return true;
         }
-        String style = el.attr("style").toLowerCase(Locale.ROOT);
-        return style.contains("display:none") || style.contains("display: none")
-                || style.contains("visibility:hidden")
-                || style.contains("visibility: hidden");
+        String style = el.attr("style").toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", "");
+        return style.contains("display:none")
+                || style.contains("visibility:hidden");
     }
 
     /** The interactability flag (US-06.9): actionable elements. */
@@ -233,14 +237,30 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
         return value;
     }
 
-    /** The role: the explicit attribute, else the implicit tag role. */
+    /** The role: the explicit attribute, else the implicit tag role.
+     * An {@code input} maps by its {@code type}: a checkbox/radio is a
+     * {@code checkbox}/{@code radio}, a submit/button/reset a
+     * {@code button}, a range a {@code slider} — the flat
+     * input→textbox mapping (review non-blocking finding) mislabeled
+     * every non-text control in the catalog the AI consumes. */
     private String roleOf(Element el) {
         String explicit = el.attr("role");
         if (!explicit.isEmpty()) {
             return explicit;
         }
-        return IMPLICIT_ROLES.getOrDefault(
-                el.tagName().toLowerCase(Locale.ROOT), "");
+        String tag = el.tagName().toLowerCase(Locale.ROOT);
+        if (tag.equals("input")) {
+            String type = el.attr("type").toLowerCase(Locale.ROOT);
+            return switch (type) {
+                case "checkbox" -> "checkbox";
+                case "radio" -> "radio";
+                case "submit", "button", "reset", "image" -> "button";
+                case "range" -> "slider";
+                case "search" -> "searchbox";
+                default -> "textbox"; // text, email, password, tel, url, date...
+            };
+        }
+        return IMPLICIT_ROLES.getOrDefault(tag, "");
     }
 
     private String normalizedText(Element el) {

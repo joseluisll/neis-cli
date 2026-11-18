@@ -576,6 +576,18 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         assertEquals(1, result.filters().size());
         assertEquals("ai", result.filterSource());
         assertEquals("Event status", result.filters().get(0).name());
+
+        // US-06.9 review non-blocking finding: per-page catalogs used
+        // to overwrite ONE element-catalog.json (last page wins) while
+        // the HTML artifacts keep per-page names. Pinned: each page
+        // keeps its own catalog artifact (page 1 the plain name),
+        // every one carrying the run attribution.
+        var contentRoot = captureDirOf(result.address()).resolve("content");
+        assertTrue(contentRoot.resolve("WEBSCRAPE").resolve("element-catalog.json")
+                .toFile().exists(), "page 1 keeps the plain catalog name");
+        assertTrue(contentRoot.resolve("WEBSCRAPE")
+                        .resolve("element-catalog-page2.json").toFile().exists(),
+                "page 2 gets its own catalog artifact");
     }
 
     @Test
