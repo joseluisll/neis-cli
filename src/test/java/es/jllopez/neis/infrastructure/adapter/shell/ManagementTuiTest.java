@@ -234,23 +234,22 @@ class ManagementTuiTest {
     }
 
     @Test
-    void chainSectionShowsDefinitionsAndRunsOneOverAnAddress() {
-        seedVerifiedAddress();
+    void chainSectionShowsDefinitionsAndTheirSteps() {
+        // US-10.1: the chains section is now the chain-management TUI
+        // (the run stays on the CLI `chain run` command).
         seedChain();
         ScriptedConsole io = new ScriptedConsole(
                 "c",
-                "1",                        // chain detail
-                "r", "1", "ADDR-001", "y",  // run chain 1 over ADDR-001, wait
-                "b",
+                "l",                        // the list with the ordered steps
+                "q",                        // back to management
                 "q");
 
         tui(io).run();
 
         String transcript = io.transcript();
-        assertTrue(transcript.contains("CHAINS"), transcript);
+        assertTrue(transcript.contains("Defined chains"), transcript);
         assertTrue(transcript.contains("news-pipeline"), transcript);
-        assertTrue(transcript.contains("Submitted EXEC-"), transcript);
-        assertTrue(transcript.contains("SUCCESS"), transcript);
+        assertTrue(io.fedAllInputs());
     }
 
     @Test
@@ -571,13 +570,14 @@ class ManagementTuiTest {
     @Test
     void chainsSectionRefusesARecordNumberWhenNothingIsListed() {
         // US-16.1 review observation #97: a number typed into an empty
-        // list used to answer "Unknown command '5'" instead of a
-        // nothing-listed refusal.
-        ScriptedConsole io = new ScriptedConsole("c", "5", "b", "q");
+        // list must answer a nothing-listed refusal, not "Unknown command".
+        // US-10.1: the section is the ChainTui now — editing with no
+        // chains listed refuses the pick with the same semantics.
+        ScriptedConsole io = new ScriptedConsole("c", "e", "5", "q", "q");
 
         tui(io).run();
 
-        assertTrue(io.transcript().contains("Nothing listed — no chains defined yet"),
+        assertTrue(io.transcript().contains("Nothing to pick"),
                 io.transcript());
         assertTrue(io.fedAllInputs());
     }

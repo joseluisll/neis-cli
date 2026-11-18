@@ -43,4 +43,9 @@ public class InMemoryChainStorePort implements ChainStorePort {
                 .sorted(Comparator.comparing(Chain::name))
                 .toList();
     }
+
+    @Override
+    public void deleteById(String id) {
+        chains.remove(id);
+    }
 }

@@ -7,6 +7,9 @@ import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.TaskExecution;
 import es.jllopez.neis.domain.model.TriggerType;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.terminal.Terminal;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.CommandGroup;
 import org.springframework.shell.core.command.annotation.Option;
@@ -34,10 +37,13 @@ public class ChainCommands {
 
     private final ChainService chains;
     private final ExecutionService executions;
+    private final Terminal terminal;
 
-    public ChainCommands(ChainService chains, ExecutionService executions) {
+    public ChainCommands(ChainService chains, ExecutionService executions,
+                         Terminal terminal) {
         this.chains = chains;
         this.executions = executions;
+        this.terminal = terminal;
     }
 
     @Command(name = {"chain", "create"}, group = "Chains",
@@ -86,6 +92,52 @@ public class ChainCommands {
         out.append("Run it with: chain run --id ").append(chain.id())
                 .append(" --address <address-id>");
         return out.toString();
+    }
+
+    @Command(name = {"chain", "tui"}, group = "Chains",
+            description = "Open the interactive chain-management screen "
+                    + "(list, create, edit, reorder steps, delete)")
+    public void tui() {
+        LineReader reader = LineReaderBuilder.builder()
+                .terminal(terminal)
+                .build();
+        new ChainTui(chains, executions, new AddressTuiCommands.JLineConsoleIO(reader)).run();
+    }
+
+    @Command(name = {"chain", "update"}, group = "Chains",
+            description = "Replace a chain's definition: name, description and the "
+                    + "ordered task list (the list IS the order). Empty options keep "
+                    + "the current values")
+    public String update(
+            @Option(shortName = 'i', longName = "id", required = true,
+                    description = "The chain id to update") String id,
+            @Option(shortName = 'n', longName = "name",
+                    description = "New unique name (empty = keep)") String name,
+            @Option(shortName = 'd', longName = "description",
+                    description = "New description (empty = keep)") String description,
+            @Option(shortName = 't', longName = "tasks",
+                    description = "New ordered steps, e.g. \"WEBSCRAPE,SIMPLIFY,"
+                            + "PRINT:max-items=10\" (empty = keep)") String tasks) {
+        Chain current = chains.show(id);
+        List<ChainTask> steps = tasks == null || tasks.isBlank()
+                ? current.tasks()
+                : parseSteps(tasks);
+        Chain updated = chains.update(id,
+                name == null || name.isBlank() ? null : name,
+                description, steps);
+        return "Updated " + updated.id() + " '" + updated.name() + "': "
+                + updated.tasks().size() + " steps";
+    }
+
+    @Command(name = {"chain", "delete"}, group = "Chains",
+            description = "Delete a chain definition (past executions keep their records)")
+    public String delete(
+            @Option(shortName = 'i', longName = "id", required = true,
+                    description = "The chain id to delete") String id) {
+        Chain removed = chains.show(id);
+        chains.delete(id);
+        return "Deleted " + id + " '" + removed.name()
+                + "' — past executions keep their records";
     }
 
     /** Resolves the --filter / --filter-spec options to one spec (at

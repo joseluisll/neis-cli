@@ -150,7 +150,7 @@ class ManagementTui {
                 case "" -> { /* redraw */ }
                 case "d", "dashboard" -> { /* the redraw IS the dashboard */ }
                 case "a", "addresses" -> new AddressTui(catalog, io, true).run();
-                case "c", "chains" -> chainsSection();
+                case "c", "chains" -> new ChainTui(chains, executions, io, true).run();
                 case "e", "executions" -> executionsSection();
                 case "r", "repository" -> repositorySection();
                 case "n", "g", "config" -> configSection();
@@ -624,42 +624,6 @@ class ManagementTui {
     }
 
     // ---- US-16.5 (chain part) / US-10 slice: chain management ----
-
-    private void chainsSection() {
-        while (true) {
-            List<Chain> chainList = chains.list();
-            ConsoleIO.printSection(io, "CHAINS (US-16.5)", chainsTable(chainList),
-                    "[l]ist  [<n>] show  [r] run over an address  [b]ack");
-            String line = io.readLine("chains> ");
-            if (line == null) {
-                return;
-            }
-            String trimmed = line.trim().toLowerCase();
-            if (trimmed.isEmpty() || trimmed.equals("l") || trimmed.equals("list")) {
-                continue;
-            }
-            switch (trimmed) {
-                case "b", "back", "q", "quit", "exit" -> {
-                    return;
-                }
-                case "r" -> runChain(chainList);
-                default -> {
-                    if (chainList.isEmpty()) {
-                        io.println("  Nothing listed — no chains defined yet; "
-                                + "create one with 'chain create'.");
-                        continue;
-                    }
-                    Integer index = parseIndex(trimmed, chainList.size());
-                    if (index == null) {
-                        io.println("Unknown command '" + line.trim()
-                                + "' — choose l / <n> / r / b.");
-                        continue;
-                    }
-                    io.println(chainDetail(chainList.get(index)));
-                }
-            }
-        }
-    }
 
     private String chainsTable(List<Chain> chainList) {
         StringBuilder out = new StringBuilder("Chains (").append(chainList.size()).append("):\n");

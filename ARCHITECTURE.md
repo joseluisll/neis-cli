@@ -241,10 +241,30 @@ cap.
   task rows wholesale; per-task parameters (US-08.3) round-trip as the
   schema's `parameters_json`.
 - `chain create/list/show/run` manage and execute definitions;
+  `chain update` and `chain delete` (US-10.1, issue #39) replace a
+  definition's name/description/task list (empty options keep current
+  values) and remove it — past executions keep their records;
   `chain run` submits through `ExecutionService.submitChain`, so a
   chain run uses the SAME lifecycle, eligibility gate, per-address
   serialization and execution-record machinery as any task run — the
   record carries `task_code=CHAIN` plus the `chain_id` link.
+- The chain TUI (`chain tui`, US-10.1): the same menu-driven screen
+  pattern as the address TUI (JLine, redraw-from-live-state, empty
+  keeps default, abort-loud refusals, explicit y-confirmed delete).
+  The edit flow works on a WORKING COPY (rename/reorder/remove/append
+  are pending until [s]ave; [c]ancel discards); the working list's
+  order is the truth and positions renumber 1..n as it changes — the
+  `Chain` no-gap invariant holds mid-edit. Step syntax matches
+  `chain create --tasks` (CODE or CODE:key=value;...). The management
+  screen's chains section IS this TUI (nested: quit returns there);
+  the run stays on `chain run` / the executions section.
+- Per-task configuration (US-10.2): a step's parameters are edited
+  through the same step syntax inside the TUI (and `chain update
+  --tasks`); the accepted keys per task type are the executor's
+  contract (`TaskWorkService.requireNoParameters`: WEBSCRAPE
+  max-items/selector/connector/filter.*, SIMPLIFY variant, PRINT/CHAIN
+  max-items/max-pages, FILTER field/value, ANALYZE none) — an unknown
+  key is refused at save, never silently dead configuration.
 - Sequential execution (US-08.2): steps run in position order inside
   the same per-address lock; each step gets its own parameters.
   PRINT/CHAIN steps accept `max-items` (1..10000, default 50) and

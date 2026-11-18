@@ -462,6 +462,11 @@ class ExecutionServiceTest {
             public List<Chain> findAll() {
                 return backing.findAll();
             }
+
+            @Override
+            public void deleteById(String id) {
+                backing.deleteById(id);
+            }
         };
         ExecutionService vanishingService = new ExecutionService(
                 new InMemoryExecutionStorePort(List.of("CHAIN")), vanishing,

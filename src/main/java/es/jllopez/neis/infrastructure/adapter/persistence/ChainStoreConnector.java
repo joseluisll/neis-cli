@@ -64,6 +64,15 @@ public class ChainStoreConnector implements ChainStorePort {
     }
 
     @Override
+    @Transactional
+    public void deleteById(String id) {
+        // The task rows go first (the child side of the chain_id link);
+        // the definition row follows.
+        tasks.deleteByChainId(id);
+        chains.deleteById(id);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Chain> findById(String id) {
         return chains.findById(id).map(this::toDomain);

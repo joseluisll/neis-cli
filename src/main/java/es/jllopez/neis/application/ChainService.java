@@ -86,4 +86,74 @@ public class ChainService {
         return store.findById(id).orElseThrow(
                 () -> new IllegalArgumentException("Unknown chain: " + id));
     }
+
+    /**
+     * Replaces a chain's definition (US-10.1, issue #39): name,
+     * description and the ordered task list. The position normalization
+     * and validation rules are the same as {@link #create} — an edit is
+     * a re-save with the chain's existing id and creation instant.
+     *
+     * @throws IllegalArgumentException for an unknown id, an empty/blank
+     *                                  name, no steps, more than
+     *                                  {@value Chain#MAX_TASKS} steps, an
+     *                                  unknown task type or a nested
+     *                                  CHAIN step
+     * @throws IllegalStateException    when renaming onto a name another
+     *                                  chain already uses
+     */
+    public Chain update(String id, String name, String description,
+                        List<ChainTask> steps) {
+        Chain existing = show(id);
+        String trimmed = name == null ? null : name.trim();
+        if (trimmed != null && !trimmed.equals(existing.name())) {
+            store.findByName(trimmed).ifPresent(other -> {
+                if (!other.id().equals(id)) {
+                    throw new IllegalStateException("A chain named '" + trimmed
+                            + "' already exists: " + other.id());
+                }
+            });
+        }
+        List<ChainTask> normalized = validateSteps(steps);
+        Chain updated = new Chain(existing.id(),
+                trimmed == null ? existing.name() : trimmed,
+                description, existing.createdAt(), normalized);
+        return store.save(updated);
+    }
+
+    /**
+     * Removes a chain definition (US-10.1, issue #39). Executions that
+     * already ran keep their records — the execution history is the
+     * run log, not a foreign key into the definition.
+     *
+     * @throws IllegalArgumentException for an unknown id
+     */
+    public void delete(String id) {
+        show(id);
+        store.deleteById(id);
+    }
+
+    /** The create/update task-list validation, shared: 1..MAX steps,
+     * no nested CHAIN, every type a registered task type; positions
+     * renumbered 1..n in the given order (the list IS the order). */
+    private List<ChainTask> validateSteps(List<ChainTask> steps) {
+        if (steps == null || steps.isEmpty()) {
+            throw new IllegalArgumentException("A chain needs at least one task");
+        }
+        List<String> known = executionStore.taskTypes();
+        List<ChainTask> normalized = new ArrayList<>();
+        int position = 1;
+        for (ChainTask step : steps) {
+            if ("CHAIN".equals(step.taskCode())) {
+                throw new IllegalArgumentException(
+                        "A chain step cannot be CHAIN itself — nested chains are "
+                                + "not supported in this iteration");
+            }
+            if (!known.contains(step.taskCode())) {
+                throw new IllegalArgumentException("Unknown task type: "
+                        + step.taskCode() + " (known: " + known + ")");
+            }
+            normalized.add(new ChainTask(position++, step.taskCode(), step.parameters()));
+        }
+        return normalized;
+    }
 }

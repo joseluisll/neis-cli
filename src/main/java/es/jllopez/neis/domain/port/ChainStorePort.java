@@ -20,4 +20,12 @@ public interface ChainStorePort {
 
     /** Every chain definition, ordered by name. */
     List<Chain> findAll();
+
+    /**
+     * Removes the chain definition with the given id (US-10.1, issue
+     * #39: chain management delete). Unknown ids are a no-op — the
+     * service layer refuses them first (loud), the port is the raw
+     * store. Executions that already ran keep their records.
+     */
+    void deleteById(String id);
 }
