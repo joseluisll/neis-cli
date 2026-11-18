@@ -263,8 +263,11 @@ cap.
   --tasks`); the accepted keys per task type are the executor's
   contract (`TaskWorkService.requireNoParameters`: WEBSCRAPE
   max-items/selector/connector/filter.*, SIMPLIFY variant, PRINT/CHAIN
-  max-items/max-pages, FILTER field/value, ANALYZE none) — an unknown
-  key is refused at save, never silently dead configuration.
+  max-items/max-pages, FILTER field/value, ANALYZE none). Save-time
+  validation covers the SYNTAX (key=value pairs, task-type vocabulary);
+  the per-type key contract is enforced at RUN time — an unknown key
+  fails the step loud there (dead configuration is an error, not
+  silence, but at the run, not the save).
 - Sequential execution (US-08.2): steps run in position order inside
   the same per-address lock; each step gets its own parameters.
   PRINT/CHAIN steps accept `max-items` (1..10000, default 50) and

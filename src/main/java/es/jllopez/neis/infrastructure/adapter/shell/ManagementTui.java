@@ -150,7 +150,7 @@ class ManagementTui {
                 case "" -> { /* redraw */ }
                 case "d", "dashboard" -> { /* the redraw IS the dashboard */ }
                 case "a", "addresses" -> new AddressTui(catalog, io, true).run();
-                case "c", "chains" -> new ChainTui(chains, executions, io, true).run();
+                case "c", "chains" -> new ChainTui(chains, io, true).run();
                 case "e", "executions" -> executionsSection();
                 case "r", "repository" -> repositorySection();
                 case "n", "g", "config" -> configSection();
@@ -624,88 +624,6 @@ class ManagementTui {
     }
 
     // ---- US-16.5 (chain part) / US-10 slice: chain management ----
-
-    private String chainsTable(List<Chain> chainList) {
-        StringBuilder out = new StringBuilder("Chains (").append(chainList.size()).append("):\n");
-        int n = 1;
-        for (Chain chain : chainList) {
-            out.append("  ").append(n++).append(". ").append(chain.id())
-                    .append("  '").append(chain.name()).append("'  ")
-                    .append(chain.tasks().size()).append(" steps\n");
-        }
-        if (chainList.isEmpty()) {
-            out.append("  <no chains yet — create one with 'chain create'>\n");
-        }
-        return out.toString();
-    }
-
-    private String chainDetail(Chain chain) {
-        StringBuilder out = new StringBuilder("Chain ").append(chain.id())
-                .append("  '").append(chain.name()).append("'\n");
-        if (chain.description() != null && !chain.description().isBlank()) {
-            out.append("  description: ").append(chain.description()).append("\n");
-        }
-        out.append("  created    : ").append(chain.createdAt() == null
-                ? "-" : TS.format(chain.createdAt())).append("\n");
-        for (ChainTask task : chain.tasks()) {
-            out.append("  ").append(task.position()).append(". ")
-                    .append(task.taskCode());
-            if (!task.parameters().isEmpty()) {
-                out.append("  ").append(task.parameters());
-            }
-            out.append("\n");
-        }
-        return out.toString();
-    }
-
-    private void runChain(List<Chain> chainList) {
-        if (chainList.isEmpty()) {
-            io.println("  Nothing to run — no chains defined.");
-            return;
-        }
-        String chainLine = io.readLine("  chain number to run: ");
-        if (chainLine == null) {
-            return;
-        }
-        Integer chainIndex = parseIndex(chainLine.trim(), chainList.size());
-        if (chainIndex == null) {
-            io.println("  Refused: pick a listed chain number (1-"
-                    + chainList.size() + ").");
-            return;
-        }
-        Chain chain = chainList.get(chainIndex);
-        List<Address> addresses = catalog.list();
-        if (addresses.isEmpty()) {
-            io.println("  Nothing to run over — no addresses registered.");
-            return;
-        }
-        String addressLine = io.readLine("  address id: ");
-        if (addressLine == null) {
-            return;
-        }
-        String addressId = addressLine.trim();
-        boolean known = addresses.stream().anyMatch(a -> a.id().equalsIgnoreCase(addressId));
-        if (!known) {
-            io.println("  Refused: unknown address '" + addressId + "'.");
-            return;
-        }
-        try {
-            TaskExecution submitted = executions.submitChain(chain.id(), addressId,
-                    es.jllopez.neis.domain.model.TriggerType.MANUAL);
-            io.println("  Submitted " + submitted.id() + ": chain " + chain.id()
-                    + " over " + addressId + " (running asynchronously)");
-            String wait = io.readLine("  wait for it? [y/N]: ");
-            if (wait != null && wait.trim().equalsIgnoreCase("y")) {
-                TaskExecution finished = executions.await(submitted.id());
-                io.println(finished == null
-                        ? "  still running after the wait timeout — check the Executions section."
-                        : "  " + finished.status() + ": "
-                        + (finished.outcome() == null ? "-" : finished.outcome()));
-            }
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            io.println("  Refused: " + e.getMessage());
-        }
-    }
 
     // ---- US-16.4: repository browsing (news/events + content tree) ----
 

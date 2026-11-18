@@ -74,7 +74,7 @@ class ChainTuiTest {
         seedPipelineChain();
         ScriptedConsole io = new ScriptedConsole("l", "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         String transcript = io.transcript();
         assertTrue(transcript.contains("pipeline"));
@@ -87,7 +87,7 @@ class ChainTuiTest {
     void eofExitsCleanlyWithoutBye() {
         ScriptedConsole io = new ScriptedConsole();
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertFalse(io.transcript().contains("Bye."),
                 "EOF (input ended) is not a user quit");
@@ -98,7 +98,7 @@ class ChainTuiTest {
     void anUnknownCommandIsReportedWithoutTouchingTheCatalog() {
         ScriptedConsole io = new ScriptedConsole("x", "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("Unknown command 'x'"));
         assertTrue(chains.list().isEmpty());
@@ -115,7 +115,7 @@ class ChainTuiTest {
                 "WEBSCRAPE,SIMPLIFY:variant=lean,PRINT:max-items=5",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         Chain chain = chains.show(chains.list().get(0).id());
         assertEquals("mine", chain.name());
@@ -131,7 +131,7 @@ class ChainTuiTest {
         ScriptedConsole io = new ScriptedConsole(
                 "c", "   ", "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("Refused: a chain needs a name"));
         assertTrue(chains.list().isEmpty(), "nothing was created");
@@ -146,7 +146,7 @@ class ChainTuiTest {
                 "WEBSCRAPE,NOTATYPE",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("Unknown task type"));
         assertTrue(chains.list().isEmpty(), "the refusal left no chain behind");
@@ -162,7 +162,7 @@ class ChainTuiTest {
                 "PRINT",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("already exists"));
         assertEquals(1, chains.list().size(), "still only the original chain");
@@ -180,7 +180,7 @@ class ChainTuiTest {
                 "s",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         Chain chain = chains.list().get(0);
         assertEquals("PRINT", chain.tasks().get(0).taskCode(),
@@ -201,7 +201,7 @@ class ChainTuiTest {
                 "s",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         Chain chain = chains.list().get(0);
         assertEquals(2, chain.tasks().size());
@@ -220,7 +220,7 @@ class ChainTuiTest {
                 "s",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         Chain chain = chains.list().get(0);
         assertEquals(5, chain.tasks().size());
@@ -237,7 +237,7 @@ class ChainTuiTest {
                 "c",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         Chain chain = chains.list().get(0);
         assertEquals(3, chain.tasks().size(),
@@ -257,7 +257,7 @@ class ChainTuiTest {
                 "s",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("Refused:"));
         assertEquals("pipeline", chains.list().stream()
@@ -276,7 +276,7 @@ class ChainTuiTest {
                 "d", "1", "y",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(chains.list().isEmpty());
         assertTrue(io.transcript().contains("Deleted 'pipeline'"));
@@ -289,7 +289,7 @@ class ChainTuiTest {
                 "d", "1", "n",
                 "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertEquals(1, chains.list().size(), "not deleted without 'y'");
         assertTrue(io.transcript().contains("Not deleted"));
@@ -299,7 +299,7 @@ class ChainTuiTest {
     void deleteOnAnEmptyCatalogIsRefused() {
         ScriptedConsole io = new ScriptedConsole("d", "q");
 
-        new ChainTui(chains, null, io).run();
+        new ChainTui(chains, io).run();
 
         assertTrue(io.transcript().contains("Nothing to pick"));
     }
@@ -310,7 +310,7 @@ class ChainTuiTest {
     void nestedQuitDoesNotPrintBye() {
         ScriptedConsole io = new ScriptedConsole("q");
 
-        new ChainTui(chains, null, io, true).run();
+        new ChainTui(chains, io, true).run();
 
         assertFalse(io.transcript().contains("Bye."),
                 "nested (management-screen) quit means 'back', not exit");

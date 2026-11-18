@@ -102,6 +102,33 @@ class ChainStorePersistenceTest {
     }
 
     @Test
+    void deletingAChainThatRanKeepsTheExecutionRecord(@Autowired
+            es.jllopez.neis.domain.port.ExecutionStorePort executionStore) {
+        // US-10.1 review B1 pin: executions.chain_id REFERENCES
+        // chains(id) with no ON DELETE action and foreign_keys=ON per
+        // connection — the delete must NULL the provenance link on the
+        // referencing execution rows (the record is self-contained),
+        // not fail the delete with an FK violation.
+        store.save(chain("CHAIN-DEL", "deleted after run"));
+        executionStore.save(new es.jllopez.neis.domain.model.TaskExecution(
+                "EXEC-DEL-1", "WEBSCRAPE", null, "CHAIN-DEL",
+                es.jllopez.neis.domain.model.TriggerType.MANUAL,
+                es.jllopez.neis.domain.model.ExecutionStatus.SUCCESS,
+                Instant.parse("2026-11-17T10:00:00Z"),
+                Instant.parse("2026-11-17T10:00:05Z"), "ok", Map.of()));
+
+        store.deleteById("CHAIN-DEL");
+
+        assertTrue(store.findById("CHAIN-DEL").isEmpty(),
+                "the definition is gone");
+        var record = executionStore.findById("EXEC-DEL-1").orElseThrow();
+        assertEquals(null, record.chainId(),
+                "the execution record SURVIVES with its provenance link nulled");
+        assertEquals(es.jllopez.neis.domain.model.ExecutionStatus.SUCCESS,
+                record.status(), "the record's history is untouched");
+    }
+
+    @Test
     void aDuplicateNameIsRefused() {
         store.save(chain("CHAIN-DUP-1", "shared name"));
         assertThrows(RuntimeException.class,

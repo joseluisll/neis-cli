@@ -104,7 +104,14 @@ public class ChainService {
     public Chain update(String id, String name, String description,
                         List<ChainTask> steps) {
         Chain existing = show(id);
-        String trimmed = name == null ? null : name.trim();
+        // US-10.1 review B2: null/blank KEEP the stored value on every
+        // field — the TUI prompt and the CLI help both promise "empty
+        // = keep"; a verbatim null description silently WIPED the
+        // stored one (data loss contradicting the contract). (Clearing
+        // a description is `chain update --description " "`? No — a
+        // deliberate clear is an edit that sets a new text; keeping is
+        // the empty-keeps rule everywhere.)
+        String trimmed = name == null || name.isBlank() ? null : name.trim();
         if (trimmed != null && !trimmed.equals(existing.name())) {
             store.findByName(trimmed).ifPresent(other -> {
                 if (!other.id().equals(id)) {
@@ -113,10 +120,12 @@ public class ChainService {
                 }
             });
         }
+        String keptDescription = description == null || description.isBlank()
+                ? existing.description() : description.trim();
         List<ChainTask> normalized = validateSteps(steps);
         Chain updated = new Chain(existing.id(),
                 trimmed == null ? existing.name() : trimmed,
-                description, existing.createdAt(), normalized);
+                keptDescription, existing.createdAt(), normalized);
         return store.save(updated);
     }
 

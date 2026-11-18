@@ -1,7 +1,6 @@
 package es.jllopez.neis.infrastructure.adapter.shell;
 
 import es.jllopez.neis.application.ChainService;
-import es.jllopez.neis.application.ExecutionService;
 import es.jllopez.neis.domain.model.Chain;
 import es.jllopez.neis.domain.model.ChainTask;
 
@@ -28,20 +27,17 @@ import java.util.Map;
 class ChainTui {
 
     private final ChainService chains;
-    private final ExecutionService executions;
     private final ConsoleIO io;
     /** True when re-entered from the management screen (US-16.1): quit
      * then means 'back' and must NOT print 'Bye.'. */
     private final boolean nested;
 
-    ChainTui(ChainService chains, ExecutionService executions, ConsoleIO io) {
-        this(chains, executions, io, false);
+    ChainTui(ChainService chains, ConsoleIO io) {
+        this(chains, io, false);
     }
 
-    ChainTui(ChainService chains, ExecutionService executions, ConsoleIO io,
-             boolean nested) {
+    ChainTui(ChainService chains, ConsoleIO io, boolean nested) {
         this.chains = chains;
-        this.executions = executions;
         this.io = io;
         this.nested = nested;
     }
@@ -145,6 +141,7 @@ class ChainTui {
                     + "  [m]ove step  [s]ave  [c]ancel");
             String line = io.readLine("edit '" + chain.name() + "'> ");
             if (line == null) {
+                io.println("  (input ended — nothing was saved)");
                 return;
             }
             switch (line.trim().toLowerCase()) {

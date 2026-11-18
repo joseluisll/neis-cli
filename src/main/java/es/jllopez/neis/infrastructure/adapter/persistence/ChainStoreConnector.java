@@ -9,6 +9,8 @@ import es.jllopez.neis.infrastructure.persistence.ChainEntity;
 import es.jllopez.neis.infrastructure.persistence.ChainJpaRepository;
 import es.jllopez.neis.infrastructure.persistence.ChainTaskEntity;
 import es.jllopez.neis.infrastructure.persistence.ChainTaskJpaRepository;
+import es.jllopez.neis.infrastructure.persistence.ExecutionEntity;
+import es.jllopez.neis.infrastructure.persistence.ExecutionJpaRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +36,13 @@ public class ChainStoreConnector implements ChainStorePort {
 
     private final ChainJpaRepository chains;
     private final ChainTaskJpaRepository tasks;
+    private final ExecutionJpaRepository executions;
 
-    public ChainStoreConnector(ChainJpaRepository chains, ChainTaskJpaRepository tasks) {
+    public ChainStoreConnector(ChainJpaRepository chains, ChainTaskJpaRepository tasks,
+                               ExecutionJpaRepository executions) {
         this.chains = chains;
         this.tasks = tasks;
+        this.executions = executions;
     }
 
     @Override
@@ -66,7 +71,21 @@ public class ChainStoreConnector implements ChainStorePort {
     @Override
     @Transactional
     public void deleteById(String id) {
-        // The task rows go first (the child side of the chain_id link);
+        // US-10.1 review B1: executions.chain_id REFERENCES chains(id)
+        // with no ON DELETE action and foreign_keys=ON per connection —
+        // deleting the definition while execution rows still reference
+        // it is an FK violation, so any chain that ever ran could never
+        // be deleted. The provenance link is data, not an owning
+        // relation: NULL it on the referencing records (the execution
+        // record is self-contained — its history survives the deleted
+        // definition), then delete the task rows and the definition.
+        for (ExecutionEntity execution : executions.findAll()) {
+            if (id.equals(execution.getChainId())) {
+                execution.setChainId(null);
+                executions.save(execution);
+            }
+        }
+        // The task rows go next (the child side of the chain_id link);
         // the definition row follows.
         tasks.deleteByChainId(id);
         chains.deleteById(id);

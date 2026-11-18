@@ -101,7 +101,7 @@ public class ChainCommands {
         LineReader reader = LineReaderBuilder.builder()
                 .terminal(terminal)
                 .build();
-        new ChainTui(chains, executions, new AddressTuiCommands.JLineConsoleIO(reader)).run();
+        new ChainTui(chains, new AddressTuiCommands.JLineConsoleIO(reader)).run();
     }
 
     @Command(name = {"chain", "update"}, group = "Chains",
