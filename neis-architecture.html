@@ -57,7 +57,7 @@
         <div class="pulse-dot"></div>
         <h1>NEIS (neis-cli) Architecture</h1>
       </div>
-      <p class="subtitle">Hexagonal SSAFP pipeline WEBSCRAPE &rarr; SIMPLIFY &rarr; ANALYZE &rarr; FILTER &rarr; PRINT &middot; runs as chain core-chain-ssafp (core/run.sh, ex-MVP #90 retired) &middot; AI-driven capability flagging, address correction, filter-zone selectors &amp; offline filter application (US-17 / US-13.7 / US-06.6) &middot; obstruction clearing (US-06.7) &middot; DOM pruning &amp; element catalog (US-06.9) &middot; hardening backlog closed (US-06.10) &middot; commit 990a453</p>
+      <p class="subtitle">Hexagonal SSAFP pipeline WEBSCRAPE &rarr; SIMPLIFY &rarr; ANALYZE &rarr; FILTER &rarr; PRINT &middot; runs as chain core-chain-ssafp (core/run.sh, ex-MVP #90 retired) &middot; AI-driven capability flagging, address correction, filter-zone selectors &amp; offline filter application (US-17 / US-13.7 / US-06.6) &middot; obstruction clearing (US-06.7) &middot; DOM pruning &amp; element catalog (US-06.9) &middot; hardening backlog closed (US-06.10) &middot; SIMPLIFY syntactic correctness + Readability routing + tiered rendering (US-07.4..7.6) &middot; AI task type, address suggest &amp; preflight (US-13) &middot; chain management TUI (US-10) &middot; commit 5e8261e</p>
     </div>
 
     <!-- Main Diagram -->
@@ -88,7 +88,7 @@
 
         <!-- Shell -> application -->
         <line x1="370" y1="130" x2="370" y2="146" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
-        <text x="380" y="142" fill="#94a3b8" font-size="8">address &middot; chain &middot; execution &middot; content/text>
+        <text x="380" y="142" fill="#94a3b8" font-size="8">address &middot; chain &middot; execution &middot; content &middot; news &middot; manage</text>
 
         <!-- application -> domain -->
         <line x1="680" y1="360" x2="680" y2="386" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
@@ -108,7 +108,7 @@
              and on the Address model box; dashed rose = flag/gate -->
 
         <!-- adapters -> externals -->
-        <path d="M 355 695 L 355 800 Q 355 812 367 812 L 700 812 Q 712 812 712 834" fill="none" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <path d="M 355 712 L 355 800 Q 355 812 367 812 L 700 812 Q 712 812 712 834" fill="none" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrowhead)"/>
         <text x="520" y="806" fill="#94a3b8" font-size="8" text-anchor="middle">Playwright-rendered fixtures (page-aware)</text>
 
         <line x1="380" y1="759" x2="380" y2="834" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arrowhead)"/>
@@ -129,8 +129,9 @@
         <!-- ================= DRIVING ADAPTER ================= -->
         <rect x="210" y="60" width="420" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
         <text x="420" y="80" fill="white" font-size="11" font-weight="600" text-anchor="middle">Driving adapter &mdash; Spring Shell CLI</text>
-        <text x="420" y="97" fill="#94a3b8" font-size="9" text-anchor="middle">address add|verify &middot; chain create|list|show|run &middot; execution run|list|show &middot; content list|tree &middot; news list|provenance &middot; ai-ask &middot; about</text>
-        <text x="420" y="112" fill="#94a3b8" font-size="8" text-anchor="middle">AddressCommands &middot; NeisCommands &middot; ChainCommands &middot; ExecutionCommands &middot; ContentCommands &middot; NewsCommands &middot; AiCommands</text>
+        <text x="420" y="97" fill="#94a3b8" font-size="9" text-anchor="middle">address add|list|show|edit|remove|verify|webpage-type|suggest|preflight|tui &middot; chain create|tui|update|delete|list|show|run</text>
+        <text x="420" y="112" fill="#94a3b8" font-size="8" text-anchor="middle">execution run|list|show|types &middot; content list|tree &middot; news list|provenance|sightings|search|export &middot; manage &middot; ai-status &middot; ai-ask &middot; about</text>
+        <text x="420" y="125" fill="#94a3b8" font-size="7.5" text-anchor="middle">AddressCommands &middot; AddressTuiCommands &middot; ChainCommands &middot; ExecutionCommands &middot; ContentCommands &middot; NewsCommands &middot; AiCommands &middot; ManagementCommands &middot; NeisCommands</text>
 
         <!-- ================= APPLICATION BAND ================= -->
         <rect x="210" y="150" width="940" height="210" rx="10" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1"/>
@@ -146,7 +147,7 @@
 
         <rect x="410" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
         <text x="480" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">SIMPLIFY</text>
-        <text x="480" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">cleanse &le; 100 KB</text>
+        <text x="480" y="265" fill="#94a3b8" font-size="8" text-anchor="middle">tiered &middot; &le; 100 KB</text>
 
         <rect x="570" y="230" width="140" height="50" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#34d399" stroke-width="1.5"/>
         <text x="640" y="250" fill="white" font-size="11" font-weight="600" text-anchor="middle">ANALYZE</text>
@@ -231,7 +232,7 @@
         <text x="1081" y="455" fill="#94a3b8" font-size="6.5" text-anchor="middle">execution records</text>
         <text x="1081" y="467" fill="#94a3b8" font-size="6.5" text-anchor="middle">US-05.3</text>
 
-        <text x="230" y="487" fill="#a78bfa" font-size="7.5" font-weight="600">+ ChainStorePort (US-08.1) &middot; + ContentStorePort (US-11): captures + content records &middot; model: Chain/ChainTask, Capture/ContentRecord</text>
+        <text x="230" y="487" fill="#a78bfa" font-size="7.5" font-weight="600">+ ChainStorePort (US-08.1) &middot; + ContentStorePort (US-11) &middot; + DomAnalysisPort (US-06.9) &middot; + ObstructionClearingPort (US-06.7) &middot; + AddressPreflightPort (US-13.6) &middot; model: Chain/ChainTask, Capture (+ clearing, DOM digest, side table, preflight: V15..V18)/ContentRecord</text>
 
         <!-- model row -->
         <rect x="230" y="492" width="210" height="52" rx="6" fill="rgba(15, 23, 42, 0.85)" stroke="#fb7185" stroke-width="1.5"/>
@@ -263,17 +264,18 @@
         <rect x="210" y="580" width="940" height="200" rx="10" fill="rgba(120, 53, 15, 0.08)" stroke="#fbbf24" stroke-width="1"/>
         <text x="224" y="598" fill="#fbbf24" font-size="10" font-weight="600">infrastructure &mdash; driven connectors (the only layer touching third-party libs)</text>
 
-        <rect x="230" y="615" width="168" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <rect x="230" y="615" width="168" height="94" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
         <text x="314" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">ScrapeConnectorRouter</text>
         <text x="314" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">neis.scrape.connector: static | live</text>
         <text x="314" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">JsoupObstructionClearer: popups &middot; banners &middot; ads (US-06.7)</text>
         <text x="314" y="677" fill="#fbbf24" font-size="7.5" text-anchor="middle">JsoupDomAnalyzer: pruned tree + digest (US-06.9)</text>
+        <text x="314" y="690" fill="#94a3b8" font-size="7.5" text-anchor="middle">HttpClientAddressPreflightConnector: static vs SPA probe (US-13.6)</text>
 
         <rect x="408" y="615" width="168" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
         <text x="492" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">JsoupSimplifyConnector</text>
-        <text x="492" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">jsoup cleanse, 100 KB cap</text>
-        <text x="492" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">keeps pager navs &amp; filter forms</text>
-        <text x="492" y="677" fill="#94a3b8" font-size="7.5" text-anchor="middle">(capability-detection inputs)</text>
+        <text x="492" y="651" fill="#94a3b8" font-size="7.5" text-anchor="middle">Readability4J route (US-07.5)</text>
+        <text x="492" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">tiered full/economy/lean (US-07.6)</text>
+        <text x="492" y="677" fill="#94a3b8" font-size="7.5" text-anchor="middle">syntactic output, no non-data (US-07.4)</text>
 
         <rect x="586" y="615" width="168" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
         <text x="670" y="635" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">JsoupSelectorConnector</text>
@@ -308,7 +310,7 @@
         <text x="935" y="716" fill="white" font-size="9" font-weight="600" text-anchor="middle">Capability gating rule (US-17.2) &middot; address correction (#94)</text>
         <text x="935" y="732" fill="#fb7185" font-size="7.5" text-anchor="middle">a block runs ONLY if the address carries the capability flag</text>
         <text x="935" y="744" fill="#94a3b8" font-size="7.5" text-anchor="middle">page iteration &larr; PAGINATION &middot; FILTER &larr; FILTERING &middot; else skipped with a note</text>
-        <text x="935" y="756" fill="#94a3b8" font-size="7.5" text-anchor="middle">FILTER applies one AI-chosen criterion (#73) &middot; ANALYZE may correct the address</text>
+        <text x="935" y="756" fill="#94a3b8" font-size="7.5" text-anchor="middle">FILTER applies one AI-chosen criterion (#73) &middot; ANALYZE may correct the address (#94) &middot; preflight estimates the connector (US-13.6)</text>
 
         <!-- ================= EXTERNALS (bottom) ================= -->
         <rect x="230" y="840" width="250" height="64" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
@@ -323,13 +325,13 @@
 
         <rect x="740" y="840" width="190" height="64" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
         <text x="835" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">core-work/ content root</text>
-        <text x="835" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">scrape/simplified per page</text>
-        <text x="835" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">+ filtered &middot; selectors/*.json</text>
+        <text x="835" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">scrape/simplified (tiered) per page</text>
+        <text x="835" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">+ filtered &middot; side table &middot; selectors/*.json</text>
 
         <rect x="950" y="840" width="170" height="64" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
         <text x="1035" y="860" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">neis.db &mdash; SQLite3</text>
         <text x="1035" y="875" fill="#94a3b8" font-size="7.5" text-anchor="middle">addresses &middot; executions &middot; task_types &middot; chains</text>
-        <text x="1035" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">captures &middot; content_records &middot; Flyway V1+V2 (US-02/11)</text>
+        <text x="1035" y="888" fill="#94a3b8" font-size="7.5" text-anchor="middle">captures &middot; content_records &middot; Flyway V1..V18 (capture metadata V15-V18)</text>
 
         <!-- ================= LEGEND ================= -->
         <text x="230" y="934" fill="white" font-size="10" font-weight="600">Legend</text>
@@ -361,7 +363,7 @@
 
     <!-- Footer -->
     <p class="footer">
-      NEIS &mdash; News and Events Information System &middot; neis-cli &middot; detailed architecture view &middot; generated 2026-11-17 &middot; commit 990a453
+      NEIS &mdash; News and Events Information System &middot; neis-cli &middot; detailed architecture view &middot; generated 2026-11-18 &middot; commit 5e8261e
     </p>
   </div>
 </body>
