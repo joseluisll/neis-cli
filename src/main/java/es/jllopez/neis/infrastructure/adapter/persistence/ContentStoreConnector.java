@@ -67,6 +67,16 @@ public class ContentStoreConnector implements ContentStorePort {
         if (capture.sideTable() != null) {
             entity.setSideTable(capture.sideTable());
         }
+        // The preflight record (US-13.6) follows the same rule: a
+        // preflight-less re-capture never wipes a stored record.
+        if (capture.preflight() != null) {
+            entity.setPreflight(capture.preflight());
+        }
+        // The AI-task classification record (US-13.2) follows the same
+        // rule: a classification-less re-capture never wipes a stored one.
+        if (capture.classification() != null) {
+            entity.setClassification(capture.classification());
+        }
         captures.save(entity);
         return capture;
     }
@@ -77,7 +87,8 @@ public class ContentStoreConnector implements ContentStorePort {
         return captures.findByAddressIdAndCaptureId(addressId, captureId)
                 .map(e -> new Capture(e.getAddressId(), e.getCaptureId(), e.getUrl(),
                         e.createdAtInstant(), e.getWebpageType(), e.getFilters(),
-                        e.getCleared(), e.getDomDigest(), e.getSideTable()));
+                        e.getCleared(), e.getDomDigest(), e.getSideTable(),
+                        e.getPreflight(), e.getClassification()));
     }
 
     @Override

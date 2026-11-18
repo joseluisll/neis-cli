@@ -79,6 +79,40 @@ configured; AI classification, selector identification, capability
 detection (pagination + page URL pattern, filtering) and filter
 extraction all reuse `AiAssistantPort` through the task-specific prompts
 of `AiPromptCatalog` — no site-specific knowledge is encoded in code.
+The AI identification machinery (`aiIdentify`) is shared by ANALYZE and
+the standalone AI task.
+
+## AI-assisted registration and preflight (US-13.5/US-13.6)
+
+- `address suggest` (US-13.5, issue #64, `AddressSuggestionService`):
+  given only a URL, the AI proposes name/type/description/metadata from
+  the simplified entry page (`AiPromptCatalog.addressSuggestionPrompt`);
+  the proposal is RENDERED, never saved — the user registers through the
+  ordinary `address add` path, editing values as they confirm.
+- `address preflight` (US-13.6, issue #65,
+  `AddressPreflightPort` + `HttpClientAddressPreflightConnector`):
+  a lightweight entry-page probe — static HTTP fetch, rendered probe
+  ONLY when the static fetch yields an application shell — records
+  HTTP status, content type, size and shell indicators, classifies the
+  address into the webpage-type taxonomy (the deterministic
+  `WebpageTypeClassifier`, US-06.5) and estimates the retrieval
+  connector (http/rendered/feed) from the type's strategy. The
+  classification persists onto the address (the executor consults it
+  before scheduling WEBSCRAPE runs; a probe without a classification
+  never wipes a stored type) and the probe record lands on the capture
+  metadata (`captures.preflight`, V18, never-wipes). The estimate is a
+  SUGGESTION — overridable with `address webpage-type` or the per-run
+  connector parameter.
+- ANALYZE may CORRECT the registered address (US-13.7, issue #94): the
+  capability prompt receives the registered address and may answer a
+  corrected listing URL when the page evidence (canonical links,
+  redirects, pager link paths) shows the registered address is not the
+  actual listing URL; the correction applies for the run, is reported
+  (evidence: old -> new) and is what the stored selectors are recorded
+  against. The AI-derived page URL pattern is validated against the
+  (possibly corrected) address; an inconsistent pattern goes back to
+  the AI once for repair — the code never rewrites the pattern itself;
+  an unrepairable pattern is dropped and reported.
 
 ## Capability flagging (US-17)
 
@@ -207,9 +241,13 @@ cap.
   on a per-address lock — the work tree and selector store are not
   safe for concurrent runs.
 - Task types are the chain's stages as runnable prefixes (WEBSCRAPE,
-  SIMPLIFY, ANALYZE, FILTER, PRINT) plus the whole CHAIN
-  (`TaskWorkService`); the fixed vocabulary is seeded idempotently into
-  the `task_types` table (schema vocabulary, not user data).
+  SIMPLIFY, ANALYZE, FILTER, PRINT) plus the standalone AI task
+  (US-13.1..4, issues #50..53: classification + news/events selector
+  identification over the simplified content, verdict recorded on the
+  capture metadata `captures.classification` V18, fails loud without a
+  configured AI) and the whole CHAIN (`TaskWorkService`); the fixed
+  vocabulary is seeded idempotently into the `task_types` table
+  (schema vocabulary, not user data).
 - Execution records (US-05.3) live in the `executions` table behind
   `ExecutionStorePort`; `execution run --wait`, `execution list/show`
   expose them. The `executions.task_code` and `address_id` FKs are

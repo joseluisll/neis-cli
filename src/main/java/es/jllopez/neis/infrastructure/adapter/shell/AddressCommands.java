@@ -1,6 +1,8 @@
 package es.jllopez.neis.infrastructure.adapter.shell;
 
 import es.jllopez.neis.application.AddressCatalogService;
+import es.jllopez.neis.application.AddressPreflightService;
+import es.jllopez.neis.application.AddressSuggestionService;
 import es.jllopez.neis.application.AddressVerificationService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
@@ -30,13 +32,19 @@ public class AddressCommands {
     private final AddressCatalogService catalog;
     private final AddressVerificationService verificationService;
     private final WebpageTypeCatalogPort webpageTypes;
+    private final AddressSuggestionService suggestions;
+    private final AddressPreflightService preflightService;
 
     public AddressCommands(AddressCatalogService catalog,
                            AddressVerificationService verificationService,
-                           WebpageTypeCatalogPort webpageTypes) {
+                           WebpageTypeCatalogPort webpageTypes,
+                           AddressSuggestionService suggestions,
+                           AddressPreflightService preflightService) {
         this.catalog = catalog;
         this.verificationService = verificationService;
         this.webpageTypes = webpageTypes;
+        this.suggestions = suggestions;
+        this.preflightService = preflightService;
     }
 
     @Command(name = {"address", "add"}, group = "Addresses",
@@ -172,6 +180,65 @@ public class AddressCommands {
         return id + " webpage type: " + updated.webpageType()
                 + " (strategy " + webpageTypes.byId(updated.webpageType())
                         .map(t -> t.strategy()).orElse("?") + ")";
+    }
+
+    @Command(name = {"address", "suggest"}, group = "Addresses",
+            description = "AI-assisted registration (US-13.5): given only a URL, the AI "
+                    + "proposes name/type/description/metadata from the page; you confirm, "
+                    + "edit or reject before anything is saved")
+    public String suggest(
+            @Option(shortName = 'u', longName = "url", required = true,
+                    description = "Listing URL to propose the address from") String url) {
+        AddressSuggestionService.Suggestion s = suggestions.suggest(url.trim());
+        StringBuilder out = new StringBuilder("AI proposal for ").append(s.url())
+                .append(":\n");
+        out.append("  name        : ")
+                .append(s.name() == null ? "(none proposed)" : s.name()).append("\n");
+        out.append("  type        : ")
+                .append(s.type() == null ? "(unrecognized — NEWS or EVENTS required)"
+                        : s.type()).append("\n");
+        out.append("  description : ")
+                .append(s.description() == null ? "(none proposed)" : s.description())
+                .append("\n");
+        if (!s.metadata().isEmpty()) {
+            out.append("  metadata    :\n");
+            s.metadata().forEach((k, v) -> out.append("    ").append(k)
+                    .append(": ").append(v).append("\n"));
+        }
+        out.append("\nNothing was saved. Register it with:\n");
+        out.append("  address add -n '<name>' -u '").append(s.url())
+                .append("' -t ").append(s.type() == null ? "URL_NEWS|URL_EVENTS"
+                        : s.type());
+        if (s.description() != null && !s.description().isBlank()) {
+            out.append(" -d '<description>'");
+        }
+        out.append("\n(edit the proposed values as you confirm them)");
+        return out.toString();
+    }
+
+    @Command(name = {"address", "preflight"}, group = "Addresses",
+            description = "Preflight capture (US-13.6): lightweight entry-page probe "
+                    + "(static fetch, rendered probe on an application shell) that "
+                    + "classifies the address into the webpage-type taxonomy and "
+                    + "estimates the retrieval connector; both persisted as metadata "
+                    + "(overridable)")
+    public String preflight(
+            @Option(shortName = 'i', longName = "id", required = true,
+                    description = "Address id") String id) {
+        var outcome = preflightService.preflight(id);
+        Address updated = catalog.byId(id);
+        StringBuilder out = new StringBuilder("Preflight of ").append(id).append(":\n");
+        out.append("  ").append(outcome.evidence()).append("\n");
+        out.append("  webpage type: ")
+                .append(updated.webpageType() == null ? "<unclassified>"
+                        : updated.webpageType() + " (strategy "
+                        + webpageTypes.byId(updated.webpageType())
+                                .map(Object::toString).orElse("?") + ")")
+                .append("\n");
+        out.append("  estimated connector: ").append(outcome.estimatedConnector() == null
+                ? "(unknown — the per-run connector parameter decides)" : outcome.estimatedConnector())
+                .append(" (suggestion — override with 'address webpage-type' or the per-run connector parameter)\n");
+        return out.toString();
     }
 
     private AddressType parseType(String type) {

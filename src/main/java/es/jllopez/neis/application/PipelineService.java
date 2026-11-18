@@ -911,64 +911,34 @@ public class PipelineService {
         //    prompt for the page's kind. Persisted when the probe validates it.
         AiAssistantPort ai = aiPort.getIfAvailable();
         String classification = kind;
-        String aiNotes = null;
+        final String[] aiNoteHolder = {null};
         if (ai != null) {
-            try {
-                String classAnswer = ai.complete(
-                        AiPromptCatalog.classificationPrompt(simplifiedHtml, kind));
-                String parsed = parseClassification(classAnswer);
-                if (parsed != null) {
-                    log.info("[AI] {}: classification: {}", address.id(), parsed);
-                    classification = parsed;
-                } else {
-                    log.info("[AI] {}: classification answer not recognized ({}), keeping {}",
-                            address.id(), snippet(classAnswer), kind);
-                }
-                String selectorAnswer = ai.complete(
-                        kind.equals("news")
-                                ? AiPromptCatalog.newsSelectorPrompt(simplifiedHtml)
-                                : AiPromptCatalog.eventsSelectorPrompt(simplifiedHtml));
-                String selector = jsonField(selectorAnswer, "selector");
-                String reasoning = jsonField(selectorAnswer, "reasoning");
-                if (selector != null && !selector.isBlank()
-                        && valid(simplifiedHtml, selector, kind, address)) {
-                    log.info("[AI] {}: selector identified and validated - stored for reuse: {}",
-                            address.id(), selector);
-                    // Same carry-over invariant as the preconfigured
-                    // branch: a stale stored record's filter-zone
-                    // selector and catalogue survive the re-identification
-                    // (US-12.1 review finding, 2026-11-14); the record's
-                    // kind is the CURRENT run's kind, not the stale one.
-                    StoredSelectors persisted = stored
-                            .map(s -> new StoredSelectors(s.addressId(), kind, selector,
-                                    s.filterSelector(), s.filters(), "ai",
-                                    LocalDate.now().toString(),
-                                    reasoning == null ? "" : reasoning))
-                            .orElse(new StoredSelectors(address.id(), kind,
-                                    selector, "ai", LocalDate.now().toString(),
-                                    reasoning == null ? "" : reasoning));
-                    selectorStore.save(persisted);
-                    return new SelectorSelection(selector, "ai",
-                            new PageAnalysis(classification,
-                                    kind.equals("news") ? selector : null,
-                                    kind.equals("event") ? selector : null,
-                                    true, reasoning == null ? "" : reasoning));
-                }
-                aiNotes = "AI did not yield a valid selector"
-                        + (reasoning == null || reasoning.isBlank() ? "" : ": " + reasoning);
-                log.warn("[AI] {}: AI selector did not validate - heuristic fallback used",
-                        address.id());
-            } catch (RuntimeException e) {
-                aiNotes = "AI call failed: " + e.getMessage();
-                log.warn("[AI] {}: AI call failed: {}", address.id(), e.getMessage());
+            SelectorSelection identified = aiIdentify(address, simplifiedHtml, ai,
+                    note -> aiNoteHolder[0] = note);
+            if (identified != null) {
+                return identified;
             }
+            String aiNotes = aiNoteHolder[0] == null
+                    ? "AI did not yield a valid selector" : aiNoteHolder[0];
+            log.warn("[AI] {}: AI selector did not validate - heuristic fallback used",
+                    address.id());
+            return fallbackSelection(address, simplifiedHtml, aiNotes);
         } else {
-            aiNotes = "AI integration point not configured (neis.ai.enabled / MELIOUS_API_KEY)";
             log.info("[AI] {}: AI not configured - heuristic fallback selectors", address.id());
+            return fallbackSelection(address, simplifiedHtml,
+                    "AI integration point not configured (neis.ai.enabled / MELIOUS_API_KEY)");
         }
+    }
 
-        // 4. Static heuristic fallback (not persisted — the point is to
-        //    store AI-identified working selectors only).
+    /**
+     * The static heuristic fallback (step 4 of the selector strategy):
+     * the first generic candidate that matches; the AI note (or the
+     * not-configured reason) rides into the analysis notes.
+     */
+    private SelectorSelection fallbackSelection(Address address,
+                                                String simplifiedHtml,
+                                                String aiNote) {
+        String kind = address.itemKind();
         String selected = null;
         for (String candidate : fallbackSelectors(address)) {
             if (valid(simplifiedHtml, candidate, kind, address)) {
@@ -981,8 +951,97 @@ public class PipelineService {
         }
         return new SelectorSelection(selected, "fallback",
                 PageAnalysis.fallback(kind,
-                        (aiNotes == null ? "AI did not yield a valid selector" : aiNotes)
+                        (aiNote == null ? "AI did not yield a valid selector" : aiNote)
                                 + " — heuristic selector used"));
+    }
+
+    /**
+     * The AI-identified selection (US-13.3/.4): the classification
+     * prompt, then the selector prompt for the page's kind; the
+     * validated selector is persisted with the address (carry-over
+     * invariant: a stale stored record's filter-zone data survives).
+     * Shared by the ANALYZE block and the standalone AI task
+     * (US-13.1..4). AI-call failures and unvalidated selectors return
+     * null with the reason in {@code aiNoteOut} — the caller falls
+     * back to the heuristics (ANALYZE) or surfaces the reason (AI task
+     * — which resolves the port through {@link #aiAssistant()} and
+     * therefore fails loud before reaching this method when none is
+     * configured).
+     */
+    SelectorSelection aiIdentify(Address address, String simplifiedHtml,
+                                 AiAssistantPort ai,
+                                 java.util.function.Consumer<String> aiNoteOut) {
+        String kind = address.itemKind();
+        Optional<StoredSelectors> stored = selectorStore.load(address.id());
+        String classification = kind;
+        try {
+            String classAnswer = ai.complete(
+                    AiPromptCatalog.classificationPrompt(simplifiedHtml, kind));
+            String parsed = parseClassification(classAnswer);
+            if (parsed != null) {
+                log.info("[AI] {}: classification: {}", address.id(), parsed);
+                classification = parsed;
+            } else {
+                log.info("[AI] {}: classification answer not recognized ({}), keeping {}",
+                        address.id(), snippet(classAnswer), kind);
+            }
+            String selectorAnswer = ai.complete(
+                    kind.equals("news")
+                            ? AiPromptCatalog.newsSelectorPrompt(simplifiedHtml)
+                            : AiPromptCatalog.eventsSelectorPrompt(simplifiedHtml));
+            String selector = jsonField(selectorAnswer, "selector");
+            String reasoning = jsonField(selectorAnswer, "reasoning");
+            if (selector != null && !selector.isBlank()
+                    && valid(simplifiedHtml, selector, kind, address)) {
+                log.info("[AI] {}: selector identified and validated - stored for reuse: {}",
+                        address.id(), selector);
+                // Same carry-over invariant as the preconfigured
+                // branch: a stale stored record's filter-zone
+                // selector and catalogue survive the re-identification
+                // (US-12.1 review finding, 2026-11-14); the record's
+                // kind is the CURRENT run's kind, not the stale one.
+                StoredSelectors persisted = stored
+                        .map(s -> new StoredSelectors(s.addressId(), kind, selector,
+                                s.filterSelector(), s.filters(), "ai",
+                                LocalDate.now().toString(),
+                                reasoning == null ? "" : reasoning))
+                        .orElse(new StoredSelectors(address.id(), kind,
+                                selector, "ai", LocalDate.now().toString(),
+                                reasoning == null ? "" : reasoning));
+                selectorStore.save(persisted);
+                return new SelectorSelection(selector, "ai",
+                        new PageAnalysis(classification,
+                                kind.equals("news") ? selector : null,
+                                kind.equals("event") ? selector : null,
+                                true, reasoning == null ? "" : reasoning));
+            }
+            aiNoteOut.accept("AI did not yield a valid selector"
+                    + (reasoning == null || reasoning.isBlank() ? "" : ": " + reasoning));
+            log.warn("[AI] {}: AI selector did not validate - heuristic fallback used",
+                    address.id());
+        } catch (RuntimeException e) {
+            aiNoteOut.accept("AI call failed: " + e.getMessage());
+            log.warn("[AI] {}: AI call failed: {}", address.id(), e.getMessage());
+        }
+        return null; // caller falls back to the heuristics
+    }
+
+    /**
+     * The configured AI assistant, REQUIRED (US-13.1): the AI task
+     * resolves the integration point through here and fails loud when
+     * none is configured — an AI TASK that silently ran heuristics
+     * would be something else than what the user scheduled.
+     */
+    AiAssistantPort aiAssistant() {
+        AiAssistantPort ai = aiPort.getIfAvailable();
+        if (ai == null) {
+            throw new IllegalStateException(
+                    "The AI task needs the AI integration point (US-13.1)"
+                    + " — none is configured (set neis.ai.enabled=true and"
+                    + " provide the API key named by neis.ai.api-key-ref,"
+                    + " default MELIOUS_API_KEY)");
+        }
+        return ai;
     }
 
     private boolean valid(String simplifiedHtml, String selector, String kind,
@@ -1272,20 +1331,50 @@ public class PipelineService {
                          java.util.Map<String, String> filters,
                          String clearedRecord, String domDigest,
                          String sideTable) {
+        captureMetadata(address, url, filters, clearedRecord, domDigest,
+                sideTable, null, null);
+    }
+
+    /**
+     * Same, with the address-preflight record (US-13.6/US-11.4): the
+     * entry-page probe's evidence stored on the capture metadata under
+     * the never-wipes rule.
+     */
+    void captureMetadata(Address address, String url,
+                         java.util.Map<String, String> filters,
+                         String clearedRecord, String domDigest,
+                         String sideTable, String preflight) {
+        captureMetadata(address, url, filters, clearedRecord, domDigest,
+                sideTable, preflight, null);
+    }
+
+    /**
+     * Same, with the AI-task classification record (US-13.2/US-11.4):
+     * the news/event/other verdict and the identified selector, stored
+     * on the capture metadata under the never-wipes rule.
+     */
+    void captureMetadata(Address address, String url,
+                         java.util.Map<String, String> filters,
+                         String clearedRecord, String domDigest,
+                         String sideTable, String preflight,
+                         String classification) {
         String captureId = contentStore.captureId(url);
         es.jllopez.neis.domain.port.ContentStorePort store = contentStore.store();
         if ((filters == null || filters.isEmpty()) && clearedRecord == null
-                && domDigest == null && sideTable == null) {
+                && domDigest == null && sideTable == null && preflight == null
+                && classification == null) {
             return;
         }
         store.findCapture(address.id(), captureId)
                 .ifPresentOrElse(
-                        existing -> store.saveCapture(captureWithSideTable(
+                        existing -> store.saveCapture(captureWithMetadata(
                                 address, captureId, url, existing, filters,
-                                clearedRecord, domDigest, sideTable)),
-                        () -> store.saveCapture(captureWithSideTable(
+                                clearedRecord, domDigest, sideTable, preflight,
+                                classification)),
+                        () -> store.saveCapture(captureWithMetadata(
                                 address, captureId, url, null, filters,
-                                clearedRecord, domDigest, sideTable)));
+                                clearedRecord, domDigest, sideTable, preflight,
+                                classification)));
     }
 
     /**
@@ -1296,14 +1385,15 @@ public class PipelineService {
         return fresh != null ? fresh : stored;
     }
 
-    /** Builds the capture snapshot with the side table merged in
+    /** Builds the capture snapshot with the metadata merged in
      * (existing = null for a fresh capture), preserving every other
      * column (the never-wipes rule on all metadata). */
-    private Capture captureWithSideTable(Address address, String captureId,
-                                         String url, Capture existing,
-                                         java.util.Map<String, String> filters,
-                                         String clearedRecord, String domDigest,
-                                         String sideTable) {
+    private Capture captureWithMetadata(Address address, String captureId,
+                                        String url, Capture existing,
+                                        java.util.Map<String, String> filters,
+                                        String clearedRecord, String domDigest,
+                                        String sideTable, String preflight,
+                                        String classification) {
         if (existing != null) {
             return new Capture(address.id(), captureId, url, existing.createdAt(),
                     existing.webpageType(),
@@ -1312,13 +1402,15 @@ public class PipelineService {
                                     ? null : ContentStoreService.filtersJson(filters)),
                     mergeStored(existing.cleared(), clearedRecord),
                     mergeStored(existing.domDigest(), domDigest),
-                    mergeStored(existing.sideTable(), sideTable));
+                    mergeStored(existing.sideTable(), sideTable),
+                    mergeStored(existing.preflight(), preflight),
+                    mergeStored(existing.classification(), classification));
         }
         return new Capture(address.id(), captureId, url, java.time.Instant.now(),
                 address.webpageType(),
                 filters == null || filters.isEmpty()
                         ? null : ContentStoreService.filtersJson(filters),
-                clearedRecord, domDigest, sideTable);
+                clearedRecord, domDigest, sideTable, preflight, classification);
     }
 
     /**

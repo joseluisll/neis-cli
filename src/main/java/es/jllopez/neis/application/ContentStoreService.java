@@ -73,6 +73,41 @@ public class ContentStoreService {
     }
 
     /**
+     * Records the address-preflight probe onto the capture metadata
+     * (US-13.6, V18 {@code captures.preflight} column): a never-wipes
+     * merge — a probe-less re-record never wipes a stored record.
+     * Package-private write path (the use case owns the decision to
+     * persist; the shell only displays).
+     */
+    void recordPreflight(Address address, String url, String preflightJson) {
+        if (preflightJson == null || preflightJson.isBlank()) {
+            return; // nothing to record — never wipes
+        }
+        String captureId = captureId(url);
+        store.findCapture(address.id(), captureId)
+                .ifPresentOrElse(
+                        existing -> store.saveCapture(mergePreflight(
+                                address, captureId, url, existing, preflightJson)),
+                        () -> store.saveCapture(mergePreflight(
+                                address, captureId, url, null, preflightJson)));
+    }
+
+    /** The capture snapshot with the preflight record merged in. */
+    private static Capture mergePreflight(Address address, String captureId,
+                                          String url, Capture existing,
+                                          String preflightJson) {
+        if (existing != null) {
+            return new Capture(address.id(), captureId, url, existing.createdAt(),
+                    existing.webpageType(), existing.filters(), existing.cleared(),
+                    existing.domDigest(), existing.sideTable(),
+                    preflightJson, existing.classification());
+        }
+        return new Capture(address.id(), captureId, url, Instant.now(),
+                address.webpageType(), null, null, null, null,
+                preflightJson, null);
+    }
+
+    /**
      * The capture folder of a webpage of the address, creating and
      * recording the capture (idempotently) and its fetch record under
      * {@code metadata/}. A task output's applied filter set is NOT

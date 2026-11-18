@@ -57,6 +57,30 @@ public class CaptureEntity {
     @Column(name = "simplify_side_table")
     private String sideTable;
 
+    /** The address-preflight record of the capture (US-13.6, V18). */
+    @Column(name = "preflight")
+    private String preflight;
+
+    /** The AI-task classification record of the capture (US-13.2, V18). */
+    @Column(name = "classification")
+    private String classification;
+
+    public String getPreflight() {
+        return preflight;
+    }
+
+    public void setPreflight(String preflight) {
+        this.preflight = preflight;
+    }
+
+    public String getClassification() {
+        return classification;
+    }
+
+    public void setClassification(String classification) {
+        this.classification = classification;
+    }
+
     public String getSideTable() {
         return sideTable;
     }

@@ -83,6 +83,33 @@ final class AiPromptCatalog {
     }
 
     /**
+     * Task: the AI-assisted address registration (US-13.5, issue #64):
+     * given only a URL and the simplified HTML5 of its entry page, the
+     * AI proposes the address fields — suggested name, expected type
+     * (news, event or other), description and any metadata the source
+     * exposes. The proposal is a SUGGESTION for the user to confirm or
+     * correct before the address is saved (US-03) — the caller never
+     * stores it without the user's explicit accept/edit.
+     */
+    static String addressSuggestionPrompt(String url, String simplifiedHtml) {
+        return """
+                You are helping to register a web address in a news/events \
+                harvesting platform. The user gives you ONLY the URL; the \
+                simplified HTML5 below was fetched from it. Propose values \
+                for the address fields: a short suggested name, the expected \
+                type (news, event or other — what kind of listing the page \
+                holds), a one-sentence description, and any metadata the \
+                source exposes (publisher, language, feed URL...).
+                Answer ONLY with a JSON object:
+                {"name":"...","type":"news|event|other","description":"...",
+                 "metadata":{"key":"value"}}
+                --- URL ---
+                %s
+                --- SIMPLIFIED HTML EXCERPT (head and tail) ---
+                %s""".formatted(url, excerpt(simplifiedHtml));
+    }
+
+    /**
      * Validation-feedback repair: the AI's page URL pattern did not match
      * the registered address. The AI corrects its own answer — the code
      * never rewrites the pattern with static rules.

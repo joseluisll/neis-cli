@@ -38,7 +38,7 @@ public class ExecutionCommands {
                     + "asynchronously; only valid, verified addresses are eligible (US-04.3)")
     public String run(
             @Option(shortName = 't', longName = "task", required = true,
-                    description = "Task type code (WEBSCRAPE, SIMPLIFY, ANALYZE, "
+                    description = "Task type code (WEBSCRAPE, SIMPLIFY, ANALYZE, AI, "
                             + "FILTER, PRINT, CHAIN)") String task,
             @Option(shortName = 'i', longName = "id", required = true,
                     description = "Address id") String id,

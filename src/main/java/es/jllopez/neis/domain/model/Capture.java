@@ -25,29 +25,62 @@ import java.time.Instant;
  * element count and the rules that removed at least one element; null
  * = captured without clearing. A re-capture without clearing never
  * wipes a stored record (the same never-wipes rule).</p>
+ * <p>{@code preflight} (US-13.6, issue #65): the address-preflight
+ * probe's record, as a JSON object string — HTTP status, content type,
+ * size, shell indicators, rendered-probe usage, the webpage-type
+ * classification and the estimated retrieval connector; null = the
+ * capture carries no preflight. A re-preflight never wipes a stored
+ * record (the same never-wipes rule).</p>
+ * <p>{@code classification} (US-13.2, issue #51): the AI task's
+ * classification of the processed content, as a JSON object string —
+ * the news/event/other verdict, the identified selector and its
+ * source; null = no AI-task classification recorded. A re-run never
+ * wipes a stored classification (the same never-wipes rule).</p>
  */
 public record Capture(String addressId, String captureId, String url,
                       Instant createdAt, String webpageType, String filters,
-                      String cleared, String domDigest, String sideTable) {
+                      String cleared, String domDigest, String sideTable,
+                      String preflight, String classification) {
 
     public Capture(String addressId, String captureId, String url, Instant createdAt) {
-        this(addressId, captureId, url, createdAt, null, null, null, null, null);
+        this(addressId, captureId, url, createdAt, null, null,
+                null, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType) {
-        this(addressId, captureId, url, createdAt, webpageType, null, null, null, null);
+        this(addressId, captureId, url, createdAt, webpageType,
+                null, null, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType, String filters) {
-        this(addressId, captureId, url, createdAt, webpageType, filters, null, null, null);
+        this(addressId, captureId, url, createdAt, webpageType, filters,
+                null, null, null, null, null);
     }
 
     public Capture(String addressId, String captureId, String url,
                    Instant createdAt, String webpageType, String filters,
                    String cleared) {
-        this(addressId, captureId, url, createdAt, webpageType, filters, cleared, null, null);
+        this(addressId, captureId, url, createdAt, webpageType, filters,
+                cleared, null, null, null, null);
+    }
+
+    /** Canonical-arity view without the V18 columns (pre-V18 call sites). */
+    public Capture(String addressId, String captureId, String url,
+                   Instant createdAt, String webpageType, String filters,
+                   String cleared, String domDigest, String sideTable) {
+        this(addressId, captureId, url, createdAt, webpageType, filters,
+                cleared, domDigest, sideTable, null, null);
+    }
+
+    /** Canonical-arity view with the preflight column only (V18 call sites). */
+    public Capture(String addressId, String captureId, String url,
+                   Instant createdAt, String webpageType, String filters,
+                   String cleared, String domDigest, String sideTable,
+                   String preflight) {
+        this(addressId, captureId, url, createdAt, webpageType, filters,
+                cleared, domDigest, sideTable, preflight, null);
     }
 
     public Capture {

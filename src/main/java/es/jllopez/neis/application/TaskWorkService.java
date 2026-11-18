@@ -232,6 +232,21 @@ public class TaskWorkService {
                 requireNoParameters(taskCode, parameters);
                 yield analyze(address, executionId);
             }
+            case "AI" -> {
+                // US-13.1..4: the AI task runs the classification
+                // (news/event/other) and, when the page's kind demands
+                // it, the news/events selector identification over the
+                // simplified content — the same prompt catalog and
+                // selection machinery the ANALYZE step uses, exposed as
+                // a standalone schedulable/chainable task type. The
+                // provider and model are configuration (US-13.1), never
+                // code; with no AI configured the step fails loud
+                // (the selector-identification machinery has its own
+                // heuristic fallbacks, but an AI TASK that ran without
+                // an AI would silently be something else).
+                requireNoParameters(taskCode, parameters);
+                yield aiTask(address, executionId);
+            }
             case "FILTER" -> {
                 // A chain's FILTER step carries the filter spec as its
                 // parameters ("field"/"value"); the executor threads the
@@ -246,7 +261,7 @@ public class TaskWorkService {
                     chainFilterSpec, executionId);
             default -> throw new IllegalArgumentException(
                     "Unknown task type: " + taskCode
-                            + " (known: WEBSCRAPE, SIMPLIFY, ANALYZE, FILTER, PRINT, CHAIN)");
+                            + " (known: WEBSCRAPE, SIMPLIFY, ANALYZE, AI, FILTER, PRINT, CHAIN)");
         };
     }
 
@@ -722,6 +737,58 @@ public class TaskWorkService {
                 + ", selector=" + selection.selector() + " (" + selection.source() + ")"
                 + ", pagination=" + pagination.paginated()
                 + ", capabilities=" + capabilities.flags();
+    }
+
+    /**
+     * AI task (US-13.1..4, issues #50..53): classification of the
+     * simplified content into news/event/other (US-13.2) and
+     * identification of the news/events selector (US-13.3/.4) —
+     * whether raw or simplified input, the identification runs on the
+     * simplified HTML5 the SIMPLIFY tier produces (the raw listing
+     * HTML5 is first simplified; same path as ANALYZE). The verdict
+     * and the identified selector are recorded as capture metadata
+     * (US-13.2, V18 classification column). A valid identified
+     * selector is persisted with the address (the same working-selector
+     * store ANALYZE populates), so a chained extraction task reuses it.
+     */
+    private String aiTask(Address address, String executionId) {
+        // Fails loud when no AI is configured (US-13.1: the AI task is
+        // an AI task — silently degrading to heuristics would mislead).
+        var ai = pipeline.aiAssistant();
+        var scrape = pipeline.scrapePort.scrape(address);
+        var cleared = pipeline.clearObstructions(address, scrape.html());
+        pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
+                "scrape.html", cleared.html(), executionId);
+        var simplified = pipeline.simplifyPort.simplify(cleared.html());
+        pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
+                "simplified.html", simplified.html(), executionId);
+
+        PipelineService.SelectorSelection selection =
+                pipeline.aiIdentify(address, simplified.html(), ai,
+                        note -> { /* the AI task reports the outcome line */ });
+        if (selection == null) {
+            throw new IllegalStateException(
+                    "The AI task did not yield a usable result — the AI answers"
+                    + " did not validate (see the run log; no heuristic fallback"
+                    + " runs for an AI task)");
+        }
+
+        // US-13.2: the classification is recorded as metadata — the
+        // JSON verdict (classification + selector + source) lands on
+        // the capture metadata (V18 classification column, never-wipes).
+        String verdictJson = new StringBuilder("{\"classification\":\"")
+                .append(ContentStoreService.jsonEscape(
+                        selection.analysis().classification()))
+                .append("\",\"selector\":\"")
+                .append(ContentStoreService.jsonEscape(selection.selector()))
+                .append("\",\"source\":\"")
+                .append(ContentStoreService.jsonEscape(selection.source()))
+                .append("\"}").toString();
+        pipeline.captureMetadata(address, address.url(), null, null, null,
+                null, null, verdictJson);
+        return "AI: classification=" + selection.analysis().classification()
+                + ", selector=" + selection.selector() + " (" + selection.source() + ")";
+
     }
 
     /** FILTER (US-17/US-06.6 slice): + filter extraction and application.

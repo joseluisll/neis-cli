@@ -86,8 +86,10 @@ class SchemaRoundTripTest {
         // content-record execution attribution (US-16.6, issue #102);
         // V15 = the capture clearing record (US-06.7, issue #75);
         // V16 = the capture DOM-analysis digest (US-06.9, issue #88);
-        // V17 = the capture SIMPLIFY side table (US-07.6, issue #89).
-        assertEquals(17, applied.size(),
+        // V17 = the capture SIMPLIFY side table (US-07.6, issue #89);
+        // V18 = the capture preflight + AI-classification records
+        // (US-13.6, issue #65; US-13.2, issue #51).
+        assertEquals(18, applied.size(),
                 "the applied Flyway migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));

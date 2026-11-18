@@ -37,6 +37,8 @@ public class TaskTypeSeeder implements ApplicationRunner {
                     "Cleanse the HTML to action/data elements under the size cap (US-07)"},
             {"ANALYZE", "Analyze",
                     "Classification, selector identification and capability flagging (US-12/US-13/US-17)"},
+            {"AI", "AI task",
+                    "AI classification into news/event/other and news/events selector identification over the simplified content (US-13.1..4)"},
             {"FILTER", "Filter",
                     "Extract the exposed filter definitions and apply one criterion (US-17/US-06.6)"},
             {"PRINT", "Print",
