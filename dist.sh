@@ -26,6 +26,19 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# JDK 21 (the host default java is 17; the project targets class-file
+# 65) — the same guard as server.sh/core/start.sh, with the launcher
+# rule: a pre-existing JAVA_HOME is honored only if it really is 21+.
+JAVA_HOME_CANDIDATE="${JAVA_HOME:-}"
+JAVA_HOME_DEFAULT=/usr/lib/jvm/java-21-openjdk-amd64
+java_major() { "$1" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p'; }
+if [[ -z "$JAVA_HOME_CANDIDATE" ]] \
+   || [[ "$(java_major "$JAVA_HOME_CANDIDATE/bin/java" 2>/dev/null || echo 0)" -lt 21 ]]; then
+  JAVA_HOME_CANDIDATE="$JAVA_HOME_DEFAULT"
+fi
+export JAVA_HOME="$JAVA_HOME_CANDIDATE"
+export PATH="$JAVA_HOME/bin:$PATH"
+
 MARKER=.dist-state
 
 fingerprint() {
@@ -63,15 +76,24 @@ if [[ "$current" != "$last" && "$rebuild" == "yes" ]]; then
     echo " would be swallowed into that commit)" >&2
     exit 1
   fi
-  version="$(grep -o '<neis\.version>[0-9.]*</neis\.version>' pom.xml \
+  # retry semantics: a FAILED build leaves the version already bumped
+  # (auto-bump commit at HEAD, clean tree) — re-running must REBUILD
+  # that version, not double-bump
+  head_is_autobump="$(git log -1 --pretty=%s | grep -c '^Dist version .* (auto-bump' || true)"
+  tree_dirty="$(git status --porcelain --untracked-files=no | wc -l)"
+  if [[ "$head_is_autobump" -ge 1 && "$tree_dirty" -eq 0 ]]; then
+    echo "RETRY: version already bumped ($(git log -1 --pretty=%s)) — rebuilding"
+  else
+    version="$(grep -o '<neis\.version>[0-9.]*</neis\.version>' pom.xml \
               | head -1 | sed 's/<neis\.version>//; s/<.*//')"
-  major="${version%.*}"
-  minor="${version#*.}"
-  new="$major.$((minor + 1))"
-  sed -i "s|<neis\.version>$version</neis\.version>|<neis\.version>$new</neis\.version>|" pom.xml
-  git add pom.xml
-  git commit -q -m "Dist version $new (auto-bump: tracked changes since the last dist build)" -- pom.xml
-  echo "VERSION $version -> $new (committed)"
+    major="${version%.*}"
+    minor="${version#*.}"
+    new="$major.$((minor + 1))"
+    sed -i "s|<neis\.version>$version</neis\.version>|<neis\.version>$new</neis\.version>|" pom.xml
+    git add pom.xml
+    git commit -q -m "Dist version $new (auto-bump: tracked changes since the last dist build)" -- pom.xml
+    echo "VERSION $version -> $new (committed)"
+  fi
 fi
 
 # ---- run the goal ------------------------------------------------------
