@@ -1,5 +1,8 @@
 package es.jllopez.neis.infrastructure.adapter.ai;
 
+import es.jllopez.neis.application.AiTimeoutProperties;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,7 +32,7 @@ class SpringAiConnectorTest {
     void otherProvidersAreRefused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SpringAiConnector("openai", "https://api.openai.com/v1",
-                        "gpt-4o", "NO_SUCH_VAR_XYZ", envWith(null)));
+                        "gpt-4o", "NO_SUCH_VAR_XYZ", envWith(null), new AiTimeoutProperties(Map.of())));
         assertTrue(e.getMessage().contains("not accepted"), e.getMessage());
         assertTrue(e.getMessage().contains("melious"), e.getMessage());
     }
@@ -40,7 +43,8 @@ class SpringAiConnectorTest {
         // key is a plain-text key in configuration: rejected.
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
-                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("sk-hardcoded-key")));
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("sk-literal-plain-text"),
+                        new AiTimeoutProperties(Map.of())));
         assertTrue(e.getMessage().contains("plain-text"), e.getMessage());
     }
 
@@ -50,7 +54,7 @@ class SpringAiConnectorTest {
         // message must point at the migration, not call it a key.
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
-                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("***")));
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith("***"), new AiTimeoutProperties(Map.of())));
         assertTrue(e.getMessage().contains("masked placeholder"), e.getMessage());
     }
 
@@ -58,7 +62,7 @@ class SpringAiConnectorTest {
     void missingEnvironmentKeyFailsTheConstruction() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> new SpringAiConnector("melious", "https://api.melious.ai/v1",
-                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith(null)));
+                        "glm-5.3-flash", "NO_SUCH_VAR_XYZ", envWith(null), new AiTimeoutProperties(Map.of())));
         assertTrue(e.getMessage().contains("API key is missing"), e.getMessage());
         assertTrue(e.getMessage().contains("NO_SUCH_VAR_XYZ"), e.getMessage());
     }

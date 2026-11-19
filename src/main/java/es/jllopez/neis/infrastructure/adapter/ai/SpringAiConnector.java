@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "neis.ai.enabled", havingValue = "true")
-public class SpringAiConnector implements AiAssistantPort {
+public class SpringAiConnector implements AiAssistantPort,
+        org.springframework.beans.factory.DisposableBean {
 
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(SpringAiConnector.class);
@@ -38,13 +39,51 @@ public class SpringAiConnector implements AiAssistantPort {
 
     private final ChatModel chatModel;
     private final String model;
+    /**
+     * US-13.8 (issue #132): per-operation timeouts. Calls run on a
+     * dedicated daemon pool and are bounded by the operation's
+     * configured timeout; the HTTP client itself carries a hard
+     * call-timeout at the LONGEST configured timeout, so even a
+     * timed-out-and-cancelled call cannot pin its worker thread
+     * forever (the flash-stall incident: a selector call blocked on
+     * response headers for 4+ minutes with no timeout anywhere).
+     */
+    private final es.jllopez.neis.application.AiTimeoutProperties aiTimeouts;
+    private final java.util.concurrent.ExecutorService aiCallExecutor;
 
     public SpringAiConnector(
             @Value("${neis.ai.provider:melious}") String provider,
             @Value("${neis.ai.base-url}") String baseUrl,
             @Value("${neis.ai.model:}") String model,
             @Value("${neis.ai.api-key-ref:" + DEFAULT_API_KEY_REF + "}") String apiKeyRef,
-            org.springframework.core.env.Environment environment) {
+            org.springframework.core.env.Environment environment,
+            es.jllopez.neis.application.AiTimeoutProperties aiTimeouts) {
+        this(resolveChatModel(provider, baseUrl, model, apiKeyRef,
+                environment, aiTimeouts), model, aiTimeouts);
+    }
+
+    /**
+     * Test-visible: injects the chat model directly — no provider
+     * credentials involved. The timeout machinery is what the tests
+     * pin; the provider boundary tests live in
+     * {@code SpringAiConnectorTest}.
+     */
+    SpringAiConnector(ChatModel chatModel, String model,
+                      es.jllopez.neis.application.AiTimeoutProperties aiTimeouts) {
+        this.chatModel = chatModel;
+        this.model = model == null || model.isBlank() ? "(provider default)" : model;
+        this.aiTimeouts = aiTimeouts;
+        this.aiCallExecutor = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+            Thread t = new Thread(r, "ai-calls");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    private static ChatModel resolveChatModel(
+            String provider, String baseUrl, String model, String apiKeyRef,
+            org.springframework.core.env.Environment environment,
+            es.jllopez.neis.application.AiTimeoutProperties aiTimeouts) {
         // US-15.3 (issue #66): exactly one provider is accepted in this
         // iteration — MeliousAI; configuring any other name is refused
         // until a new owner decision adds it.
@@ -86,9 +125,10 @@ public class SpringAiConnector implements AiAssistantPort {
                     "AI enabled but the API key is missing: set the environment "
                             + "variable " + effectiveRef + " (US-15.3)");
         }
-        this.model = model == null || model.isBlank() ? "(provider default)" : model;
+        String effectiveModel = model == null || model.isBlank()
+                ? "(provider default)" : model;
         log.info("AI provider: {} ({}) model {} — key from environment variable {}",
-                provider, baseUrl, this.model, effectiveRef);
+                provider, baseUrl, effectiveModel, effectiveRef);
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(envKey)
@@ -99,30 +139,84 @@ public class SpringAiConnector implements AiAssistantPort {
         if (model != null && !model.isBlank()) {
             options.model(model);
         }
-        this.chatModel = OpenAiChatModel.builder()
+        return OpenAiChatModel.builder()
                 .options(options.build())
+                // US-13.8: the client-side backstop at the LONGEST
+                // configured timeout — the per-operation timeouts bound
+                // the CALLER, this bounds the HTTP exchange itself (a
+                // stalled response can no longer pin a thread forever).
+                .httpClientBuilderCustomizer(builder ->
+                        builder.timeout(aiTimeouts.maxTimeout()))
                 .build();
     }
 
     /**
-     * One explicit trace per AI call: model, prompt/answer sizes and
-     * elapsed time — the operational shape of the call, never its
-     * protocol (no prompt or answer bodies).
+     * The generic AI ask (AI task type, CLI/REST ask) — runs under
+     * the configured default timeout (US-13.8).
      */
     @Override
     public String complete(String prompt) {
+        return doTimed(es.jllopez.neis.domain.model.AiOperation.GENERIC,
+                prompt);
+    }
+
+    /**
+     * US-13.8: the per-operation entry — the operation's configured
+     * timeout bounds the call; a timeout surfaces as
+     * {@link es.jllopez.neis.domain.port.AiCallTimedOutException} so
+     * the caller's existing AI-unavailable fallback path runs.
+     */
+    @Override
+    public String complete(es.jllopez.neis.domain.model.AiOperation operation,
+                           String prompt) {
+        return doTimed(operation, prompt);
+    }
+
+    private String doTimed(es.jllopez.neis.domain.model.AiOperation operation,
+                           String prompt) {
+        java.time.Duration timeout = aiTimeouts.forOperation(operation);
         long start = System.nanoTime();
+        java.util.concurrent.Future<String> future =
+                aiCallExecutor.submit(() -> chatModel.call(prompt));
         try {
-            String answer = chatModel.call(prompt);
-            log.info("[AI] call: model={}, prompt {} chars -> answer {} chars in {} ms",
-                    model, prompt.length(), answer == null ? 0 : answer.length(),
-                    (System.nanoTime() - start) / 1_000_000);
+            String answer = future.get(timeout.toMillis(),
+                    java.util.concurrent.TimeUnit.MILLISECONDS);
+            log.info("[AI] call: operation={}, model={}, prompt {} chars -> "
+                            + "answer {} chars in {} ms (timeout {})",
+                    operation.configKey(), model, prompt.length(),
+                    answer == null ? 0 : answer.length(),
+                    (System.nanoTime() - start) / 1_000_000, timeout);
             return answer;
-        } catch (RuntimeException e) {
+        } catch (java.util.concurrent.TimeoutException e) {
+            future.cancel(true);
+            log.warn("[AI] operation '{}' TIMED OUT after {} (effective "
+                            + "timeout {} ms elapsed) — AI unavailable, the "
+                            + "caller falls back", operation.configKey(),
+                    timeout, (System.nanoTime() - start) / 1_000_000);
+            throw new es.jllopez.neis.domain.port.AiCallTimedOutException(
+                    operation, timeout);
+        } catch (java.util.concurrent.ExecutionException e) {
+            long elapsed = (System.nanoTime() - start) / 1_000_000;
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
             log.warn("[AI] call failed after {} ms: {}: {}",
-                    (System.nanoTime() - start) / 1_000_000,
-                    e.getClass().getSimpleName(), e.getMessage());
-            throw e;
+                    elapsed, cause.getClass().getSimpleName(),
+                    cause.getMessage());
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException(
+                    "AI call failed: " + cause.getMessage(), cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrupted while waiting for the AI call ("
+                            + operation.configKey() + ")", e);
         }
+    }
+
+    /** Shuts the bounded AI-call pool down (its threads are daemons). */
+    @Override
+    public void destroy() {
+        aiCallExecutor.shutdownNow();
     }
 }

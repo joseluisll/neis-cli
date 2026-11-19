@@ -1,6 +1,7 @@
 package es.jllopez.neis.application;
 
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.AiOperation;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -69,7 +70,7 @@ public class AddressSuggestionService {
                 scrape.html());
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
 
-        String answer = ai.complete(
+        String answer = ai.complete(AiOperation.REGISTRATION,
                 AiPromptCatalog.addressSuggestionPrompt(url, simplified.html()));
         return parseSuggestion(url, answer);
     }

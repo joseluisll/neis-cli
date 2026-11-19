@@ -1,5 +1,6 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.domain.model.AiOperation;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressCapability;
 import es.jllopez.neis.domain.model.AddressType;
@@ -402,7 +403,7 @@ public class PipelineService {
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
             try {
-                String answer = ai.complete(
+                String answer = ai.complete(AiOperation.CAPABILITY_DETECTION,
                         AiPromptCatalog.capabilityPrompt(simplifiedHtml, address));
                 String paginationSection = section(answer, "pagination");
                 String filteringSection = section(answer, "filtering");
@@ -437,7 +438,7 @@ public class PipelineService {
                 // round; a still-inconsistent pattern is dropped.
                 String base = correctedAddress != null ? correctedAddress : address.url();
                 if (pageUrlPattern != null && !patternMatches(base, pageUrlPattern)) {
-                    String repaired = ai.complete(
+                    String repaired = ai.complete(AiOperation.CAPABILITY_REPAIR,
                             AiPromptCatalog.capabilityRepairPrompt(base, pageUrlPattern));
                     String repairedPattern = jsonField(section(repaired, "pagination"),
                             "pageUrlPattern");
@@ -551,7 +552,7 @@ public class PipelineService {
             AiAssistantPort ai = aiPort.getIfAvailable();
             if (ai != null) {
                 try {
-                    String answer = ai.complete(
+                    String answer = ai.complete(AiOperation.FILTER_ZONE_SELECTOR,
                             AiPromptCatalog.filterZoneSelectorPrompt(simplifiedHtml));
                     String candidate = jsonField(answer, "filterZoneSelector");
                     if (candidate != null && !candidate.isBlank()
@@ -605,7 +606,8 @@ public class PipelineService {
         AiAssistantPort ai = aiPort.getIfAvailable();
         if (ai != null) {
             try {
-                String answer = ai.complete(AiPromptCatalog.filtersPrompt(scopeHtml));
+                String answer = ai.complete(AiOperation.FILTER_CRITERION,
+                        AiPromptCatalog.filtersPrompt(scopeHtml));
                 List<FilterDefinition> filters = parseFilters(answer);
                 if (!filters.isEmpty()) {
                     log.info("[AI] {}: {} filter field(s) extracted: {}",
@@ -713,7 +715,7 @@ public class PipelineService {
         }
         String answer;
         try {
-            answer = ai.complete(
+            answer = ai.complete(AiOperation.FILTER_APPLY,
                     AiPromptCatalog.applyFilterPrompt(outcome.filters(), address, supported));
         } catch (RuntimeException e) {
             log.warn("[AI] {}: AI filter-apply call failed: {}", address.id(), e.getMessage());
@@ -978,7 +980,7 @@ public class PipelineService {
         Optional<StoredSelectors> stored = selectorStore.load(address.id());
         String classification = kind;
         try {
-            String classAnswer = ai.complete(
+            String classAnswer = ai.complete(AiOperation.CLASSIFICATION,
                     AiPromptCatalog.classificationPrompt(simplifiedHtml, kind));
             String parsed = parseClassification(classAnswer);
             if (parsed != null) {
@@ -988,7 +990,9 @@ public class PipelineService {
                 log.info("[AI] {}: classification answer not recognized ({}), keeping {}",
                         address.id(), snippet(classAnswer), kind);
             }
-            String selectorAnswer = ai.complete(
+            String selectorAnswer = ai.complete(kind.equals("news")
+                            ? AiOperation.SELECTOR_NEWS
+                            : AiOperation.SELECTOR_EVENTS,
                     kind.equals("news")
                             ? AiPromptCatalog.newsSelectorPrompt(simplifiedHtml)
                             : AiPromptCatalog.eventsSelectorPrompt(simplifiedHtml));

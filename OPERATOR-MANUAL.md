@@ -365,6 +365,7 @@ application.yml):
 | `neis.execution.await-timeout-seconds` | `300` | How long CLI `--wait` blocks |
 | `neis.schedule.entries` | `[]` | Scheduled runs (§12) |
 | `neis.ai.enabled` / `provider` / `base-url` / `api-key-ref` / `model` | `false` / `melious` / Melious URL / `MELIOUS_API_KEY` / `glm-5.3-flash` | AI provider (§11) |
+| `neis.ai.timeouts.default` / `neis.ai.timeouts.<operation>` | `240s` / (unset) | Per-operation AI call timeouts (US-13.8): `default` applies to every operation without an explicit value; operation keys: `generic`, `classification`, `selector-news`, `selector-events`, `capability-detection`, `capability-repair`, `filter-zone-selector`, `filter-criterion`, `filter-apply`, `registration`, `preflight`. A timed-out call falls back to the non-AI path; the HTTP client itself is hard-bounded at the longest configured value. |
 
 A configuration overview with every layer marked (override vs
 from-configuration vs default) is in the management UI's configuration

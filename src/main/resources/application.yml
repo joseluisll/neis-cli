@@ -195,3 +195,18 @@ neis:
     api-key-ref: MELIOUS_API_KEY
     # Default model, same as the Hermes agent's.
     model: glm-5.3-flash
+    # Per-operation AI call timeouts (US-13.8, issue #132): 'default'
+    # applies to EVERY operation without an explicit value (240 seconds
+    # when absent — also the code default); per-operation keys are the
+    # AiOperation config keys (classification, selector-news,
+    # selector-events, capability-detection, capability-repair,
+    # filter-zone-selector, filter-criterion, filter-apply,
+    # registration, preflight, generic). An unknown key fails the boot.
+    # The connector's HTTP client carries a hard call-timeout at the
+    # LONGEST configured value, so a stalled response can never pin a
+    # thread forever.
+    timeouts:
+      default: 240s
+      # per-operation overrides, e.g.:
+      # selector-news: 180s
+      # capability-detection: 120s
