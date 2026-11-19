@@ -45,7 +45,10 @@ public class ServerModeConfig {
                 Boolean.class, false);
         String webType = environment.getProperty("spring.main.web-application-type",
                 "none");
-        String problem = validate(enabled, webType).orElse(null);
+        boolean mcpEnabled = environment.getProperty(
+                "spring.ai.mcp.server.enabled", Boolean.class, false);
+        String problem = validate(enabled, webType).or(
+                () -> validateMcpGate(enabled, mcpEnabled)).orElse(null);
         if (problem != null) {
             throw new IllegalStateException(problem);
         }
@@ -69,6 +72,27 @@ public class ServerModeConfig {
                     + "(server.sh does this), or set neis.server.enabled=false. "
                     + "Current web application type: "
                     + webApplicationType + ". Nothing started.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The MCP gate (US-18.3 review finding) must NOT be turned on
+     * directly: the yml placeholder tracks {@code neis.server.enabled}
+     * one way, and a direct {@code spring.ai.mcp.server.enabled=true}
+     * override would boot the /mcp endpoint OUTSIDE the documented
+     * server mode — without the RemoteAuthFilter attach point and
+     * without the server-mode boot log. Fail the boot on the
+     * disagreement; server mode is the only way to expose MCP.
+     */
+    static Optional<String> validateMcpGate(boolean serverEnabled,
+                                            boolean mcpEnabled) {
+        if (mcpEnabled && !serverEnabled) {
+            return Optional.of("spring.ai.mcp.server.enabled=true without "
+                    + "neis.server.enabled=true would expose the /mcp "
+                    + "endpoint outside server mode (no RemoteAuthFilter "
+                    + "attach point). Enable server mode instead "
+                    + "(server.sh sets the property pair). Nothing started.");
         }
         return Optional.empty();
     }

@@ -6,6 +6,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -68,6 +69,27 @@ class HexagonalArchitectureTest {
                     .resideInAnyPackage(g[1], g[2]);
             rule.check(importedClasses);
         }
+    }
+
+    /**
+     * US-18.3 review finding: the MCP adapter's contract is "delegate
+     * to application use cases" — it may depend on application/domain
+     * and its own shared adapter plumbing, but NEVER on other
+     * infrastructure internals (persistence, connectors, other
+     * adapters). Enforced positively so a future tool cannot silently
+     * reach into e.g. a repository.
+     */
+    @Test
+    void mcpAdapterDelegatesOnlyToApplicationAndDomain() {
+        ArchRule rule = classes().that().resideInAPackage("..adapter.mcp..")
+                .should().onlyDependOnClassesThat().resideInAnyPackage(
+                        "..application..",
+                        "..domain..",
+                        "es.jllopez.neis.infrastructure.adapter..",
+                        "org.springframework..",
+                        "org.slf4j..",
+                        "java..");
+        rule.check(importedClasses);
     }
 
     @Test

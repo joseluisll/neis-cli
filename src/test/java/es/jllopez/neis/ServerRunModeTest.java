@@ -98,6 +98,37 @@ class ServerRunModeTest {
         assertThat(ServerModeConfig.validate(false, "servlet")).isEmpty();
         // the server.sh combination is the legal enabled shape
         assertThat(ServerModeConfig.validate(true, "servlet")).isEmpty();
+        // US-18.3 review finding: MCP must not be enabled DIRECTLY
+        assertThat(ServerModeConfig.validateMcpGate(false, true)).isPresent();
+        assertThat(ServerModeConfig.validateMcpGate(false, false)).isEmpty();
+        assertThat(ServerModeConfig.validateMcpGate(true, true)).isEmpty();
+    }
+
+    @Test
+    void aDirectMcpOverrideOutsideServerModeFailsTheBoot() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(NeisApplication.class)
+                .withPropertyValues(
+                        "spring.ai.mcp.server.enabled=true",
+                        "spring.main.web-application-type=servlet",
+                        "spring.datasource.url=jdbc:sqlite:"
+                                + tempDir.resolve("mcp-gate.db"),
+                        "spring.shell.interactive.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    Throwable failure = context.getStartupFailure();
+                    assertThat(failure).isNotNull();
+                    Throwable cause = failure;
+                    boolean found = false;
+                    while (cause != null && !found) {
+                        found = String.valueOf(cause.getMessage())
+                                .contains("would expose the /mcp endpoint");
+                        cause = cause.getCause();
+                    }
+                    assertThat(found)
+                            .as("boot failure names the MCP gate fix")
+                            .isTrue();
+                });
     }
 
     @Test

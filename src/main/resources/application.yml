@@ -22,6 +22,12 @@ spring:
           content artifacts and run results. AI services are NOT exposed.
         # the streamable-http endpoint defaults to /mcp (verified in the
         # autoconfigure jar bytecode) — no key needed
+        # US-18.3 review finding: the @McpTool annotation scanner must
+        # follow the SAME gate — otherwise its BeanPostProcessor loads
+        # in every CLI run and would silently scan any future ungated
+        # @McpTool bean
+        annotation-scanner:
+          enabled: ${neis.server.enabled:false}
   main:
     # US-18.6 (issue #121): the SERVER run mode gate. CLI mode (the
     # default) runs with NO web server: one-shot invocations must exit
