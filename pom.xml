@@ -184,6 +184,12 @@
          ./systemd/install.sh install). The exec goals drive the
          repository build's installer directly:
 
+           ./dist.sh                            THE entry point: bumps
+                                                the MINOR version when
+                                                tracked sources changed
+                                                since the last dist
+                                                build (auto-commit),
+                                                then runs package
            mvn -Pdist package                    generate the package
            mvn -Pdist exec:exec@neis-install     install (stop-if-running, deploy, start)
            mvn -Pdist exec:exec@neis-upgrade     upgrade (stop-if-running, deploy, restart-if-was-running)

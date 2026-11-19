@@ -39,3 +39,4 @@ core/work/
 core/results/
 core-work/
 logs/
+.dist-state
