@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -107,12 +108,12 @@ class RestAdaptersWiringTest {
                             "URL_EVENTS"));
             assertThat(created.id()).isNotBlank();
             assertThat(created.type()).isEqualTo(AddressType.URL_EVENTS);
-            // unknown id on show is the use case's own refusal — mapped
-            // to 400 by the shared advice (caller error)
+            // an unknown PATH id is "no such resource" (404 via
+            // NoSuchElementException — US-18.1 review finding), while
+            // an unknown BODY value stays a caller 400
             assertThatThrownBy(() -> controller.show("ADDR-NOPE"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NoSuchElementException.class)
                     .hasMessageContaining("Unknown address id");
-            // an unknown type is refused with a naming message
             assertThatThrownBy(() ->
                             controller.create(new AddressRestController.AddressRequest(
                                     null, "x", null, "https://example.eu/x", "WAT")))

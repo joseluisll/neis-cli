@@ -67,7 +67,7 @@ public class ExecutionRestController {
 
     @GetMapping("/{id}")
     public TaskExecution show(@PathVariable String id) {
-        return executions.show(id);
+        return PathLookup.or404(() -> executions.show(id));
     }
 
     @GetMapping("/types")

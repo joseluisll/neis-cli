@@ -57,7 +57,7 @@ public class AddressRestController {
 
     @GetMapping("/{id}")
     public Address show(@PathVariable String id) {
-        return catalog.byId(id);
+        return PathLookup.or404(() -> catalog.byId(id));
     }
 
     @PostMapping
@@ -71,24 +71,25 @@ public class AddressRestController {
     @PutMapping("/{id}")
     public Address update(@PathVariable String id,
                           @RequestBody AddressRequest request) {
-        return catalog.update(id, request.name(), request.description(),
-                request.url(), parseType(request.type()));
+        return PathLookup.or404(() -> catalog.update(id, request.name(),
+                request.description(), request.url(),
+                parseType(request.type())));
     }
 
     @DeleteMapping("/{id}")
     public Address remove(@PathVariable String id) {
-        return catalog.remove(id);
+        return PathLookup.or404(() -> catalog.remove(id));
     }
 
     @PostMapping("/{id}/verify")
     public es.jllopez.neis.domain.model.VerificationOutcome verify(
             @PathVariable String id) {
-        return verification.verify(id);
+        return PathLookup.or404(() -> verification.verify(id));
     }
 
     @PostMapping("/{id}/preflight")
     public Object preflight(@PathVariable String id) {
-        return preflight.preflight(id);
+        return PathLookup.or404(() -> preflight.preflight(id));
     }
 
     @PostMapping("/suggest")

@@ -59,7 +59,7 @@ public class ChainRestController {
 
     @GetMapping("/{id}")
     public Chain show(@PathVariable String id) {
-        return chains.show(id);
+        return PathLookup.or404(() -> chains.show(id));
     }
 
     @PostMapping
@@ -72,13 +72,13 @@ public class ChainRestController {
     @PutMapping("/{id}")
     public Chain update(@PathVariable String id,
                         @RequestBody ChainRequest request) {
-        return chains.update(id, request.name(), request.description(),
-                steps(request));
+        return PathLookup.or404(() -> chains.update(id, request.name(),
+                request.description(), steps(request)));
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String id) {
-        chains.delete(id);
+        PathLookup.or404Void(() -> chains.delete(id));
     }
 
     /** The ASYNC chain run (US-18.2): 202 + job id, never blocks. */
