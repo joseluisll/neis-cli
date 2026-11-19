@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -285,6 +287,118 @@ class RemoteJobServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.submitFetchNews(null));
         assertEquals(0, store.findAll().size());
+    }
+
+    // ---- US-18.7 (issue #122): job cancellation ------------------------
+
+    /** A real single-thread runner for the RUNNING/QUEUED cancel tests
+     * (daemon factory — a blocked worker must never hang the JVM). */
+    private RemoteJobService asyncService(ExecutionService executions,
+                                          ChainService chains,
+                                          AddressCatalogService catalog) {
+        return new RemoteJobService(store, executions, chains, catalog,
+                Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, "test-job-runner");
+                    t.setDaemon(true);
+                    return t;
+                }), "core-chain-ssafp");
+    }
+
+    private void awaitStatus(RemoteJobService service, String jobId,
+                             JobStatus wanted) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            RemoteJob job = service.job(jobId).orElseThrow();
+            if (job.status() == wanted) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        org.junit.jupiter.api.Assertions.fail("job never reached " + wanted);
+    }
+
+    @Test
+    void cancelOfAFinishedJobIsANoOpWithAClearNote() throws Exception {
+        ExecutionService executions = mock(ExecutionService.class);
+        when(executions.submit(anyString(), anyString(), any(), any()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        RemoteJobService service = service(executions);
+        RemoteJob finished = service.submitRunTask("WEBSCRAPE", "ADDR-001", null);
+        awaitStatus(service, finished.id(), JobStatus.COMPLETED);
+
+        var outcome = service.cancel(finished.id());
+
+        assertTrue(!outcome.cancelled());
+        assertTrue(outcome.note().contains("already finished"));
+        assertEquals(JobStatus.COMPLETED, outcome.job().status());
+        assertEquals(JobStatus.COMPLETED,
+                service.job(finished.id()).orElseThrow().status());
+    }
+
+    @Test
+    void cancelOfAnUnknownJobRefuses() {
+        RemoteJobService service = service(mock(ExecutionService.class));
+        assertThrows(NoSuchElementException.class,
+                () -> service.cancel("JOB-nope"));
+    }
+
+    @Test
+    void cancelOfARunningJobInterruptsTheWaitAndFinalizesCancelled()
+            throws Exception {
+        ExecutionService executions = mock(ExecutionService.class);
+        TaskExecution pending = execution(ExecutionStatus.PENDING, null);
+        when(executions.submit(anyString(), anyString(),
+                eq(TriggerType.REMOTE), any())).thenReturn(pending);
+        when(executions.show(anyString())).thenReturn(pending);
+        RemoteJobService service = asyncService(executions,
+                mock(ChainService.class), mock(AddressCatalogService.class));
+
+        RemoteJob submitted = service.submitRunTask("WEBSCRAPE", "ADDR-001", null);
+        awaitStatus(service, submitted.id(), JobStatus.RUNNING);
+
+        var outcome = service.cancel(submitted.id());
+
+        assertTrue(outcome.cancelled());
+        awaitStatus(service, submitted.id(), JobStatus.CANCELLED);
+        RemoteJob finished = service.job(submitted.id()).orElseThrow();
+        // CANCELLED is DISTINGUISHABLE from FAILED (the acceptance's
+        // point) and carries the cancellation reason
+        assertEquals(JobStatus.CANCELLED, finished.status());
+        assertTrue(finished.error().contains("Cancelled by the caller"));
+    }
+
+    @Test
+    void cancelOfAQueuedJobPreventsItsRun() throws Exception {
+        ExecutionService executions = mock(ExecutionService.class);
+        TaskExecution pending = execution(ExecutionStatus.PENDING, null);
+        // job A occupies the single worker inside awaitTerminal;
+        // job B stays QUEUED until A finishes
+        when(executions.submit(eq("WEBSCRAPE"), eq("ADDR-001"),
+                eq(TriggerType.REMOTE), any())).thenReturn(pending);
+        when(executions.show(anyString())).thenReturn(pending);
+        when(executions.submit(eq("SIMPLIFY"), eq("ADDR-001"),
+                eq(TriggerType.REMOTE), any())).thenReturn(pending);
+        RemoteJobService service = asyncService(executions,
+                mock(ChainService.class), mock(AddressCatalogService.class));
+        RemoteJob first = service.submitRunTask("WEBSCRAPE", "ADDR-001", null);
+        awaitStatus(service, first.id(), JobStatus.RUNNING);
+        RemoteJob second = service.submitRunTask("SIMPLIFY", "ADDR-001", null);
+        awaitStatus(service, second.id(), JobStatus.QUEUED);
+
+        var outcome = service.cancel(second.id());
+
+        assertTrue(outcome.cancelled());
+        assertEquals(JobStatus.CANCELLED,
+                service.job(second.id()).orElseThrow().status());
+        // give the worker a moment to reach B's runner; it picks up
+        // CANCELLED and aborts WITHOUT ever reaching the execution layer
+        Thread.sleep(500);
+        assertEquals(JobStatus.CANCELLED,
+                service.job(second.id()).orElseThrow().status());
+        verify(executions, never()).submit(eq("SIMPLIFY"), eq("ADDR-001"),
+                any(), any());
     }
 
     @Test

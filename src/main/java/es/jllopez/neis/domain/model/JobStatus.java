@@ -10,5 +10,10 @@ package es.jllopez.neis.domain.model;
  * now so the persistence mapping never needs a re-migration).</p>
  */
 public enum JobStatus {
-    QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED
+    QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED;
+
+    /** US-18.7 (issue #122): a terminal job never changes again. */
+    public boolean isTerminal() {
+        return this == COMPLETED || this == FAILED || this == CANCELLED;
+    }
 }

@@ -48,4 +48,17 @@ public class JobRestController {
         return jobs.job(id).orElseThrow(() ->
                 new java.util.NoSuchElementException("Unknown job: " + id));
     }
+
+    /**
+     * Job cancellation (US-18.7, issue #122): queued jobs are cancelled
+     * before their run starts; running jobs get their runner
+     * interrupted (the outcome is observable in the record —
+     * CANCELLED is distinct from FAILED); an already-finished job is a
+     * no-op with a clear note, never an error.
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/cancel")
+    public RemoteJobService.CancellationOutcome cancel(
+            @PathVariable String id) {
+        return jobs.cancel(id);
+    }
 }
