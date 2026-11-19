@@ -241,7 +241,7 @@ public class NeisMcpTools {
                     + "until finished; the result carries one outcome line "
                     + "per address.",
             annotations = @McpTool.McpAnnotations(
-                    destructiveHint = false, idempotentHint = true))
+                    destructiveHint = false, idempotentHint = false))
     public FetchAccepted fetchNews(
             @McpToolParam(description = "optional: one address id; omit to "
                     + "fetch ALL registered addresses", required = false)
@@ -345,7 +345,8 @@ public class NeisMcpTools {
                     + "default); with mode=export (+ execution_id or "
                     + "address_id) submit a content-export job instead — the "
                     + "download URL arrives via neis_job_status.",
-            annotations = @McpTool.McpAnnotations(readOnlyHint = true))
+            annotations = @McpTool.McpAnnotations(
+                    readOnlyHint = true, destructiveHint = false))
     public ContentListResult getContent(
             @McpToolParam(description = "filter: one execution id",
                     required = false) String executionId,
@@ -364,12 +365,19 @@ public class NeisMcpTools {
                     new NoSuchElementException(
                             "Unknown content record: " + contentId)));
         } else {
-            records = content.listAll().stream()
-                    .filter(r -> executionId == null || executionId.isBlank()
-                            || executionId.equals(r.executionId()))
-                    .filter(r -> addressId == null || addressId.isBlank()
-                            || addressId.equals(r.addressId()))
-                    .toList();
+            // use-case queries, not an unbounded listAll (US-18.4
+            // review): the address path matches the REST twin; when
+            // both filters arrive, the smaller execution set narrows
+            boolean byExec = executionId != null && !executionId.isBlank();
+            boolean byAddr = addressId != null && !addressId.isBlank();
+            records = byExec ? content.listByExecution(executionId)
+                    : byAddr ? content.listByAddress(addressId)
+                    : content.listAll();
+            if (byExec && byAddr) {
+                records = records.stream()
+                        .filter(r -> addressId.equals(r.addressId()))
+                        .toList();
+            }
         }
         return new ContentListResult(records, records.size());
     }

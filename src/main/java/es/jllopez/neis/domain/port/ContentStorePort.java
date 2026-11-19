@@ -28,6 +28,11 @@ public interface ContentStorePort {
     /** Every content record of one address, newest first. */
     List<ContentRecord> findByAddress(String addressId);
 
+    /** Every content record produced by one execution, newest first
+     * (US-18.4 review: the remote content tool must not read the whole
+     * table to filter one execution's artifacts). */
+    List<ContentRecord> findByExecution(String executionId);
+
     /** One content record by its deterministic id. */
     Optional<ContentRecord> findById(String id);
 }

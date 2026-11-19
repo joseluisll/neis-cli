@@ -82,6 +82,15 @@ public class InMemoryContentStorePort implements ContentStorePort {
     }
 
     @Override
+    public List<ContentRecord> findByExecution(String executionId) {
+        return records.values().stream()
+                .filter(record -> executionId.equals(record.executionId()))
+                .sorted(Comparator.comparing(ContentRecord::createdAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    @Override
     public Optional<ContentRecord> findById(String id) {
         return Optional.ofNullable(records.get(id));
     }

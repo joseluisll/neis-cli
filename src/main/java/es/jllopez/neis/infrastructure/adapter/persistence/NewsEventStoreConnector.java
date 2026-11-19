@@ -230,7 +230,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     public List<NewsEventSighting> sightings(String canonicalId) {
         // The logical record (canonical id) may span several rows (one
         // per address that saw it): every row's sightings belong to it.
-        return jpa.findByCanonicalId(canonicalId).stream()
+        return jpa.findByCanonicalIdOrderByUpdatedAtDesc(canonicalId).stream()
                 .flatMap(e -> sightingJpa
                         .findByItemIdOrderBySeenAtDesc(e.getId()).stream())
                 .sorted(java.util.Comparator.comparing(
@@ -243,7 +243,11 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
 
     @Override
     public java.util.Optional<NewsEventItem> byCanonicalId(String canonicalId) {
-        return jpa.findByCanonicalId(canonicalId).stream()
+        // the contract promises the NEWEST row of the logical record:
+        // an ORDERED query — the unordered findByCanonicalId answered
+        // in insertion (rowid) order, i.e. the OLDEST row (US-18.4
+        // review, blocking)
+        return jpa.findByCanonicalIdOrderByUpdatedAtDesc(canonicalId).stream()
                 .findFirst()
                 .map(NewsEventStoreConnector::toItem);
     }

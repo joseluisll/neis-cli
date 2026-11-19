@@ -169,11 +169,17 @@ class NeisMcpToolsTest {
         NewsEventItem stored = item("can-1");
         when(news.item("can-1")).thenReturn(java.util.Optional.of(stored));
         when(news.item("can-nope")).thenReturn(java.util.Optional.empty());
+        when(news.sightings("can-1")).thenReturn(List.of(
+                new es.jllopez.neis.domain.model.NewsEventSighting(
+                        "row-1", "ADDR-001", "CONT-1", "EXEC-1",
+                        Instant.now())));
         NeisMcpTools tools = tools();
 
         var detail = tools.getNewsItem("can-1");
         assertEquals("can-1", detail.item().canonicalId());
-        assertEquals(0, detail.sightings().size()); // history from the store
+        // the merged sighting history comes from the store, not the item
+        assertEquals(1, detail.sightings().size());
+        assertEquals("ADDR-001", detail.sightings().get(0).addressId());
         assertThrows(NoSuchElementException.class,
                 () -> tools.getNewsItem("can-nope"));
     }
@@ -186,9 +192,14 @@ class NeisMcpToolsTest {
         ContentRecord fromExec2 = new ContentRecord("CONT-2", "ADDR-002",
                 "cap-2", "PRINT", "report", "p/report2.txt",
                 Instant.now(), "EXEC-2");
-        when(content.listAll()).thenReturn(List.of(fromExec1, fromExec2));
+        // use-case queries, not listAll (US-18.4 review)
+        when(content.listByExecution("EXEC-1")).thenReturn(List.of(fromExec1));
+        when(content.listByAddress("ADDR-002")).thenReturn(List.of(fromExec2));
+        when(content.listByExecution("EXEC-2")).thenReturn(List.of(fromExec2));
         when(content.byId("CONT-1"))
                 .thenReturn(java.util.Optional.of(fromExec1));
+        when(content.listAll()).thenThrow(new AssertionError(
+                "getContent must not read the whole table"));
         NeisMcpTools tools = tools();
 
         assertEquals(1, tools.getContent("EXEC-1", null, null, null)
@@ -210,25 +221,20 @@ class NeisMcpToolsTest {
     }
 
     /**
-     * The no-AI-over-MCP rule (owner decision 2026-11-19), pinned
-     * negatively: NO tool of the catalog reaches the AI integration
-     * point. NeisMcpTools takes no AiAssistantService dependency at
-     * all — enforced here by construction (the class compiles against
-     * the 8 non-AI use cases only).
+     * The no-AI-over-MCP rule (owner decision 2026-11-19), enforced by
+     * the ArchUnit rule mcpAdapterMustNotReachTheAiIntegrationPoint —
+     * this test documents the class-level guarantee: NeisMcpTools'
+     * constructor takes only the eight non-AI use cases (verified by
+     * reflection so an added AI parameter fails HERE, not just in the
+     * architecture test's output).
      */
     @Test
     void noToolReachesTheAiIntegrationPoint() {
-        NeisMcpTools tools = tools();
-        // exercise every read path; the (absent) AI mock is never touched
-        tools.listAddresses(null);
-        tools.listNews(null, null, null, null, null, null);
-        tools.getContent(null, null, null, null);
-        verifyNoAiCalls();
-    }
-
-    private void verifyNoAiCalls() {
-        // structural guarantee: NeisMcpTools' constructor has no AI
-        // parameter (see the class header); nothing to verify beyond
-        // the compile-time shape this test documents.
+        for (var parameter : NeisMcpTools.class.getConstructors()[0]
+                .getParameterTypes()) {
+            assertTrue(!parameter.getSimpleName().contains("Ai"),
+                    "the MCP tool class must not depend on an AI use case: "
+                            + parameter.getName());
+        }
     }
 }

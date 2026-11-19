@@ -92,6 +92,22 @@ class HexagonalArchitectureTest {
         rule.check(importedClasses);
     }
 
+    /**
+     * US-18 (owner decision 2026-11-19): NO AI functionality over MCP.
+     * The mcp adapter may use Spring AI's MCP annotations, but never
+     * the AI use case or its port (the rule is positive on everything
+     * EXCEPT the AI integration points, so a future tool cannot
+     * silently grow an AI dependency).
+     */
+    @Test
+    void mcpAdapterMustNotReachTheAiIntegrationPoint() {
+        ArchRule rule = noClasses().that().resideInAPackage("..adapter.mcp..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "..application.AiAssistantService",
+                        "..domain.port.AiAssistantPort");
+        rule.check(importedClasses);
+    }
+
     @Test
     void domainAndApplicationMustNotDependOnStackLibraries() {
         ArchRule rule = noClasses().that()

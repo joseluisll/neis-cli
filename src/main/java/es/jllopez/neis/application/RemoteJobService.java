@@ -80,13 +80,28 @@ public class RemoteJobService {
      *
      * @throws IllegalArgumentException synchronously when there are no
      *         registered addresses (fetch-all) or the single address is
-     *         unknown/ineligible
+     *         unknown; IllegalStateException when the single address is
+     *         not verified (US-18.4 review: eligibility has both shapes)
      */
     public RemoteJob submitFetchNews(String addressId) {
-        Chain chain = resolveFetchChain();
+        // validation BEFORE the chain resolution (US-18.4 review): a
+        // refused first-ever call must not leave a default chain behind
         List<String> targets;
         if (addressId != null) {
-            executions.validateRemoteChainSubmission(chain.id(), addressId);
+            // resolve-by-name FIRST without creating: an existing chain
+            // validates the id; the creation (if needed) happens after
+            // the address validation below
+            Chain existing = chains.list().stream()
+                    .filter(c -> fetchChainName.equals(c.name()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing != null) {
+                executions.validateRemoteChainSubmission(existing.id(), addressId);
+            } else {
+                // no chain yet: the ADDRESS side of the pre-check runs
+                // alone (the chain side is vacuous — it is created next)
+                executions.validateRemoteAddress(addressId);
+            }
             targets = List.of(addressId);
         } else {
             targets = catalog.list().stream().map(Address::id).toList();
@@ -96,6 +111,7 @@ public class RemoteJobService {
                                 + "first (neis_upsert_address)");
             }
         }
+        Chain chain = resolveFetchChain();
         RemoteJob job = new RemoteJob("JOB-" + UUID.randomUUID(),
                 "fetch-news", addressId,
                 Map.of("chain-id", chain.id(),
@@ -118,7 +134,10 @@ public class RemoteJobService {
     /**
      * The configured fetch chain, created on first use (US-18.4): the
      * SSAFP stages in pipeline order. Resolution is by NAME so a
-     * recreated store (new chain id) keeps working.
+     * recreated store (new chain id) keeps working. First-use RACE
+     * (US-18.4 review): two concurrent first submissions would both
+     * see an empty list and the second create would fail with the
+     * duplicate-name refusal — caught and re-resolved by name.
      */
     private Chain resolveFetchChain() {
         return chains.list().stream()
@@ -127,21 +146,31 @@ public class RemoteJobService {
                 .orElseGet(() -> {
                     log.info("[JOB] creating the default fetch chain '{}'",
                             fetchChainName);
-                    return chains.create(fetchChainName,
-                            "Default fetch chain (created for the "
-                                    + "neis_fetch_news tool)",
-                            List.of(
-                                    new es.jllopez.neis.domain.model.ChainTask(
-                                            1, "WEBSCRAPE", Map.of()),
-                                    new es.jllopez.neis.domain.model.ChainTask(
-                                            2, "SIMPLIFY", Map.of()),
-                                    new es.jllopez.neis.domain.model.ChainTask(
-                                            3, "ANALYZE", Map.of()),
-                                    new es.jllopez.neis.domain.model.ChainTask(
-                                            4, "FILTER", Map.of()),
-                                    new es.jllopez.neis.domain.model.ChainTask(
-                                            5, "PRINT", Map.of())));
+                    try {
+                        return chains.create(fetchChainName,
+                                "Default fetch chain (created for the "
+                                        + "neis_fetch_news tool)",
+                                defaultFetchSteps());
+                    } catch (IllegalStateException raced) {
+                        // another submission created it concurrently
+                        log.info("[JOB] default fetch chain '{}' created "
+                                + "concurrently — re-resolving", fetchChainName);
+                        return chains.list().stream()
+                                .filter(c -> fetchChainName.equals(c.name()))
+                                .findFirst()
+                                .orElseThrow(() -> raced);
+                    }
                 });
+    }
+
+    /** The SSAFP stages in pipeline order (the default fetch chain). */
+    static List<es.jllopez.neis.domain.model.ChainTask> defaultFetchSteps() {
+        return List.of(
+                new es.jllopez.neis.domain.model.ChainTask(1, "WEBSCRAPE", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(2, "SIMPLIFY", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(3, "ANALYZE", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(4, "FILTER", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(5, "PRINT", Map.of()));
     }
 
     /**
@@ -248,8 +277,21 @@ public class RemoteJobService {
         StringBuilder outcomes = new StringBuilder();
         boolean allSuccess = true;
         String firstExecutionId = null;
+        boolean interrupted = false;
         try {
-            for (String addressId : addressIds) {
+            for (int i = 0; i < addressIds.size(); i++) {
+                String addressId = addressIds.get(i);
+                // US-18.4 review: a runner interrupt (context shutdown,
+                // later cancellation) must not keep SUBMITTING chain runs
+                // for the remaining addresses — stop and record them
+                if (interrupted || Thread.currentThread().isInterrupted()) {
+                    interrupted = true;
+                    outcomes.append(addressId)
+                            .append(": SKIPPED — job runner interrupted before "
+                                    + "its run; ");
+                    allSuccess = false;
+                    continue;
+                }
                 String line;
                 try {
                     TaskExecution execution = executions.submitChain(

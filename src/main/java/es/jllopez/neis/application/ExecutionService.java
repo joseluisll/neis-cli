@@ -167,6 +167,16 @@ public class ExecutionService {
         requireEligible(catalog.byId(addressId)); // unknown ids refuse in byId
     }
 
+    /**
+     * Address-side-only pre-check (US-18.4 review): used when the fetch
+     * chain does not exist yet — its creation must wait until the
+     * address refusal (the cheapest check) has passed, so a refused
+     * first-ever call leaves nothing behind.
+     */
+    public void validateRemoteAddress(String addressId) {
+        requireEligible(catalog.byId(addressId)); // unknown ids refuse in byId
+    }
+
     /** Waits for the execution to finish; the final record or null on timeout. */
     public TaskExecution await(String executionId) {
         long deadline = System.nanoTime() + awaitTimeout.toNanos();

@@ -133,6 +133,15 @@ public class ContentStoreConnector implements ContentStorePort {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ContentRecord> findByExecution(String executionId) {
+        return records.findByExecutionIdOrderByCreatedAtDesc(executionId)
+                .stream()
+                .map(ContentStoreConnector::toRecord)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<ContentRecord> findById(String id) {
         return records.findById(id)
                 .map(ContentStoreConnector::toRecord);

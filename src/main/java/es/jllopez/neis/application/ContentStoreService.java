@@ -235,6 +235,13 @@ public class ContentStoreService {
         return store.findByAddress(addressId);
     }
 
+    /** Every content record produced by one execution, newest first
+     * (US-18.4 review: the remote content tool routes here instead of
+     * filtering an unbounded listAll). */
+    public List<ContentRecord> listByExecution(String executionId) {
+        return store.findByExecution(executionId);
+    }
+
     /** One content record by its deterministic id (provenance lookups,
      * US-14.2/US-14.3). */
     public Optional<ContentRecord> byId(String id) {
