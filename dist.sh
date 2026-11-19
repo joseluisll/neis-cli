@@ -37,17 +37,20 @@ fingerprint() {
 # ---- pick the goal -----------------------------------------------------
 goal="package"
 rebuild="yes"
-case "${1:-}" in
-  ""|package)                 goal="package";                shift ;;
-  exec:exec@neis-install)     goal="$1"; rebuild="yes";      shift ;;
-  exec:exec@neis-upgrade)     goal="$1"; rebuild="yes";      shift ;;
-  exec:exec@neis-uninstall)   goal="$1"; rebuild="no";       shift ;;
-  exec:exec@neis-status)      goal="$1"; rebuild="no";       shift ;;
-  *) echo "usage: ./dist.sh [package | exec:exec@neis-install|" >&2
-     echo "             exec:exec@neis-upgrade | exec:exec@neis-uninstall |" >&2
-     echo "             exec:exec@neis-status]" >&2
-     exit 1 ;;
-esac
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    package)                   goal="package" ;;
+    exec:exec@neis-install)    goal="$1"; rebuild="yes" ;;
+    exec:exec@neis-upgrade)    goal="$1"; rebuild="yes" ;;
+    exec:exec@neis-uninstall)  goal="$1"; rebuild="no" ;;
+    exec:exec@neis-status)     goal="$1"; rebuild="no" ;;
+    *) echo "usage: ./dist.sh [package | exec:exec@neis-install|" >&2
+       echo "             exec:exec@neis-upgrade | exec:exec@neis-uninstall |" >&2
+       echo "             exec:exec@neis-status]" >&2
+       exit 1 ;;
+  esac
+  shift
+fi
 
 # ---- bump the minor version when the tracked state changed -------------
 current="$(fingerprint)"
@@ -67,8 +70,7 @@ if [[ "$current" != "$last" && "$rebuild" == "yes" ]]; then
   new="$major.$((minor + 1))"
   sed -i "s|<neis\.version>$version</neis\.version>|<neis\.version>$new</neis\.version>|" pom.xml
   git add pom.xml
-  git commit -q -- pom.xml \
-    -m "Dist version $new (auto-bump: tracked changes since the last dist build)"
+  git commit -q -m "Dist version $new (auto-bump: tracked changes since the last dist build)" -- pom.xml
   echo "VERSION $version -> $new (committed)"
 fi
 
