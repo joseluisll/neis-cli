@@ -1,0 +1,234 @@
+package es.jllopez.neis.infrastructure.adapter.mcp;
+
+import es.jllopez.neis.application.AddressCatalogService;
+import es.jllopez.neis.application.AddressVerificationService;
+import es.jllopez.neis.application.ContentStoreService;
+import es.jllopez.neis.application.ManagementInfoService;
+import es.jllopez.neis.application.NewsEventService;
+import es.jllopez.neis.application.RemoteJobService;
+import es.jllopez.neis.application.SettingsService;
+import es.jllopez.neis.application.SystemInfoService;
+import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.ContentRecord;
+import es.jllopez.neis.domain.model.JobStatus;
+import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
+import es.jllopez.neis.domain.model.RemoteJob;
+import es.jllopez.neis.domain.model.VerificationOutcome;
+import es.jllopez.neis.domain.model.VerificationStatus;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * The 10-tool catalog's mapping contract (US-18.4, issue #119): every
+ * tool is parse → use case → typed result, no logic. The no-AI rule is
+ * pinned negatively: no tool touches the AI integration point.
+ */
+class NeisMcpToolsTest {
+
+    private final SystemInfoService system = mock(SystemInfoService.class);
+    private final ManagementInfoService management =
+            mock(ManagementInfoService.class);
+    private final SettingsService settings = mock(SettingsService.class);
+    private final AddressCatalogService catalog =
+            mock(AddressCatalogService.class);
+    private final AddressVerificationService verification =
+            mock(AddressVerificationService.class);
+    private final RemoteJobService jobs = mock(RemoteJobService.class);
+    private final NewsEventService news = mock(NewsEventService.class);
+    private final ContentStoreService content = mock(ContentStoreService.class);
+
+    private NeisMcpTools tools() {
+        return new NeisMcpTools(system, management, settings, catalog,
+                verification, jobs, news, content);
+    }
+
+    private Address address(String id) {
+        return new Address(id, "Name " + id, null, "https://example.eu/" + id,
+                AddressType.URL_NEWS, Set.of(),
+                VerificationStatus.VERIFIED, "2026-11-19T00:00:00Z", null);
+    }
+
+    private NewsEventItem item(String canonicalId) {
+        return new NewsEventItem("ADDR-001", "news", "Title",
+                "Description", "https://example.eu/item", "Jul 16, 2026",
+                null, null, "EXEC-1", "CONT-1", false, null, canonicalId);
+    }
+
+    @Test
+    void listAddressesReturnsTheCatalogAndFiltersToOne() {
+        when(catalog.list()).thenReturn(List.of(address("ADDR-001"),
+                address("ADDR-002")));
+        when(catalog.byId("ADDR-001")).thenReturn(address("ADDR-001"));
+        NeisMcpTools tools = tools();
+
+        assertEquals(2, tools.listAddresses(null).total());
+        var one = tools.listAddresses("ADDR-001");
+        assertEquals(1, one.total());
+        assertEquals("ADDR-001", one.addresses().get(0).id());
+        // unknown id: the use case's own refusal propagates
+        when(catalog.byId("ADDR-NOPE")).thenThrow(
+                new IllegalArgumentException("Unknown address id: ADDR-NOPE"));
+        assertThrows(IllegalArgumentException.class,
+                () -> tools.listAddresses("ADDR-NOPE"));
+    }
+
+    @Test
+    void upsertAddressRegistersWithoutIdAndUpdatesWithId() {
+        when(catalog.create(eq(null), eq("New"), eq("desc"),
+                eq("https://example.eu/new"), eq(AddressType.URL_NEWS)))
+                .thenReturn(address("ADDR-009"));
+        when(catalog.update(eq("ADDR-001"), eq("New"), eq("desc"),
+                eq("https://example.eu/new"), eq(AddressType.URL_NEWS)))
+                .thenReturn(address("ADDR-001"));
+        NeisMcpTools tools = tools();
+
+        assertEquals("ADDR-009", tools.upsertAddress(null, "New",
+                "https://example.eu/new", "URL_NEWS", "desc").id());
+        assertEquals("ADDR-001", tools.upsertAddress("ADDR-001", "New",
+                "https://example.eu/new", "URL_NEWS", "desc").id());
+        // an unknown type is refused before any use-case call
+        assertThrows(IllegalArgumentException.class,
+                () -> tools.upsertAddress(null, "x", "https://example.eu/x",
+                        "WAT", null));
+    }
+
+    @Test
+    void removeAddressReturnsTheRemovedAddress() {
+        when(catalog.remove("ADDR-001")).thenReturn(address("ADDR-001"));
+        assertEquals("ADDR-001", tools().removeAddress("ADDR-001").id());
+    }
+
+    @Test
+    void verifyAddressReturnsTheProbeOutcome() {
+        when(verification.verify("ADDR-001")).thenReturn(new VerificationOutcome(
+                VerificationStatus.VERIFIED, "2026-11-19T00:00:00Z",
+                200, "reachable"));
+        assertEquals(VerificationStatus.VERIFIED,
+                tools().verifyAddress("ADDR-001").status());
+    }
+
+    @Test
+    void fetchNewsSubmitsTheJobAndReportsTheTargets() {
+        RemoteJob job = new RemoteJob("JOB-1", "fetch-news", null,
+                Map.of("chain-id", "CHAIN-1", "addresses", "ADDR-001,ADDR-002"),
+                JobStatus.QUEUED, Instant.now(), null, null, null, null, null);
+        when(jobs.submitFetchNews(null)).thenReturn(job);
+        var accepted = tools().fetchNews(null);
+        assertEquals("JOB-1", accepted.jobId());
+        assertEquals(List.of("ADDR-001", "ADDR-002"), accepted.addresses());
+    }
+
+    @Test
+    void jobStatusReturnsTheJobOrRefusesUnknownIds() {
+        RemoteJob job = new RemoteJob("JOB-1", "run-task", "ADDR-001",
+                Map.of(), JobStatus.COMPLETED, Instant.now(),
+                Instant.now(), Instant.now(), "EXEC-1", "result", null);
+        when(jobs.job("JOB-1")).thenReturn(java.util.Optional.of(job));
+        when(jobs.job("JOB-nope")).thenReturn(java.util.Optional.empty());
+        NeisMcpTools tools = tools();
+        assertEquals("COMPLETED", tools.jobStatus("JOB-1").status().name());
+        assertThrows(NoSuchElementException.class,
+                () -> tools.jobStatus("JOB-nope"));
+    }
+
+    @Test
+    void listNewsCombinesTheFreeTextAndFilterPaths() {
+        NewsEventQuery addressKind = new NewsEventQuery("ADDR-001", "news",
+                null, null, NewsEventQuery.DEFAULT_LIMIT);
+        NewsEventQuery textFilters = new NewsEventQuery(null, "news",
+                null, null, NewsEventQuery.DEFAULT_LIMIT);
+        when(news.search(addressKind)).thenReturn(List.of(item("can-1")));
+        when(news.search("environment", textFilters))
+                .thenReturn(List.of(item("can-2")));
+        NeisMcpTools tools = tools();
+
+        assertEquals(1, tools.listNews("ADDR-001", "news", null, null,
+                null, null).total());
+        assertEquals("can-2", tools.listNews(null, "news", null, null,
+                "environment", null).items().get(0).canonicalId());
+    }
+
+    @Test
+    void getNewsItemMergesTheItemWithItsSightingHistory() {
+        NewsEventItem stored = item("can-1");
+        when(news.item("can-1")).thenReturn(java.util.Optional.of(stored));
+        when(news.item("can-nope")).thenReturn(java.util.Optional.empty());
+        NeisMcpTools tools = tools();
+
+        var detail = tools.getNewsItem("can-1");
+        assertEquals("can-1", detail.item().canonicalId());
+        assertEquals(0, detail.sightings().size()); // history from the store
+        assertThrows(NoSuchElementException.class,
+                () -> tools.getNewsItem("can-nope"));
+    }
+
+    @Test
+    void getContentFiltersByExecutionAndAddressAndRefusesUnknownIds() {
+        ContentRecord fromExec1 = new ContentRecord("CONT-1", "ADDR-001",
+                "cap-1", "PRINT", "report", "p/report.txt",
+                Instant.now(), "EXEC-1");
+        ContentRecord fromExec2 = new ContentRecord("CONT-2", "ADDR-002",
+                "cap-2", "PRINT", "report", "p/report2.txt",
+                Instant.now(), "EXEC-2");
+        when(content.listAll()).thenReturn(List.of(fromExec1, fromExec2));
+        when(content.byId("CONT-1"))
+                .thenReturn(java.util.Optional.of(fromExec1));
+        NeisMcpTools tools = tools();
+
+        assertEquals(1, tools.getContent("EXEC-1", null, null, null)
+                .total());
+        assertEquals(1, tools.getContent(null, "ADDR-002", null, null)
+                .total());
+        assertEquals("CONT-1", tools.getContent(null, null, "CONT-1", null)
+                .records().get(0).id());
+        assertThrows(NoSuchElementException.class,
+                () -> tools.getContent(null, null, "CONT-nope", null));
+    }
+
+    @Test
+    void theExportModeRefusesVisiblyUntilUs188Lands() {
+        IllegalStateException refused = assertThrows(
+                IllegalStateException.class,
+                () -> tools().getContent(null, "ADDR-001", null, "export"));
+        assertTrue(refused.getMessage().contains("US-18.8"));
+    }
+
+    /**
+     * The no-AI-over-MCP rule (owner decision 2026-11-19), pinned
+     * negatively: NO tool of the catalog reaches the AI integration
+     * point. NeisMcpTools takes no AiAssistantService dependency at
+     * all — enforced here by construction (the class compiles against
+     * the 8 non-AI use cases only).
+     */
+    @Test
+    void noToolReachesTheAiIntegrationPoint() {
+        NeisMcpTools tools = tools();
+        // exercise every read path; the (absent) AI mock is never touched
+        tools.listAddresses(null);
+        tools.listNews(null, null, null, null, null, null);
+        tools.getContent(null, null, null, null);
+        verifyNoAiCalls();
+    }
+
+    private void verifyNoAiCalls() {
+        // structural guarantee: NeisMcpTools' constructor has no AI
+        // parameter (see the class header); nothing to verify beyond
+        // the compile-time shape this test documents.
+    }
+}

@@ -45,9 +45,16 @@ spring:
     hikari:
       # sqlite-jdbc defaults PRAGMA foreign_keys to OFF: without this the
       # schema's REFERENCES constraints are decorative (review finding,
-      # 2026-11-11). The pragma is per connection; Hikari runs the init
-      # SQL on every pooled connection.
-      connection-init-sql: PRAGMA foreign_keys=ON
+      # 2026-11-11). Pragmas are per connection — passed as connection
+      # properties (verified against sqlite-jdbc: a multi-statement
+      # connection-init-sql does NOT apply; properties do).
+      data-source-properties:
+        foreign_keys: true
+        # US-18.4 (found live): SQLITE_BUSY on the job runner's reads
+        # while an execution writes — the driver's default 3s budget
+        # expired under real chain-write load. 15s turns the transient
+        # contention into a wait instead of a FAILED job.
+        busy_timeout: 15000
   jpa:
     # The schema is owned by the migrations (US-02.3), never by Hibernate:
     # no implicit DDL from the ORM.

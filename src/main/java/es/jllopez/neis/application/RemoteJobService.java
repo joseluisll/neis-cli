@@ -1,5 +1,8 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.Chain;
+import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.JobStatus;
 import es.jllopez.neis.domain.model.RemoteJob;
@@ -48,13 +51,97 @@ public class RemoteJobService {
 
     private final JobStorePort jobs;
     private final ExecutionService executions;
+    private final ChainService chains;
+    private final AddressCatalogService catalog;
     private final Executor jobRunner;
+    /** The fetch chain neis_fetch_news wraps (US-18.4, issue #119). */
+    private final String fetchChainName;
 
     public RemoteJobService(JobStorePort jobs, ExecutionService executions,
-                            @Qualifier("jobRunner") Executor jobRunner) {
+                            ChainService chains, AddressCatalogService catalog,
+                            @Qualifier("jobRunner") Executor jobRunner,
+                            @org.springframework.beans.factory.annotation
+                                    .Value("${neis.fetch.chain-name:core-chain-ssafp}")
+                            String fetchChainName) {
         this.jobs = jobs;
         this.executions = executions;
+        this.chains = chains;
+        this.catalog = catalog;
         this.jobRunner = jobRunner;
+        this.fetchChainName = fetchChainName;
+    }
+
+    /**
+     * Submits a NEWS FETCH as a remote job (US-18.4, the neis_fetch_news
+     * tool): the job wraps the configured fetch chain — created with
+     * the SSAFP stages if it does not exist yet — over ONE address or
+     * over ALL registered addresses. Returns the QUEUED job
+     * immediately; the job result carries one outcome line per address.
+     *
+     * @throws IllegalArgumentException synchronously when there are no
+     *         registered addresses (fetch-all) or the single address is
+     *         unknown/ineligible
+     */
+    public RemoteJob submitFetchNews(String addressId) {
+        Chain chain = resolveFetchChain();
+        List<String> targets;
+        if (addressId != null) {
+            executions.validateRemoteChainSubmission(chain.id(), addressId);
+            targets = List.of(addressId);
+        } else {
+            targets = catalog.list().stream().map(Address::id).toList();
+            if (targets.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "No registered addresses to fetch — register one "
+                                + "first (neis_upsert_address)");
+            }
+        }
+        RemoteJob job = new RemoteJob("JOB-" + UUID.randomUUID(),
+                "fetch-news", addressId,
+                Map.of("chain-id", chain.id(),
+                        "addresses", String.join(",", targets)),
+                JobStatus.QUEUED, Instant.now(), null, null, null, null, null);
+        jobs.save(job);
+        log.info("[JOB] {} submitted: fetch-news over {} address(es) "
+                + "(chain {})", job.id(), targets.size(), chain.name());
+        CompletableFuture.runAsync(
+                () -> runFetchNewsJob(job.id(), chain.id(), targets), jobRunner)
+                .whenComplete((v, e) -> {
+                    if (e != null) {
+                        log.error("[JOB] {} runner failed: {}",
+                                job.id(), e.toString());
+                    }
+                });
+        return job;
+    }
+
+    /**
+     * The configured fetch chain, created on first use (US-18.4): the
+     * SSAFP stages in pipeline order. Resolution is by NAME so a
+     * recreated store (new chain id) keeps working.
+     */
+    private Chain resolveFetchChain() {
+        return chains.list().stream()
+                .filter(c -> fetchChainName.equals(c.name()))
+                .findFirst()
+                .orElseGet(() -> {
+                    log.info("[JOB] creating the default fetch chain '{}'",
+                            fetchChainName);
+                    return chains.create(fetchChainName,
+                            "Default fetch chain (created for the "
+                                    + "neis_fetch_news tool)",
+                            List.of(
+                                    new es.jllopez.neis.domain.model.ChainTask(
+                                            1, "WEBSCRAPE", Map.of()),
+                                    new es.jllopez.neis.domain.model.ChainTask(
+                                            2, "SIMPLIFY", Map.of()),
+                                    new es.jllopez.neis.domain.model.ChainTask(
+                                            3, "ANALYZE", Map.of()),
+                                    new es.jllopez.neis.domain.model.ChainTask(
+                                            4, "FILTER", Map.of()),
+                                    new es.jllopez.neis.domain.model.ChainTask(
+                                            5, "PRINT", Map.of())));
+                });
     }
 
     /**
@@ -132,6 +219,95 @@ public class RemoteJobService {
                     }
                 });
         return job;
+    }
+
+    /**
+     * The fetch-news job runner (US-18.4): the chain runs per address
+     * through the execution layer (each run a REMOTE execution with its
+     * own record and provenance), one outcome line per address collected
+     * into the job result. COMPLETED only when EVERY address succeeded —
+     * partial batches are FAILED with the per-address outcomes as the
+     * reason (an honest summary beats a silently-green batch). Per
+     * runJob, every state transition is failure-guarded.
+     */
+    private void runFetchNewsJob(String jobId, String chainId,
+                                 List<String> addressIds) {
+        RemoteJob job;
+        try {
+            job = jobs.findById(jobId).orElse(null);
+        } catch (RuntimeException storeDown) {
+            log.error("[JOB] {}: could not read the job before its run: {}",
+                    jobId, storeDown.toString());
+            return;
+        }
+        if (job == null) {
+            log.error("[JOB] {} vanished before its runner started", jobId);
+            return;
+        }
+        job = save(job.transition(JobStatus.RUNNING, Instant.now(), null));
+        StringBuilder outcomes = new StringBuilder();
+        boolean allSuccess = true;
+        String firstExecutionId = null;
+        try {
+            for (String addressId : addressIds) {
+                String line;
+                try {
+                    TaskExecution execution = executions.submitChain(
+                            chainId, addressId, TriggerType.REMOTE);
+                    if (firstExecutionId == null) {
+                        firstExecutionId = execution.id();
+                        job = save(job.withExecution(execution.id()));
+                    }
+                    TaskExecution finalRecord = awaitTerminal(execution.id());
+                    if (finalRecord == null || !finalRecord.status().isTerminal()) {
+                        line = addressId + ": FAILED (execution "
+                                + execution.id() + " interrupted or vanished)";
+                        allSuccess = false;
+                    } else {
+                        line = addressId + ": " + finalRecord.status()
+                                + " — " + firstLine(finalRecord.outcome());
+                        if (finalRecord.status() != ExecutionStatus.SUCCESS) {
+                            allSuccess = false;
+                        }
+                    }
+                } catch (RuntimeException refused) {
+                    line = addressId + ": SKIPPED — "
+                            + firstLine(refused.getMessage());
+                    allSuccess = false;
+                }
+                outcomes.append(line).append("; ");
+                log.info("[JOB] {} fetch-news: {}", jobId, line);
+            }
+            if (allSuccess) {
+                save(job.finish(JobStatus.COMPLETED, Instant.now(),
+                        truncate(outcomes.toString()), null));
+                log.info("[JOB] {} COMPLETED ({} addresses)", jobId,
+                        addressIds.size());
+            } else {
+                save(job.finish(JobStatus.FAILED, Instant.now(), null,
+                        truncate(outcomes.toString())));
+                log.info("[JOB] {} FAILED (batch had non-success outcomes)",
+                        jobId);
+            }
+        } catch (Throwable t) {
+            String error = t.getClass().getSimpleName()
+                    + (t.getMessage() != null ? ": " + t.getMessage() : "");
+            save(job.finish(JobStatus.FAILED, Instant.now(), null,
+                    truncate(error + " | " + outcomes)));
+            log.info("[JOB] {} FAILED before/at run: {}", jobId, error);
+            if (t instanceof Error errorT) {
+                throw errorT;
+            }
+        }
+    }
+
+    /** The outcome's first line (chain outcomes are long, ';'-joined). */
+    private String firstLine(String outcome) {
+        if (outcome == null || outcome.isBlank()) {
+            return "(no outcome recorded)";
+        }
+        int cut = outcome.indexOf('\n');
+        return cut > 0 ? outcome.substring(0, cut) : outcome;
     }
 
     private void runJob(String jobId, Supplier<TaskExecution> run) {

@@ -241,6 +241,13 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
                 .toList();
     }
 
+    @Override
+    public java.util.Optional<NewsEventItem> byCanonicalId(String canonicalId) {
+        return jpa.findByCanonicalId(canonicalId).stream()
+                .findFirst()
+                .map(NewsEventStoreConnector::toItem);
+    }
+
     /** One sighting row: a deterministic id keeps an identical
      * (item, execution, content) sighting idempotent, while a new
      * capture (new execution/content pair) adds a new sighting. */

@@ -5,6 +5,7 @@ import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Port for the news/events repository (US-14.1, issue #55): extracted
@@ -92,4 +93,12 @@ public interface NewsEventStorePort {
      * address, lenient date range) plus the limit combine on top.
      */
     List<NewsEventItem> search(String text, NewsEventQuery filters);
+
+    /**
+     * ONE representative row of the logical record with this canonical
+     * id (US-14.5), for the item-detail lookups (MCP neis_get_news_item).
+     * The row set of a canonical id is the record's history — the
+     * sightings query returns that; this returns the newest row itself.
+     */
+    Optional<NewsEventItem> byCanonicalId(String canonicalId);
 }

@@ -135,6 +135,15 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     }
 
     @Override
+    public java.util.Optional<NewsEventItem> byCanonicalId(String canonicalId) {
+        // Newest row of the logical record (same insertion-order
+        // stand-in for recency as the other queries).
+        return store.values().stream()
+                .filter(i -> canonicalId.equals(i.canonicalId()))
+                .reduce((first, second) -> second);
+    }
+
+    @Override
     public List<NewsEventItem> search(String text, NewsEventQuery filters) {
         // Double fidelity note (US-14.7): the real store matches via
         // SQLite FTS5 (token-based, ranked by bm25); the double matches

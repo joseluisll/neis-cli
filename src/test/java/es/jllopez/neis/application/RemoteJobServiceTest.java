@@ -1,5 +1,11 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.application.AddressCatalogService;
+import es.jllopez.neis.application.ChainService;
+import es.jllopez.neis.domain.model.Address;
+import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.Chain;
+import es.jllopez.neis.domain.model.ChainTask;
 import es.jllopez.neis.domain.model.ExecutionStatus;
 import es.jllopez.neis.domain.model.JobStatus;
 import es.jllopez.neis.domain.model.RemoteJob;
@@ -20,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -42,7 +49,15 @@ class RemoteJobServiceTest {
     private final InMemoryJobStorePort store = new InMemoryJobStorePort();
 
     private RemoteJobService service(ExecutionService executions) {
-        return new RemoteJobService(store, executions, DIRECT);
+        return service(executions, mock(ChainService.class),
+                mock(AddressCatalogService.class));
+    }
+
+    private RemoteJobService service(ExecutionService executions,
+                                     ChainService chains,
+                                     AddressCatalogService catalog) {
+        return new RemoteJobService(store, executions, chains, catalog,
+                DIRECT, "core-chain-ssafp");
     }
 
     private TaskExecution execution(ExecutionStatus status, String outcome) {
@@ -164,6 +179,109 @@ class RemoteJobServiceTest {
         assertNull(finished.executionId());
         assertNotNull(finished.error());
         assertTrue(finished.error().contains("not eligible"));
+    }
+
+    @Test
+    // ---- US-18.4 (issue #119): the fetch-news job ----------------------
+
+    private Chain fetchChain() {
+        return new Chain("CHAIN-1", "core-chain-ssafp", "the fetch chain",
+                Instant.now(), List.of(new ChainTask(1, "WEBSCRAPE", Map.of())));
+    }
+
+    private Address address(String id) {
+        return new Address(id, id, null, "https://example.eu/" + id,
+                AddressType.URL_NEWS, java.util.Set.of(),
+                es.jllopez.neis.domain.model.VerificationStatus.VERIFIED,
+                null, null);
+    }
+
+    @Test
+    void fetchNewsOverOneAddressRunsTheChainAndCompletesWithTheOutcome() {
+        ExecutionService executions = mock(ExecutionService.class);
+        ChainService chains = mock(ChainService.class);
+        when(chains.list()).thenReturn(List.of(fetchChain()));
+        when(executions.submitChain("CHAIN-1", "ADDR-001", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.SUCCESS,
+                        "step 5/5 PRINT: 20 items"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS,
+                        "step 5/5 PRINT: 20 items"));
+        RemoteJobService service = service(executions, chains,
+                mock(AddressCatalogService.class));
+
+        RemoteJob submitted = service.submitFetchNews("ADDR-001");
+
+        assertEquals("fetch-news", submitted.operation());
+        RemoteJob finished = service.job(submitted.id()).orElseThrow();
+        assertEquals(JobStatus.COMPLETED, finished.status());
+        assertTrue(finished.result().contains("ADDR-001: SUCCESS"));
+        assertEquals("EXEC-test", finished.executionId());
+        verify(executions).validateRemoteChainSubmission("CHAIN-1", "ADDR-001");
+    }
+
+    @Test
+    void fetchNewsOverAllAddressesCollectsPerAddressOutcomesAndFailsOnAnyFailure() {
+        ExecutionService executions = mock(ExecutionService.class);
+        ChainService chains = mock(ChainService.class);
+        AddressCatalogService catalog = mock(AddressCatalogService.class);
+        when(chains.list()).thenReturn(List.of(fetchChain()));
+        when(catalog.list()).thenReturn(List.of(
+                address("ADDR-001"), address("ADDR-002")));
+        when(executions.submitChain("CHAIN-1", "ADDR-001", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        when(executions.submitChain("CHAIN-1", "ADDR-002", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.FAILED, "boom at scrape"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"))
+                .thenReturn(execution(ExecutionStatus.FAILED, "boom at scrape"));
+        RemoteJobService service = service(executions, chains, catalog);
+
+        RemoteJob submitted = service.submitFetchNews(null);
+
+        RemoteJob finished = service.job(submitted.id()).orElseThrow();
+        // an honest summary: a batch with a failing address is FAILED,
+        // and the per-address outcomes are the reason
+        assertEquals(JobStatus.FAILED, finished.status());
+        assertTrue(finished.error().contains("ADDR-001: SUCCESS"));
+        assertTrue(finished.error().contains("ADDR-002: FAILED"));
+        assertTrue(finished.error().contains("boom at scrape"));
+    }
+
+    @Test
+    void fetchNewsCreatesTheDefaultChainWhenTheConfiguredOneIsAbsent() {
+        ExecutionService executions = mock(ExecutionService.class);
+        ChainService chains = mock(ChainService.class);
+        when(chains.list()).thenReturn(List.of());
+        Chain created = fetchChain();
+        when(chains.create(eq("core-chain-ssafp"), anyString(), any()))
+                .thenReturn(created);
+        when(executions.submitChain("CHAIN-1", "ADDR-001", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        RemoteJobService service = service(executions, chains,
+                mock(AddressCatalogService.class));
+
+        service.submitFetchNews("ADDR-001");
+
+        // the default chain carries the SSAFP stages in pipeline order
+        verify(chains).create(eq("core-chain-ssafp"), anyString(),
+                argThat(steps -> steps.size() == 5
+                        && "WEBSCRAPE".equals(steps.get(0).taskCode())
+                        && "PRINT".equals(steps.get(4).taskCode())));
+    }
+
+    @Test
+    void fetchNewsOverAllAddressesWithAnEmptyCatalogRefusesSynchronously() {
+        AddressCatalogService catalog = mock(AddressCatalogService.class);
+        when(catalog.list()).thenReturn(List.of());
+        RemoteJobService service = service(mock(ExecutionService.class),
+                mock(ChainService.class), catalog);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitFetchNews(null));
+        assertEquals(0, store.findAll().size());
     }
 
     @Test

@@ -97,4 +97,13 @@ public class NewsEventService {
     public List<NewsEventItem> search(String text, NewsEventQuery filters) {
         return newsEventStore.search(text, filters);
     }
+
+    /**
+     * ONE representative row of the logical record (US-14.5), for the
+     * item-detail surfaces (MCP neis_get_news_item): pair it with
+     * {@link #sightings} for the full history.
+     */
+    public java.util.Optional<NewsEventItem> item(String canonicalId) {
+        return newsEventStore.byCanonicalId(canonicalId);
+    }
 }

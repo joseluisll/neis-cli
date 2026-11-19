@@ -1,6 +1,11 @@
 package es.jllopez.neis.infrastructure.adapter.mcp;
 
+import es.jllopez.neis.application.AddressCatalogService;
+import es.jllopez.neis.application.AddressVerificationService;
+import es.jllopez.neis.application.ContentStoreService;
 import es.jllopez.neis.application.ManagementInfoService;
+import es.jllopez.neis.application.NewsEventService;
+import es.jllopez.neis.application.RemoteJobService;
 import es.jllopez.neis.application.SettingsService;
 import es.jllopez.neis.application.SystemInfoService;
 import org.junit.jupiter.api.Test;
@@ -51,6 +56,31 @@ class McpAdaptersWiringTest {
             SettingsService s = mock(SettingsService.class);
             when(s.effective(any(String.class))).thenReturn("static");
             return s;
+        }
+
+        @Bean
+        AddressCatalogService addressCatalogService() {
+            return mock(AddressCatalogService.class);
+        }
+
+        @Bean
+        AddressVerificationService addressVerificationService() {
+            return mock(AddressVerificationService.class);
+        }
+
+        @Bean
+        RemoteJobService remoteJobService() {
+            return mock(RemoteJobService.class);
+        }
+
+        @Bean
+        NewsEventService newsEventService() {
+            return mock(NewsEventService.class);
+        }
+
+        @Bean
+        ContentStoreService contentStoreService() {
+            return mock(ContentStoreService.class);
         }
     }
 
