@@ -23,6 +23,10 @@ Restart=on-failure
 RestartSec=5
 KillSignal=SIGTERM
 TimeoutStopSec=60
+# US-15.6 (issue #131): the JVM's default TERM exit status (143) must
+# never count as a unit failure — the app's own SIGTERM handler exits
+# 0, this covers the residual case of the JVM dying ON the signal.
+SuccessExitStatus=143
 StandardOutput=journal
 StandardError=journal
 
