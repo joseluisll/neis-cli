@@ -61,12 +61,17 @@ public class RemoteJobService {
      * Submits a single-task run as a remote job and returns the QUEUED
      * job immediately.
      *
-     * @throws IllegalArgumentException mirrors {@link ExecutionService}
-     *         — the refusal is ALSO recorded on the job (FAILED), so a
-     *         caller that only polls sees the reason.
+     * @throws IllegalArgumentException synchronously (nothing is
+     *         persisted) when the pre-check refuses an unknown task
+     *         type or an unknown/ineligible address (US-18.1 review
+     *         finding, issue #127); refusals that arise LATER — on the
+     *         runner, e.g. the address was removed between the
+     *         pre-check and the run — are still recorded on the job
+     *         (FAILED), so a caller that only polls sees the reason.
      */
     public RemoteJob submitRunTask(String taskCode, String addressId,
                                    Map<String, String> parameters) {
+        executions.validateRemoteSubmission(taskCode, addressId);
         // Remote callers can send null values; Map.copyOf (the domain's
         // immutability guard) rejects them — nulls are dropped HERE so
         // the sanitization happens at the boundary, not as an NPE after
@@ -89,9 +94,10 @@ public class RemoteJobService {
 
     /**
      * Submits a chain run as a remote job; same contract as
-     * {@link #submitRunTask}.
+     * {@link #submitRunTask} (synchronous pre-check included).
      */
     public RemoteJob submitRunChain(String chainId, String addressId) {
+        executions.validateRemoteChainSubmission(chainId, addressId);
         return submit("run-chain", addressId, Map.of("chain-id", chainId),
                 () -> executions.submitChain(chainId, addressId, TriggerType.REMOTE));
     }

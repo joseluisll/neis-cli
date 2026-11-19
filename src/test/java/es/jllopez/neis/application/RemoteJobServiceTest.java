@@ -16,11 +16,14 @@ import java.util.concurrent.Executor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -120,6 +123,30 @@ class RemoteJobServiceTest {
         assertNull(finished.result());
         assertEquals("FetchException: connection refused", finished.error());
         assertEquals("EXEC-test", finished.executionId());
+    }
+
+    @Test
+    void aPreCheckRefusalThrowsSynchronouslyAndPersistsNothing() {
+        // US-18.1 review finding, issue #127: the SUBMIT-time pre-check
+        // refuses before the job record exists — the caller gets the
+        // 4xx immediately instead of polling a doomed QUEUED job
+        ExecutionService executions = mock(ExecutionService.class);
+        doThrow(new IllegalArgumentException(
+                        "Unknown task type: BOGUS (known: [WEBSCRAPE, ...])"))
+                .when(executions).validateRemoteSubmission("BOGUS", "ADDR-001");
+        RemoteJobService service = service(executions);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitRunTask("BOGUS", "ADDR-001", null));
+        assertEquals(0, store.findAll().size());
+        verify(executions, never()).submit(anyString(), anyString(), any(), any());
+
+        // chain variant: same shape
+        doThrow(new IllegalArgumentException("Unknown chain: CHAIN-nope"))
+                .when(executions).validateRemoteChainSubmission("CHAIN-nope", "ADDR-001");
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitRunChain("CHAIN-nope", "ADDR-001"));
+        assertEquals(0, store.findAll().size());
     }
 
     @Test

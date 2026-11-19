@@ -143,6 +143,30 @@ public class ExecutionService {
         return record;
     }
 
+    /**
+     * Remote-submission pre-check (US-18.1 review finding, issue #127):
+     * refuses at SUBMIT time what the runner would otherwise refuse at
+     * run time, so a doomed remote job never persists as QUEUED. Same
+     * refusals as {@link #submit}, without creating an execution
+     * record. NOT a correctness gate — the state can change between
+     * this check and the runner's own validation; the run-time refusal
+     * (recorded FAILED on the job) remains the backstop.
+     *
+     * @throws IllegalArgumentException unknown task type, unknown
+     *                                  address, or ineligible address
+     */
+    public void validateRemoteSubmission(String taskCode, String addressId) {
+        requireKnownTaskCode(taskCode);
+        requireEligible(catalog.byId(addressId)); // unknown ids refuse in byId
+    }
+
+    /** Chain variant of {@link #validateRemoteSubmission}. */
+    public void validateRemoteChainSubmission(String chainId, String addressId) {
+        chains.findById(chainId).orElseThrow(
+                () -> new IllegalArgumentException("Unknown chain: " + chainId));
+        requireEligible(catalog.byId(addressId)); // unknown ids refuse in byId
+    }
+
     /** Waits for the execution to finish; the final record or null on timeout. */
     public TaskExecution await(String executionId) {
         long deadline = System.nanoTime() + awaitTimeout.toNanos();
