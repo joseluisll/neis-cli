@@ -30,9 +30,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * WAL journal mode as connection properties (a multi-statement
  * connection-init-sql does NOT apply — probed live, US-18.4); this
  * test boots the REAL pool against a file-backed database and pins
- * both properties' take-effect AND their behavior under genuine
- * concurrent access — in-memory doubles cannot reproduce SQLite file
- * locking, which is why this test needs the file.
+ * the properties' take-effect AND the busy-timeout behavior under
+ * genuine concurrent access — in-memory doubles cannot reproduce
+ * SQLite file locking, which is why this test needs the file.
+ *
+ * <p>What pins WHAT (review round 1, probe-verified): the PRAGMA
+ * assertions are the WAL pin (journal_mode=wal reaching the pool);
+ * the writer test is the busy_timeout pin. The reader test is a
+ * SMOKE CHECK only: a writer holding an INSERT transaction stays in
+ * RESERVED phase, which does not block readers even in
+ * rollback-journal mode, so its elapsed bound cannot catch a WAL
+ * regression — it documents that routine reader/writer overlap does
+ * not error out under the production configuration.</p>
  *
  * <p>The contender writer runs on a DAEMON thread (the executor-pool
  * rule: a non-daemon worker would hang the surefire JVM at exit).</p>
@@ -137,15 +146,18 @@ class SqliteConcurrencyTest {
     @Test
     void readerProceedsWhileAWriterHoldsItsTransaction() throws Exception {
         createProbeTableCommitted();
+        // SMOKE CHECK (review round 1): NOT a WAL discriminator — a
+        // writer holding an INSERT transaction stays in RESERVED phase,
+        // which does not block readers even in rollback-journal mode.
+        // The WAL pin lives in productionPragmasTakeEffectOnPooledConnections.
         try (Connection holder = dataSource.getConnection()) {
             holder.setAutoCommit(false);
             try (Statement s = holder.createStatement()) {
                 exec(s, "INSERT INTO us025_probe(v) VALUES ('held')");
             }
-            // WAL: a reader does not block behind the writer's lock —
-            // in rollback-journal mode this SELECT waits out the whole
-            // transaction (the 15s budget would mask the failure as a
-            // ~1s+ hold), so the elapsed-time bound is the discriminator.
+            // WAL: under the production configuration this SELECT
+            // proceeds while the writer's transaction is open — routine
+            // reader/writer overlap must not error out or stall.
             // The reader sees the COMMITTED state — the holder's
             // uncommitted row is invisible — so only the timely
             // completion is asserted, not the row content.

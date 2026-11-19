@@ -329,7 +329,22 @@ neis:
 The dashboard shows each entry's next fire time (and a cron error, if the
 expression matches nothing).
 
-## 13. Configuration reference
+## 13. Backing up the database
+
+Since US-02.5 the store runs in **WAL journal mode**: recent commits can sit
+in the `neis.db-wal` sidecar next to `core/data/neis.db` until SQLite
+checkpoints them. A bare `cp neis.db backup.db` taken while the service is
+running can therefore **silently lose recent commits**. Use one of:
+
+- `sqlite3 core/data/neis.db ".backup /path/to/backup.db"` (online, safe), or
+- `sqlite3 core/data/neis.db "VACUUM INTO '/path/to/backup.db'"`, or
+- stop the service, then copy `neis.db` (a clean close removes the sidecars).
+
+The `-wal`/`-shm` files appearing next to the store while the service runs
+are normal; they are removed on a clean shutdown and must not be copied
+individually.
+
+## 14. Configuration reference
 
 Externalized keys (defaults in `src/main/resources/application.yml`;
 overrides via `--key=value` arguments, environment relaxed binding, or
@@ -355,7 +370,7 @@ A configuration overview with every layer marked (override vs
 from-configuration vs default) is in the management UI's configuration
 section (`manage` → `n`).
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Symptom | Cause and remedy |
 |---|---|
