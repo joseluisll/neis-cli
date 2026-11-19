@@ -60,6 +60,22 @@ public class JobStoreConnector implements JobStorePort {
     }
 
     @Override
+    @Transactional
+    public boolean saveIfStatus(String jobId, JobStatus expectedStatus,
+                                RemoteJob record) {
+        // the atomic compare-and-set (native conditional UPDATE — the
+        // WHERE re-checks the stored status inside the same statement)
+        int updated = jobs.casUpdate(jobId, expectedStatus.name(),
+                record.status().name(),
+                record.startedAt() == null ? null : record.startedAt().toString(),
+                record.finishedAt() == null ? null : record.finishedAt().toString(),
+                record.executionId(),
+                record.result(),
+                record.error());
+        return updated > 0;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<RemoteJob> findAll() {
         return jobs.findAllByOrderBySubmittedAtDesc().stream()

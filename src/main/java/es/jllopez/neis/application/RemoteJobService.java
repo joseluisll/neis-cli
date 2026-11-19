@@ -58,12 +58,16 @@ public class RemoteJobService {
     /** The fetch chain neis_fetch_news wraps (US-18.4, issue #119). */
     private final String fetchChainName;
     /**
-     * The in-flight job runners (US-18.7, issue #122): the handles a
-     * cancel() interrupts. Removed on completion so the map never
-     * grows unbounded.
+     * The in-flight job RUNNER THREADS (US-18.7, issue #122; reworked
+     * after review): the handles a cancel() interrupts. Registered by
+     * the runner at its FIRST statement and removed in a finally —
+     * unlike a CompletableFuture handle (whose cancel(true) is a
+     * NO-OP: the Javadoc says mayInterruptIfRunning "has no effect in
+     * this implementation"), interrupting the actual thread reaches
+     * the parked wait and the per-iteration checks.
      */
-    private final java.util.concurrent.ConcurrentHashMap<String,
-            CompletableFuture<?>> inFlight = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<String, Thread>
+            runners = new java.util.concurrent.ConcurrentHashMap<>();
 
     public RemoteJobService(JobStorePort jobs, ExecutionService executions,
                             ChainService chains, AddressCatalogService catalog,
@@ -137,16 +141,19 @@ public class RemoteJobService {
         jobs.save(job);
         log.info("[JOB] {} submitted: fetch-news over {} address(es) "
                 + "(chain {})", job.id(), targets.size(), chain.name());
-        CompletableFuture<Void> runner = CompletableFuture.runAsync(
-                () -> runFetchNewsJob(job.id(), chain.id(), targets), jobRunner)
-                .whenComplete((v, e) -> {
-                    inFlight.remove(job.id());
-                    if (e != null) {
-                        log.error("[JOB] {} runner failed: {}",
-                                job.id(), e.toString());
-                    }
-                });
-        inFlight.put(job.id(), runner);
+        CompletableFuture.runAsync(() -> {
+            runners.put(job.id(), Thread.currentThread());
+            try {
+                runFetchNewsJob(job.id(), chain.id(), targets);
+            } finally {
+                runners.remove(job.id());
+            }
+        }, jobRunner).whenComplete((v, e) -> {
+            if (e != null) {
+                log.error("[JOB] {} runner failed: {}",
+                        job.id(), e.toString());
+            }
+        });
         return job;
     }
 
@@ -160,15 +167,19 @@ public class RemoteJobService {
     }
 
     /**
-     * Cancels a queued or running remote job (US-18.7, issue #122). A
-     * QUEUED job is marked CANCELLED before its run starts (the runner
-     * aborts without executing); a RUNNING job is marked CANCELLED and
-     * its runner thread INTERRUPTED — the run's remaining work records
-     * the interruption and the job finalizes as CANCELLED, observably
-     * different from FAILED. An already-finished job is a NO-OP with a
-     * clear note, never an error. The UNDERLYING execution is not
-     * cancelled (execution cancellation does not exist); the job record
-     * is the observable contract.
+     * Cancels a queued or running remote job (US-18.7, issue #122,
+     * reworked after review). The CANCELLED write is a COMPARE-AND-SET
+     * on the status (JobStorePort.saveIfStatus) — it can never
+     * overwrite a runner transition, and a runner write can never
+     * overwrite it: whoever CASes second sees the mismatch and
+     * re-reads. A QUEUED job is cancelled before its run starts (the
+     * runner's pickup CAS fails and it aborts without executing); a
+     * RUNNING job is cancelled AND its runner thread interrupted —
+     * the run stops at its next check/wait and the job finalizes as
+     * CANCELLED, observably different from FAILED. An already-finished
+     * job is a NO-OP with a clear note, never an error. The UNDERLYING
+     * execution is not cancelled (execution cancellation does not
+     * exist); the job record is the observable contract.
      *
      * @throws java.util.NoSuchElementException unknown job id (404)
      */
@@ -182,16 +193,25 @@ public class RemoteJobService {
         RemoteJob cancelled = job.finish(JobStatus.CANCELLED, Instant.now(),
                 job.result(),
                 "Cancelled by the caller while " + job.status());
-        save(cancelled);
+        // the CAS: cancelled=true means the CANCELLED record is PERSISTED
+        // (a plain save could be overwritten by a racing runner write)
+        if (!jobs.saveIfStatus(jobId, job.status(), cancelled)) {
+            RemoteJob fresh = jobs.findById(jobId).orElse(job);
+            return new CancellationOutcome(fresh, false,
+                    "already finished (" + fresh.status()
+                            + ") — nothing to cancel");
+        }
         log.info("[JOB] {} CANCELLED by the caller while {}",
                 jobId, job.status());
-        CompletableFuture<?> runner = inFlight.get(jobId);
+        Thread runner = runners.get(jobId);
         if (runner != null) {
-            runner.cancel(true); // interrupts the pooled runner thread
+            // a REAL interrupt of the pooled runner thread (a
+            // CompletableFuture.cancel(true) would be a no-op)
+            runner.interrupt();
         }
         return new CancellationOutcome(cancelled, true,
-                "cancellation requested while " + job.status()
-                        + " — the runner aborts at its next check");
+                "cancellation recorded while " + job.status()
+                        + " — the runner stops at its next check/wait");
     }
 
     /**
@@ -304,16 +324,58 @@ public class RemoteJobService {
                 null, null, null, null, null);
         jobs.save(job);
         log.info("[JOB] {} submitted: {} (address {})", job.id(), operation, addressId);
-        CompletableFuture<Void> runner = CompletableFuture.runAsync(
-                () -> runJob(job.id(), run), jobRunner)
-                .whenComplete((v, e) -> {
-                    inFlight.remove(job.id());
-                    if (e != null) {
-                        log.error("[JOB] {} runner failed: {}", job.id(), e.toString());
-                    }
-                });
-        inFlight.put(job.id(), runner);
+        CompletableFuture.runAsync(() -> {
+            runners.put(job.id(), Thread.currentThread());
+            try {
+                runJob(job.id(), run);
+            } finally {
+                runners.remove(job.id());
+            }
+        }, jobRunner).whenComplete((v, e) -> {
+            if (e != null) {
+                log.error("[JOB] {} runner failed: {}", job.id(), e.toString());
+            }
+        });
         return job;
+    }
+
+    /**
+     * The CAS-guarded pickup (US-18.7 review): RUNNING applies ONLY
+     * from QUEUED. False means the record moved — in practice a
+     * cancel() while QUEUED — and the runner must abort without
+     * executing.
+     */
+    private boolean pickup(String jobId, RemoteJob queued) {
+        return jobs.saveIfStatus(jobId, JobStatus.QUEUED,
+                queued.transition(JobStatus.RUNNING, Instant.now(), null));
+    }
+
+    /**
+     * The CAS-guarded terminal finalize (US-18.7 review): the terminal
+     * record applies ONLY from RUNNING. When the CAS fails the record
+     * is CANCELLED — the outcome is preserved ON the cancelled record
+     * via a second CAS (CANCELLED → CANCELLED-with-outcome), never
+     * overwriting the cancellation.
+     */
+    private void finalizeTerminal(String jobId, RemoteJob runnerView,
+                                  JobStatus terminal, String result,
+                                  String error) {
+        RemoteJob finished = runnerView.finish(terminal, Instant.now(),
+                result, error);
+        if (jobs.saveIfStatus(jobId, JobStatus.RUNNING, finished)) {
+            return;
+        }
+        RemoteJob current = jobs.findById(jobId).orElse(runnerView);
+        if (current.status() == JobStatus.CANCELLED) {
+            jobs.saveIfStatus(jobId, JobStatus.CANCELLED,
+                    current.finish(JobStatus.CANCELLED, Instant.now(),
+                            result != null ? result : current.result(),
+                            current.error()));
+            log.info("[JOB] {} CANCELLED — outcome kept on the record", jobId);
+        } else {
+            log.warn("[JOB] {} finalize skipped: record moved to {}",
+                    jobId, current.status());
+        }
     }
 
     /**
@@ -323,7 +385,8 @@ public class RemoteJobService {
      * into the job result. COMPLETED only when EVERY address succeeded —
      * partial batches are FAILED with the per-address outcomes as the
      * reason (an honest summary beats a silently-green batch). Per
-     * runJob, every state transition is failure-guarded.
+     * runJob, every state transition is failure-guarded, and the
+     * cancel() CAS wins over every runner write (US-18.7 review).
      */
     private void runFetchNewsJob(String jobId, String chainId,
                                  List<String> addressIds) {
@@ -339,13 +402,16 @@ public class RemoteJobService {
             log.error("[JOB] {} vanished before its runner started", jobId);
             return;
         }
-        // US-18.7 (issue #122): a job CANCELLED while QUEUED never runs —
-        // the cancel() write wins over the runner's pickup
-        if (job.status() == JobStatus.CANCELLED) {
+        // the CAS pickup: a cancel() while QUEUED makes this fail and
+        // the runner aborts without executing anything
+        if (!pickup(jobId, job)) {
             log.info("[JOB] {} cancelled while QUEUED — runner aborts", jobId);
             return;
         }
-        job = save(job.transition(JobStatus.RUNNING, Instant.now(), null));
+        // the local view must reflect the CAS: the stale QUEUED snapshot
+        // would otherwise be written back by later save()/withExecution
+        // calls (found by the CAS tests: record moved to QUEUED)
+        job = job.transition(JobStatus.RUNNING, Instant.now(), null);
         StringBuilder outcomes = new StringBuilder();
         boolean allSuccess = true;
         String firstExecutionId = null;
@@ -353,15 +419,13 @@ public class RemoteJobService {
         try {
             for (int i = 0; i < addressIds.size(); i++) {
                 String addressId = addressIds.get(i);
-                // US-18.4 re-review: CONSUME the interrupt flag once per
-                // job — jobRunner threads are POOLED, and a flag left set
-                // by a previous job would fail every future fetch landing
-                // on that worker
+                // CONSUME the interrupt flag once per job — jobRunner
+                // threads are POOLED, and a flag left set by a previous
+                // job would fail every future fetch on that worker
                 if (Thread.interrupted()) {
                     interrupted = true;
                 }
                 if (interrupted) {
-                    interrupted = true;
                     outcomes.append(addressId)
                             .append(": SKIPPED — job runner interrupted before "
                                     + "its run; ");
@@ -374,7 +438,12 @@ public class RemoteJobService {
                             chainId, addressId, TriggerType.REMOTE);
                     if (firstExecutionId == null) {
                         firstExecutionId = execution.id();
-                        job = save(job.withExecution(execution.id()));
+                        // CAS-guarded link (same rationale as runJob's):
+                        // a cancelled batch keeps its CANCELLED record
+                        RemoteJob linked = job.withExecution(execution.id());
+                        if (jobs.saveIfStatus(jobId, JobStatus.RUNNING, linked)) {
+                            job = linked;
+                        }
                     }
                     TaskExecution finalRecord = awaitTerminal(execution.id());
                     if (finalRecord == null || !finalRecord.status().isTerminal()) {
@@ -396,44 +465,21 @@ public class RemoteJobService {
                 outcomes.append(line).append("; ");
                 log.info("[JOB] {} fetch-news: {}", jobId, line);
             }
-            // US-18.7: the cancel() write may have raced in during the
-            // batch — the job record is authoritative over the loop's
-            // own tally, and CANCELLED must not be overwritten; the
-            // collected per-address outcomes are preserved as the result
-            RemoteJob current = jobs.findById(jobId).orElse(job);
-            if (current.status() == JobStatus.CANCELLED) {
-                save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                        truncate(outcomes.toString()), current.error()));
-                log.info("[JOB] {} CANCELLED during the batch — partial "
-                        + "outcomes kept", jobId);
-                return;
-            }
-            if (allSuccess) {
-                save(job.finish(JobStatus.COMPLETED, Instant.now(),
-                        truncate(outcomes.toString()), null));
-                log.info("[JOB] {} COMPLETED ({} addresses)", jobId,
-                        addressIds.size());
-            } else {
-                save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                        truncate(outcomes.toString())));
-                log.info("[JOB] {} FAILED (batch had non-success outcomes)",
-                        jobId);
-            }
+            // the CAS finalize: a cancel() that raced the batch wins —
+            // finalizeTerminal preserves the collected outcomes on the
+            // CANCELLED record instead of overwriting it. FAILED jobs
+            // carry the outcomes as the ERROR (the documented contract),
+            // result stays null
+            finalizeTerminal(jobId, job,
+                    allSuccess ? JobStatus.COMPLETED : JobStatus.FAILED,
+                    allSuccess ? truncate(outcomes.toString()) : null,
+                    allSuccess ? null : truncate(outcomes.toString()));
         } catch (Throwable t) {
             String error = t.getClass().getSimpleName()
                     + (t.getMessage() != null ? ": " + t.getMessage() : "");
-            // US-18.7: a cancel() racing this batch wins over the tally
-            RemoteJob current = jobs.findById(jobId).orElse(job);
-            if (current.status() == JobStatus.CANCELLED) {
-                save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                        truncate(outcomes.toString()), current.error()));
-                log.info("[JOB] {} CANCELLED (refusal during batch: {})",
-                        jobId, error);
-            } else {
-                save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                        truncate(error + " | " + outcomes)));
-                log.info("[JOB] {} FAILED before/at run: {}", jobId, error);
-            }
+            finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                    truncate(error + " | " + outcomes));
+            log.info("[JOB] {} FAILED before/at run: {}", jobId, error);
             if (t instanceof Error errorT) {
                 throw errorT;
             }
@@ -466,84 +512,60 @@ public class RemoteJobService {
             log.error("[JOB] {} vanished before its runner started", jobId);
             return;
         }
-        // US-18.7 (issue #122): a job CANCELLED while QUEUED never runs —
-        // the cancel() write wins over the runner's pickup
-        if (job.status() == JobStatus.CANCELLED) {
+        // the CAS pickup: a cancel() while QUEUED makes this fail and
+        // the runner aborts without executing anything
+        if (!pickup(jobId, job)) {
             log.info("[JOB] {} cancelled while QUEUED — runner aborts", jobId);
             return;
         }
-        job = save(job.transition(JobStatus.RUNNING, Instant.now(), null));
+        // the local view must reflect the CAS (same lesson as the fetch
+        // runner: the stale QUEUED snapshot would be written back by
+        // later save()/withExecution calls)
+        job = job.transition(JobStatus.RUNNING, Instant.now(), null);
         try {
             TaskExecution execution = run.get();
-            job = save(job.withExecution(execution.id()));
+            // the execution-link write is CAS-GUARDED too (US-18.7
+            // review: a plain save resurrected RUNNING over a cancelled
+            // record, and the later COMPLETED CAS then legitimately
+            // won). When the CAS fails the job is CANCELLED — the wait
+            // CONTINUES so the execution's outcome can still be
+            // preserved on the cancelled record by the finalize CAS
+            RemoteJob linked = job.withExecution(execution.id());
+            if (!jobs.saveIfStatus(jobId, JobStatus.RUNNING, linked)) {
+                log.info("[JOB] {} CANCELLED during the run — the execution "
+                        + "outcome will be preserved on the record", jobId);
+            } else {
+                job = linked;
+            }
             TaskExecution finalRecord = awaitTerminal(execution.id());
             if (finalRecord == null) {
-                save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                        "Execution record vanished: " + execution.id()));
+                finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                        "Execution record vanished: " + execution.id());
                 log.error("[JOB] {} FAILED: execution record vanished", jobId);
             } else if (!finalRecord.status().isTerminal()) {
                 // the runner thread was interrupted mid-wait (context
-                // shutdown, or a cancel() of this job — the record is
-                // authoritative): a terminal job always carries a reason
-                RemoteJob current = jobs.findById(jobId).orElse(job);
-                if (current.status() == JobStatus.CANCELLED) {
-                    save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                            null, current.error()));
-                    log.info("[JOB] {} CANCELLED while waiting for execution "
-                            + "{}", jobId, execution.id());
-                } else {
-                    save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                            "Job runner interrupted while waiting for execution "
-                                    + execution.id()));
-                    log.info("[JOB] {} FAILED: runner interrupted", jobId);
-                }
+                // shutdown, or a cancel() of this job): if CANCELLED, the
+                // finalize CAS preserves it; otherwise record the reason
+                finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                        "Job runner interrupted while waiting for execution "
+                                + execution.id());
+                log.info("[JOB] {} finalized after a runner interrupt", jobId);
             } else if (finalRecord.status() == ExecutionStatus.SUCCESS) {
-                // US-18.7: the cancel() write may have raced in during the
-                // run — the job record is authoritative over the outcome;
-                // CANCELLED must not be overwritten by COMPLETED
-                RemoteJob current = jobs.findById(jobId).orElse(job);
-                if (current.status() == JobStatus.CANCELLED) {
-                    save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                            truncate(finalRecord.outcome()), current.error()));
-                    log.info("[JOB] {} CANCELLED (the execution finished "
-                            + "meanwhile; outcome kept)", jobId);
-                } else {
-                    save(job.finish(JobStatus.COMPLETED, Instant.now(),
-                            truncate(finalRecord.outcome()), null));
-                    log.info("[JOB] {} COMPLETED (execution {})", jobId, execution.id());
-                }
+                finalizeTerminal(jobId, job, JobStatus.COMPLETED,
+                        truncate(finalRecord.outcome()), null);
+                log.info("[JOB] {} COMPLETED (execution {})", jobId, execution.id());
             } else {
-                // the execution reached terminal FAILED — same race guard:
-                // a cancel() that landed during the run must survive
-                RemoteJob current = jobs.findById(jobId).orElse(job);
-                if (current.status() == JobStatus.CANCELLED) {
-                    save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                            truncate(finalRecord.outcome()), current.error()));
-                    log.info("[JOB] {} CANCELLED (the execution failed "
-                            + "meanwhile; outcome kept)", jobId);
-                } else {
-                    save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                            truncate(finalRecord.outcome())));
-                    log.info("[JOB] {} FAILED (execution {}): {}", jobId,
-                            execution.id(), finalRecord.outcome());
-                }
+                finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                        truncate(finalRecord.outcome()));
+                log.info("[JOB] {} FAILED (execution {}): {}", jobId,
+                        execution.id(), finalRecord.outcome());
             }
         } catch (Throwable t) {
             String error = t.getClass().getSimpleName()
                     + (t.getMessage() != null ? ": " + t.getMessage() : "");
-            // US-18.7: an interrupt surfacing as an exception during a
-            // cancelled job must not overwrite the CANCELLED record
-            RemoteJob current = jobs.findById(jobId).orElse(job);
-            if (current.status() == JobStatus.CANCELLED) {
-                save(current.finish(JobStatus.CANCELLED, Instant.now(),
-                        current.result(), current.error()));
-                log.info("[JOB] {} CANCELLED (refusal during run: {})",
-                        jobId, error);
-            } else {
-                save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                        truncate(error)));
-                log.info("[JOB] {} FAILED before/at run: {}", jobId, error);
-            }
+            finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                    truncate(error));
+            log.info("[JOB] {} FAILED before/at run: {}", jobId, error);
             if (t instanceof Error errorT) {
                 // Re-throw Errors after recording: the JVM state is not
                 // trustworthy and must not be swallowed (same rule as
@@ -582,6 +604,21 @@ public class RemoteJobService {
                 TimeUnit.MILLISECONDS.sleep(200);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                // US-18.7 re-review: the interrupt may land between the
+                // read and the sleep — RE-READ ONCE so a record that
+                // finished meanwhile (a cancelled job's execution
+                // completing) is honored instead of misread as
+                // non-terminal; the caller's finalize CAS decides
+                TaskExecution fresh;
+                try {
+                    fresh = executions.show(executionId);
+                } catch (IllegalArgumentException vanished) {
+                    return record;
+                }
+                if (fresh != null && (fresh.status() == ExecutionStatus.SUCCESS
+                        || fresh.status() == ExecutionStatus.FAILED)) {
+                    return fresh;
+                }
                 return record;
             }
         }

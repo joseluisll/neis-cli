@@ -349,9 +349,26 @@ class RemoteJobServiceTest {
             throws Exception {
         ExecutionService executions = mock(ExecutionService.class);
         TaskExecution pending = execution(ExecutionStatus.PENDING, null);
+        TaskExecution done = execution(ExecutionStatus.SUCCESS,
+                "step 5/5 PRINT: 20 items");
         when(executions.submit(anyString(), anyString(),
-                eq(TriggerType.REMOTE), any())).thenReturn(pending);
-        when(executions.show(anyString())).thenReturn(pending);
+                eq(TriggerType.REMOTE), any())).thenReturn(done);
+        // PENDING while the runner waits; SUCCESS after the cancel wakes
+        // the poll — so the RUNNER (not cancel()'s own write) hits the
+        // finalize and its CAS guard preserves the CANCELLED record with
+        // the outcome kept (the vacuous-test review finding)
+        java.util.concurrent.atomic.AtomicInteger polls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        when(executions.show(anyString())).thenAnswer(inv -> {
+            // poll 1 (and its post-interrupt re-read) see PENDING; the
+            // re-read AFTER the cancel's interrupt sees the finished
+            // execution — the deterministic path to the outcome-kept
+            // finalize guard
+            if (polls.incrementAndGet() <= 1) {
+                return pending;
+            }
+            return done;
+        });
         RemoteJobService service = asyncService(executions,
                 mock(ChainService.class), mock(AddressCatalogService.class));
 
@@ -362,11 +379,22 @@ class RemoteJobServiceTest {
 
         assertTrue(outcome.cancelled());
         awaitStatus(service, submitted.id(), JobStatus.CANCELLED);
+        // the runner wakes from the interrupt and finalizes (preserving
+        // the outcome on the CANCELLED record) a moment later — wait for
+        // ITS write instead of racing it
+        long deadline = System.currentTimeMillis() + 5000;
         RemoteJob finished = service.job(submitted.id()).orElseThrow();
-        // CANCELLED is DISTINGUISHABLE from FAILED (the acceptance's
-        // point) and carries the cancellation reason
+        while (finished.result() == null
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(25);
+            finished = service.job(submitted.id()).orElseThrow();
+        }
+        // CANCELLED is DISTINGUISHABLE from FAILED, carries the reason,
+        // AND the runner's finalize (which observed the SUCCESS outcome)
+        // did NOT overwrite it — the outcome is kept on the record
         assertEquals(JobStatus.CANCELLED, finished.status());
         assertTrue(finished.error().contains("Cancelled by the caller"));
+        assertEquals("step 5/5 PRINT: 20 items", finished.result());
     }
 
     @Test

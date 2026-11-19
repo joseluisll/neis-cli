@@ -1,5 +1,6 @@
 package es.jllopez.neis.testsupport;
 
+import es.jllopez.neis.domain.model.JobStatus;
 import es.jllopez.neis.domain.model.RemoteJob;
 import es.jllopez.neis.domain.port.JobStorePort;
 
@@ -30,6 +31,22 @@ public class InMemoryJobStorePort implements JobStorePort {
     @Override
     public Optional<RemoteJob> findById(String id) {
         return Optional.ofNullable(jobs.get(id));
+    }
+
+    @Override
+    public boolean saveIfStatus(String jobId, JobStatus expectedStatus,
+                                RemoteJob record) {
+        // the CAS, same atomicity semantics as the connector's
+        // conditional UPDATE (the double cannot prove the SQL, but the
+        // SERVICE contract — re-read on false — is what tests pin)
+        synchronized (this) {
+            RemoteJob current = jobs.get(jobId);
+            if (current == null || current.status() != expectedStatus) {
+                return false;
+            }
+            jobs.put(jobId, record);
+            return true;
+        }
     }
 
     @Override

@@ -6,10 +6,13 @@ import es.jllopez.neis.application.AddressSuggestionService;
 import es.jllopez.neis.application.AddressVerificationService;
 import es.jllopez.neis.application.AiAssistantService;
 import es.jllopez.neis.application.ManagementInfoService;
+import es.jllopez.neis.application.RemoteJobService;
 import es.jllopez.neis.application.SettingsService;
 import es.jllopez.neis.application.SystemInfoService;
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.AddressType;
+import es.jllopez.neis.domain.model.JobStatus;
+import es.jllopez.neis.domain.model.RemoteJob;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -201,5 +205,42 @@ class RestAdaptersWiringTest {
         // internal failures never leak the exception message
         assertThat(advice.internal(new RuntimeException("boom")).getBody()
                 .message()).doesNotContain("boom");
+    }
+
+    @Test
+    void theCancelEndpointMapsOntoTheCancellationOutcome() {
+        // US-18.7 (issue #122): the REST layer is parse → use case → map;
+        // the no-op shape (cancelled=false + note) and the refusal are
+        // serialized by the shared advice — pinned here, live-verified
+        // over HTTP in the slice
+        es.jllopez.neis.application.RemoteJobService jobs = mock(
+                es.jllopez.neis.application.RemoteJobService.class);
+        RemoteJob done = new RemoteJob("JOB-1", "run-task", "ADDR-001",
+                Map.of(), JobStatus.COMPLETED, java.time.Instant.now(),
+                java.time.Instant.now(), java.time.Instant.now(),
+                "EXEC-1", "ok", null);
+        when(jobs.cancel("JOB-1")).thenReturn(
+                new es.jllopez.neis.application.RemoteJobService
+                        .CancellationOutcome(done, false,
+                        "already finished (COMPLETED) — nothing to cancel"));
+        when(jobs.cancel("JOB-nope")).thenThrow(
+                new java.util.NoSuchElementException("Unknown job: JOB-nope"));
+        new org.springframework.boot.test.context.runner
+                .ApplicationContextRunner()
+                .withUserConfiguration(UseCases.class, JobRestController.class)
+                .withBean(es.jllopez.neis.application.RemoteJobService.class,
+                        () -> jobs)
+                .withPropertyValues("neis.server.enabled=true")
+                .run(context -> {
+            assertThat(context).hasNotFailed();
+            var controller = context.getBean(JobRestController.class);
+            var outcome = controller.cancel("JOB-1");
+            assertThat(outcome.cancelled()).isFalse();
+            assertThat(outcome.note()).contains("already finished");
+            assertThat(outcome.job().status()).isEqualTo(JobStatus.COMPLETED);
+            // unknown id → the advice's 404 mapping
+            assertThatThrownBy(() -> controller.cancel("JOB-nope"))
+                    .isInstanceOf(java.util.NoSuchElementException.class);
+        });
     }
 }
