@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -217,7 +218,9 @@ class RemoteJobServiceTest {
         assertEquals(JobStatus.COMPLETED, finished.status());
         assertTrue(finished.result().contains("ADDR-001: SUCCESS"));
         assertEquals("EXEC-test", finished.executionId());
-        verify(executions).validateRemoteChainSubmission("CHAIN-1", "ADDR-001");
+        // pre-check (existing chain) + re-validation after resolution
+        verify(executions, times(2)).validateRemoteChainSubmission(
+                "CHAIN-1", "ADDR-001");
     }
 
     @Test

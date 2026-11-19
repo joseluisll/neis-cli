@@ -112,6 +112,15 @@ public class RemoteJobService {
             }
         }
         Chain chain = resolveFetchChain();
+        // re-validate AFTER resolution (US-18.4 re-review): the chain
+        // may have been deleted between the pre-check and here — a
+        // silently-recreated EMPTY chain would "succeed" doing nothing
+        if (addressId != null) {
+            executions.validateRemoteChainSubmission(chain.id(), addressId);
+        } else if (chain.tasks().isEmpty()) {
+            throw new IllegalStateException(
+                    "The fetch chain '" + fetchChainName + "' has no steps");
+        }
         RemoteJob job = new RemoteJob("JOB-" + UUID.randomUUID(),
                 "fetch-news", addressId,
                 Map.of("chain-id", chain.id(),
@@ -281,10 +290,14 @@ public class RemoteJobService {
         try {
             for (int i = 0; i < addressIds.size(); i++) {
                 String addressId = addressIds.get(i);
-                // US-18.4 review: a runner interrupt (context shutdown,
-                // later cancellation) must not keep SUBMITTING chain runs
-                // for the remaining addresses — stop and record them
-                if (interrupted || Thread.currentThread().isInterrupted()) {
+                // US-18.4 re-review: CONSUME the interrupt flag once per
+                // job — jobRunner threads are POOLED, and a flag left set
+                // by a previous job would fail every future fetch landing
+                // on that worker
+                if (Thread.interrupted()) {
+                    interrupted = true;
+                }
+                if (interrupted) {
                     interrupted = true;
                     outcomes.append(addressId)
                             .append(": SKIPPED — job runner interrupted before "

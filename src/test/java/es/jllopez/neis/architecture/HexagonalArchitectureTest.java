@@ -101,10 +101,14 @@ class HexagonalArchitectureTest {
      */
     @Test
     void mcpAdapterMustNotReachTheAiIntegrationPoint() {
+        // resideInAnyPackage matches PACKAGE names only — the first cut
+        // of this rule named CLASSES and could never fail (US-18.4
+        // re-review). Fully-qualified names are the class-level pin.
         ArchRule rule = noClasses().that().resideInAPackage("..adapter.mcp..")
-                .should().dependOnClassesThat().resideInAnyPackage(
-                        "..application.AiAssistantService",
-                        "..domain.port.AiAssistantPort");
+                .should().dependOnClassesThat().haveFullyQualifiedName(
+                        "es.jllopez.neis.application.AiAssistantService")
+                .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                        "es.jllopez.neis.domain.port.AiAssistantPort");
         rule.check(importedClasses);
     }
 

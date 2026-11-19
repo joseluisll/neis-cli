@@ -8,4 +8,9 @@ import java.util.List;
 public interface ContentRecordJpaRepository extends JpaRepository<ContentRecordEntity, String> {
 
     List<ContentRecordEntity> findByAddressIdOrderByCreatedAtDesc(String addressId);
+
+    /** The records of one execution (US-18.4 review: the MCP content
+     * tool routes through use-case queries, not an unbounded listAll). */
+    List<ContentRecordEntity> findByExecutionIdOrderByCreatedAtDesc(
+            String executionId);
 }
