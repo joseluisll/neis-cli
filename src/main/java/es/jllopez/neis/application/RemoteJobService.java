@@ -341,12 +341,6 @@ public class RemoteJobService {
                 runJob(job.id(), run);
             } finally {
                 runners.remove(job.id());
-                // US-18.7 third review: CONSUME any interrupt the job
-                // ends with — jobRunner threads are POOLED, and a flag
-                // left set by a cancelled job fails every future job on
-                // this worker spuriously (two cancels bricked the
-                // 2-thread pool)
-                Thread.interrupted();
             }
         }, jobRunner).whenComplete((v, e) -> {
             if (e != null) {
