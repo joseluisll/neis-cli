@@ -78,6 +78,17 @@ class HexagonalArchitectureTest {
      * infrastructure internals (persistence, connectors, other
      * adapters). Enforced positively so a future tool cannot silently
      * reach into e.g. a repository.
+     *
+     * <p>US-15.6 review note (N2): classes in the ROOT package
+     * ({@code es.jllopez.neis}, e.g. {@link ServerModeConfig},
+     * {@link McpSessionsShutdownLifecycle},
+     * {@link TerminationSignalHandler}) sit OUTSIDE every adapter
+     * package rule — that is BY DESIGN: the root is the neutral
+     * server-mode WIRING zone (mode gates, lifecycle hooks, unit-file
+     * semantics), not a driving adapter, so the delegation rules do
+     * not apply. It must not become a bypass lane for adapter logic:
+     * anything that delegates to a use case belongs in an adapter
+     * package and stays under its rule.</p>
      */
     @Test
     void mcpAdapterDelegatesOnlyToApplicationAndDomain() {

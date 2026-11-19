@@ -25,7 +25,10 @@ KillSignal=SIGTERM
 TimeoutStopSec=60
 # US-15.6 (issue #131): the JVM's default TERM exit status (143) must
 # never count as a unit failure — the app's own SIGTERM handler exits
-# 0, this covers the residual case of the JVM dying ON the signal.
+# 0, and this line covers the residual case of the JVM EXITING with
+# the default TERM status. (A JVM killed BY the signal is reported as
+# Result=signal and is outside SuccessExitStatus's scope; with the
+# handler installed that path no longer occurs.)
 SuccessExitStatus=143
 StandardOutput=journal
 StandardError=journal
