@@ -8,31 +8,41 @@ import es.jllopez.neis.domain.port.ExecutionStorePort;
 import es.jllopez.neis.domain.port.JobStorePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
 /**
- * Job-state reconciliation on server startup (US-18.10, issue #133):
+ * Job-state reconciliation on SERVER startup (US-18.10, issue #133):
  * jobs and executions left in a non-terminal state by a PREVIOUS
- * process (restart mid-run, crash, SIGKILL) are finalized with an
- * explicit reason instead of staying RUNNING forever — no runner of
- * this process will ever pick them up (the live incident: a fetch job
- * RUNNING across a service restart read terminal:false indefinitely).
+ * SERVER process (restart mid-run, crash, SIGKILL) are finalized with
+ * an explicit reason instead of staying RUNNING forever — no runner
+ * will ever pick them up (the live incident: a fetch job RUNNING
+ * across a service restart read terminal:false indefinitely).
  *
- * <p>Runs as a {@link SmartLifecycle} at phase 0, i.e. BEFORE the web
- * server lifecycle (default phase {@code Integer.MAX_VALUE}) — remote
- * adapters start serving after the store is reconciled. The scheduler
- * (registered at bean-init time) can in principle fire inside the
- * init→reconcile window; the {@code bootInstant} guard skips every
- * record with a startedAt at-or-after the boot, so only records from
- * the vanished process are touched. Residual window, documented: a
- * PENDING execution with a null startedAt created by THIS process in
- * the milliseconds before reconcile is indistinguishable from an
- * orphan (the execution record carries no created-time column; a
- * schema change is out of scope here) — the window is milliseconds
- * and the effect is one false FAILED on a just-submitted cron run.</p>
+ * <p>Server mode ONLY (review finding B1): CLI one-shot runs share
+ * the SAME SQLite file with the running service, so a reconciler
+ * active in CLI mode would finalize the LIVE server's in-flight
+ * records as FAILED — a boot of the CLI is not a restart of the
+ * serving process. The {@code neis.server.enabled} gate keeps the
+ * reconciliation where the restart semantics live.</p>
+ *
+ * <p>Runs as a {@link SmartLifecycle} at phase 0 — LOWER than the
+ * servlet web server's lifecycle phase (Boot 4.1:
+ * {@code Integer.MAX_VALUE - 2048}, verified from the bytecode), so
+ * the store is reconciled BEFORE the remote adapters start serving.
+ * The scheduler (registered at bean-init time) can in principle fire
+ * inside the init→reconcile window; the {@code bootInstant} guard
+ * skips every record with a startedAt at-or-after the boot (both the
+ * job's submittedAt and the execution's startedAt are stamped with
+ * {@code Instant.now()} at submit), so only records from the vanished
+ * process are touched. Records with a null startedAt/submittedAt are
+ * treated as previous-process orphans: the current code paths always
+ * stamp the timestamps at creation, so a null marker can only be a
+ * legacy or pre-pickup record (US-18.10's own QUEUED-before-pickup
+ * shape among them).</p>
  *
  * <p>Job finalizes are compare-and-set guarded
  * ({@link JobStorePort#saveIfStatus}) so a record that legitimately
@@ -41,9 +51,23 @@ import java.time.Instant;
  * no CAS (the executor's own lifecycle writes go through plain
  * saves); at reconcile time no run of a previous process can
  * progress, so a plain save with the bootInstant guard is sound.</p>
+ *
+ * <p>Fail-closed on purpose (review note N4): a {@code reconcile()}
+ * that throws (DB down/corrupt) aborts the boot — the alternative is
+ * serving traffic against an unreconciled store.</p>
  */
 @Component
+@ConditionalOnProperty(prefix = "neis.server", name = "enabled",
+        havingValue = "true")
 public class JobStartupReconciliation implements SmartLifecycle {
+
+    /**
+     * Phase 0: start strictly BEFORE the web server lifecycle (whose
+     * phase is {@code Integer.MAX_VALUE - 2048} in Boot 4.1) so no
+     * request is served before the store is reconciled (review N1).
+     */
+    public static final int RECONCILE_PHASE = 0;
+
 
     private static final Logger log =
             LoggerFactory.getLogger(JobStartupReconciliation.class);
@@ -60,6 +84,11 @@ public class JobStartupReconciliation implements SmartLifecycle {
         this.jobs = jobs;
         this.executions = executions;
         this.bootInstant = Instant.now();
+    }
+
+    @Override
+    public int getPhase() {
+        return RECONCILE_PHASE;
     }
 
     @Override

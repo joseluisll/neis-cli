@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -117,32 +116,35 @@ class JobStartupReconciliationTest {
     void lostCasReReadLeavesTheFreshStateIntact() {
         // the CAS loses because the job reached a terminal state between
         // the scan and the write; the reconciler must respect the fresh
-        // record, not overwrite it with FAILED
+        // record, not overwrite it with FAILED. The racy store's scan
+        // still sees RUNNING while its findById answers the COMPLETED
+        // record — the re-read is what the reconciler must honor, so a
+        // plain save instead of the re-read would fail this test.
         RemoteJob scanned = job("JOB-1", JobStatus.RUNNING, PAST, PAST);
         RemoteJob actuallyCompleted = scanned
                 .finish(JobStatus.COMPLETED, PAST.plusSeconds(30), "done", null);
-        jobs.save(actuallyCompleted);
+        InMemoryJobStorePort racingStore = new InMemoryJobStorePort() {
+            @Override
+            public List<RemoteJob> findAll() {
+                // what the scan saw: still RUNNING
+                return List.of(scanned);
+            }
+
+            @Override
+            public boolean saveIfStatus(String jobId, JobStatus expected,
+                                        RemoteJob record) {
+                return false; // CAS loss: the record moved on
+            }
+        };
+        racingStore.save(actuallyCompleted);
 
         JobStartupReconciliation racing = new JobStartupReconciliation(
-                new InMemoryJobStorePort() {
-                    @Override
-                    public List<RemoteJob> findAll() {
-                        // what the scan saw: still RUNNING
-                        return List.of(scanned);
-                    }
-
-                    @Override
-                    public boolean saveIfStatus(String jobId, JobStatus expected,
-                                                RemoteJob record) {
-                        return false; // CAS loss: the record moved on
-                    }
-                },
-                executions);
+                racingStore, executions);
 
         racing.reconcile();
 
-        assertEquals(actuallyCompleted, jobs.findById("JOB-1").orElseThrow());
-        assertFalse(jobs.findById("JOB-1").orElseThrow().status() == JobStatus.FAILED);
+        assertEquals(actuallyCompleted,
+                racingStore.findById("JOB-1").orElseThrow());
     }
 
     @Test
