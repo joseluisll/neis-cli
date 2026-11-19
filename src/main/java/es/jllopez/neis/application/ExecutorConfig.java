@@ -31,4 +31,21 @@ public class ExecutorConfig {
             return worker;
         });
     }
+
+    /**
+     * The remote-job runner behind US-18.2 (issue #117): the threads
+     * that submit the wrapped run and wait out its execution. A small
+     * pool SEPARATE from the task executor — a job waiter parked in
+     * its poll loop must never occupy a run worker and starve
+     * scheduled work. Daemon threads, same rule as above: any CLI run
+     * that submitted a remote job must still exit.
+     */
+    @Bean(destroyMethod = "shutdown")
+    public Executor jobRunner() {
+        return Executors.newFixedThreadPool(2, runnable -> {
+            Thread worker = new Thread(runnable, "neis-job-runner");
+            worker.setDaemon(true);
+            return worker;
+        });
+    }
 }

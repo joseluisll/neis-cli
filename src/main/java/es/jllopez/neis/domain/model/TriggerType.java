@@ -8,5 +8,7 @@ package es.jllopez.neis.domain.model;
  */
 public enum TriggerType {
     MANUAL,
-    SCHEDULED
+    SCHEDULED,
+    /** A run submitted through a remote job (US-18.2, issue #117). */
+    REMOTE
 }

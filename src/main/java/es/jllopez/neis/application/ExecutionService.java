@@ -12,6 +12,7 @@ import es.jllopez.neis.domain.port.ExecutionStorePort;
 import es.jllopez.neis.domain.service.UrlSyntaxValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -56,7 +57,7 @@ public class ExecutionService {
                             AddressCatalogService catalog,
                             UrlSyntaxValidator urlValidator,
                             TaskWorkService taskWork,
-                            Executor taskExecutor,
+                            @Qualifier("taskExecutor") Executor taskExecutor,
                             @Value("${neis.execution.await-timeout-seconds:300}") long awaitTimeout) {
         this.store = store;
         this.chains = chains;
@@ -99,7 +100,8 @@ public class ExecutionService {
         store.save(record);
         log.info("Execution {} submitted: {} over {} ({})", record.id(), taskCode,
                 address.id(),
-                trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
+                trigger == TriggerType.SCHEDULED ? "scheduled"
+                        : trigger == TriggerType.REMOTE ? "remote" : "manual");
         CompletableFuture.runAsync(() -> run(record, address), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
@@ -130,7 +132,8 @@ public class ExecutionService {
         store.save(record);
         log.info("Execution {} submitted: chain '{}' ({} tasks) over {} ({})",
                 record.id(), chain.name(), chain.tasks().size(), address.id(),
-                trigger == TriggerType.SCHEDULED ? "scheduled" : "manual");
+                trigger == TriggerType.SCHEDULED ? "scheduled"
+                        : trigger == TriggerType.REMOTE ? "remote" : "manual");
         CompletableFuture.runAsync(() -> run(record, address), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {

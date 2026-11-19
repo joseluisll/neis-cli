@@ -88,8 +88,11 @@ class SchemaRoundTripTest {
         // V16 = the capture DOM-analysis digest (US-06.9, issue #88);
         // V17 = the capture SIMPLIFY side table (US-07.6, issue #89);
         // V18 = the capture preflight + AI-classification records
-        // (US-13.6, issue #65; US-13.2, issue #51).
-        assertEquals(18, applied.size(),
+        // (US-13.6, issue #65; US-13.2, issue #51); V19 = the remote
+        // jobs table (US-18.2, issue #117); V20 = the executions
+        // trigger-type vocabulary widened with REMOTE (US-18.2, table
+        // rebuild — SQLite cannot alter a CHECK constraint).
+        assertEquals(20, applied.size(),
                 "the applied Flyway migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));
