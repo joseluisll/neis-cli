@@ -97,7 +97,11 @@ if [[ "$current" != "$last" && "$rebuild" == "yes" ]]; then
 fi
 
 # ---- run the goal ------------------------------------------------------
-mvn_args="-Pdist package"
+# clean on the REBUILD paths: the jar name carries the version, so a
+# stale neis-<old>.jar from a previous build would be globbed into the
+# dist package's lib/ alongside the current one (found on the first
+# version-bump sequence: neis-dist-0.12 shipped 0.9, 0.11 AND 0.12)
+mvn_args="-Pdist clean package"
 if [[ "$rebuild" == "no" ]]; then
   mvn_args="-Pdist"
 fi
