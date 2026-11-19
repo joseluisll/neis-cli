@@ -1,6 +1,14 @@
 spring:
   application:
     name: neis
+  main:
+    # US-18.6 (issue #121): the SERVER run mode gate. CLI mode (the
+    # default) runs with NO web server: one-shot invocations must exit
+    # exactly as before (a started Tomcat would hold the JVM alive
+    # forever). server.sh boots server mode with
+    # --spring.main.web-application-type=servlet --neis.server.enabled=true;
+    # the REST/MCP remote adapters only exist in server mode.
+    web-application-type: none
   datasource:
     # Persistence layer (US-02, epic #2): SQLite3 is the database of the
     # first iteration. The database file location is externalized via
@@ -53,6 +61,12 @@ logging:
 neis:
   name: NEIS
   description: News and Events Information System
+  server:
+    # US-18.6 (issue #121): the remote-adapter gate, default OFF. Only
+    # server.sh (or an explicit override) turns it on, together with
+    # spring.main.web-application-type=servlet — the two must agree
+    # (ServerModeConfig fails the boot on a mismatch).
+    enabled: false
   # The SSAFP pipeline's work dir (ex issue #90): the content root where
   # the SCRAPE/SIMPLIFY artifacts and the selector store live (US-11).
   core:
