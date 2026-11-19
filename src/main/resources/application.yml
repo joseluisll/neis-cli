@@ -13,7 +13,7 @@ spring:
         # neis.server.bind/port through the shared Tomcat.
         enabled: ${neis.server.enabled:false}
         name: neis
-        version: 0.1.0-SNAPSHOT
+        version: @neis.version@  # Maven resource filtering (Boot @..@ delimiter) — follows the pom neis.version property
         type: sync
         protocol: STREAMABLE
         instructions: >-

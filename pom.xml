@@ -13,11 +13,20 @@
 
     <groupId>es.jllopez</groupId>
     <artifactId>neis</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <!-- The distribution version lives ONLY in the neis.version
+         property below — changing it changes the Maven project
+         version (jar name, build-info, /api/system), the
+         distribution package name (neis-dist-<neis.version>.tar.gz)
+         and the reported MCP server version (application.yml filters
+         @neis.version@). Never bump a version anywhere else. -->
+    <version>${neis.version}</version>
     <name>neis</name>
     <description>NEIS - News and Events Information System (CLI application on a hexagonal architecture)</description>
 
     <properties>
+        <!-- THE version of the NEIS distribution — the only place it
+             may be changed (see the comment on <version> above). -->
+        <neis.version>0.9</neis.version>
         <java.version>21</java.version>
         <spring-shell.version>4.0.3</spring-shell.version>
         <spring-ai.version>2.0.2</spring-ai.version>
