@@ -55,6 +55,12 @@ spring:
         # expired under real chain-write load. 15s turns the transient
         # contention into a wait instead of a FAILED job.
         busy_timeout: 15000
+        # US-02.5 (issue #130): WAL lets readers proceed while a writer
+        # holds its transaction (rollback-journal mode blocks them) —
+        # with the busy timeout above, executor + REST/MCP writes stop
+        # colliding into SQLITE_BUSY. WAL persists in the database
+        # file; in-memory test databases ignore it harmlessly.
+        journal_mode: WAL
   jpa:
     # The schema is owned by the migrations (US-02.3), never by Hibernate:
     # no implicit DDL from the ORM.
