@@ -67,14 +67,24 @@ public class RemoteJobService {
      */
     public RemoteJob submitRunTask(String taskCode, String addressId,
                                    Map<String, String> parameters) {
-        Map<String, String> params = new LinkedHashMap<>();
-        params.put("task-code", taskCode);
+        // Remote callers can send null values; Map.copyOf (the domain's
+        // immutability guard) rejects them — nulls are dropped HERE so
+        // the sanitization happens at the boundary, not as an NPE after
+        // the job record was persisted.
+        Map<String, String> sanitized = new LinkedHashMap<>();
         if (parameters != null) {
-            params.putAll(parameters);
+            parameters.forEach((key, value) -> {
+                if (value != null) {
+                    sanitized.put(key, value);
+                }
+            });
         }
-        return submit("run-task", addressId, params,
+        Map<String, String> jobParams = new LinkedHashMap<>();
+        jobParams.put("task-code", taskCode);
+        jobParams.putAll(sanitized);
+        return submit("run-task", addressId, Map.copyOf(jobParams),
                 () -> executions.submit(taskCode, addressId, TriggerType.REMOTE,
-                        parameters));
+                        sanitized));
     }
 
     /**
@@ -119,7 +129,18 @@ public class RemoteJobService {
     }
 
     private void runJob(String jobId, Supplier<TaskExecution> run) {
-        RemoteJob job = jobs.findById(jobId).orElse(null);
+        // The initial read is INSIDE the guarded region: a transient
+        // store failure here (SQLITE_BUSY was observed live) would
+        // otherwise strand the job in QUEUED forever — every state
+        // transition of the job must be failure-guarded.
+        RemoteJob job;
+        try {
+            job = jobs.findById(jobId).orElse(null);
+        } catch (RuntimeException storeDown) {
+            log.error("[JOB] {}: could not read the job before its run: {}",
+                    jobId, storeDown.toString());
+            return;
+        }
         if (job == null) {
             log.error("[JOB] {} vanished before its runner started", jobId);
             return;
@@ -133,13 +154,20 @@ public class RemoteJobService {
                 save(job.finish(JobStatus.FAILED, Instant.now(), null,
                         "Execution record vanished: " + execution.id()));
                 log.error("[JOB] {} FAILED: execution record vanished", jobId);
+            } else if (!finalRecord.status().isTerminal()) {
+                // the runner thread was interrupted mid-wait (context
+                // shutdown): a FAILED job always carries a reason
+                save(job.finish(JobStatus.FAILED, Instant.now(), null,
+                        "Job runner interrupted while waiting for execution "
+                                + execution.id()));
+                log.info("[JOB] {} FAILED: runner interrupted", jobId);
             } else if (finalRecord.status() == ExecutionStatus.SUCCESS) {
                 save(job.finish(JobStatus.COMPLETED, Instant.now(),
-                        finalRecord.outcome(), null));
+                        truncate(finalRecord.outcome()), null));
                 log.info("[JOB] {} COMPLETED (execution {})", jobId, execution.id());
             } else {
                 save(job.finish(JobStatus.FAILED, Instant.now(), null,
-                        finalRecord.outcome()));
+                        truncate(finalRecord.outcome())));
                 log.info("[JOB] {} FAILED (execution {}): {}", jobId,
                         execution.id(), finalRecord.outcome());
             }

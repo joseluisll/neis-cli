@@ -13,5 +13,10 @@ public enum ExecutionStatus {
     /** Finished successfully. */
     SUCCESS,
     /** Finished with a failure; the outcome carries the reason. */
-    FAILED
+    FAILED;
+
+    /** A run whose record reached one of these statuses needs no waiting. */
+    public boolean isTerminal() {
+        return this == SUCCESS || this == FAILED;
+    }
 }

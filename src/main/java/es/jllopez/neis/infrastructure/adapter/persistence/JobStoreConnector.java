@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,12 +67,27 @@ public class JobStoreConnector implements JobStorePort {
     }
 
     private RemoteJob toDomain(RemoteJobEntity e) {
+        // A malformed stored timestamp must not break every read: a
+        // single corrupt row would otherwise break findById AND
+        // findAll for all jobs — degrade that one field to null
+        // (corrupt-data-only; the writer always stores ISO-8601).
         return new RemoteJob(e.getId(), e.getOperation(), e.getAddressId(),
                 fromJson(e.getParameters()), e.getStatus(),
-                e.getSubmittedAt() == null ? null : Instant.parse(e.getSubmittedAt()),
-                e.getStartedAt() == null ? null : Instant.parse(e.getStartedAt()),
-                e.getFinishedAt() == null ? null : Instant.parse(e.getFinishedAt()),
+                parseInstant(e.getSubmittedAt()),
+                parseInstant(e.getStartedAt()),
+                parseInstant(e.getFinishedAt()),
                 e.getExecutionId(), e.getResult(), e.getError());
+    }
+
+    private Instant parseInstant(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException corrupt) {
+            return null;
+        }
     }
 
     private String toJson(Map<String, String> parameters) {
