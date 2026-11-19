@@ -37,12 +37,10 @@ import java.time.Instant;
  * inside the init→reconcile window; the {@code bootInstant} guard
  * skips every record with a startedAt at-or-after the boot (both the
  * job's submittedAt and the execution's startedAt are stamped with
- * {@code Instant.now()} at submit), so only records from the vanished
- * process are touched. Records with a null startedAt/submittedAt are
- * treated as previous-process orphans: the current code paths always
- * stamp the timestamps at creation, so a null marker can only be a
- * legacy or pre-pickup record (US-18.10's own QUEUED-before-pickup
- * shape among them).</p>
+ * {@code Instant.now()} at submit). Null markers can only be legacy
+ * rows of an older schema or process — a pre-pickup QUEUED job still
+ * carries a stamped submittedAt, so its resolved marker is non-null;
+ * both shapes are previous-process orphans and both are finalized.</p>
  *
  * <p>Job finalizes are compare-and-set guarded
  * ({@link JobStorePort#saveIfStatus}) so a record that legitimately
