@@ -20,7 +20,7 @@ public interface RemoteJobJpaRepository extends JpaRepository<RemoteJobEntity, S
      * reliably with record-shaped params; the connector computes the
      * ISO-TEXT timestamp strings, matching the column conventions).
      */
-    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query(value = """
             update remote_jobs
                set status = :status,

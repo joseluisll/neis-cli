@@ -430,6 +430,47 @@ class RemoteJobServiceTest {
     }
 
     @Test
+    void aCancelledRunningJobDoesNotPoisonThePoolForTheNextJob()
+            throws Exception {
+        // US-18.7 third review: a real interrupt leaves the flag SET on
+        // the pooled worker unless the runner consumes it on exit — the
+        // NEXT job on that worker would fail spuriously with "runner
+        // interrupted while waiting". This test pins the consumption.
+        ExecutionService executions = mock(ExecutionService.class);
+        TaskExecution pending = execution(ExecutionStatus.PENDING, null);
+        TaskExecution done = execution(ExecutionStatus.SUCCESS, "ok");
+        when(executions.submit(anyString(), anyString(),
+                eq(TriggerType.REMOTE), any())).thenReturn(pending);
+        when(executions.show(anyString())).thenReturn(pending);
+        RemoteJobService service = asyncService(executions,
+                mock(ChainService.class), mock(AddressCatalogService.class));
+
+        RemoteJob first = service.submitRunTask("WEBSCRAPE", "ADDR-001", null);
+        awaitStatus(service, first.id(), JobStatus.RUNNING);
+        service.cancel(first.id());
+        awaitStatus(service, first.id(), JobStatus.CANCELLED);
+
+        // the next job on the SAME pooled worker: its execution is
+        // still in flight when its awaitTerminal starts — a leaked
+        // interrupt flag would fail it spuriously
+        when(executions.submit(anyString(), anyString(),
+                eq(TriggerType.REMOTE), any())).thenReturn(done);
+        java.util.concurrent.atomic.AtomicInteger polls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        when(executions.show(anyString())).thenAnswer(inv -> {
+            if (polls.incrementAndGet() <= 1) {
+                return pending;
+            }
+            return done;
+        });
+        RemoteJob second = service.submitRunTask("SIMPLIFY", "ADDR-001", null);
+
+        awaitStatus(service, second.id(), JobStatus.COMPLETED);
+        RemoteJob finished = service.job(second.id()).orElseThrow();
+        assertEquals("ok", finished.result());
+    }
+
+    @Test
     void jobsListIsNewestFirstAndFiltersByStatus() {
         ExecutionService executions = mock(ExecutionService.class);
         when(executions.submit(anyString(), anyString(), eq(TriggerType.REMOTE), any()))

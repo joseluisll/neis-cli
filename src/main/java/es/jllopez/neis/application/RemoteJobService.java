@@ -147,6 +147,9 @@ public class RemoteJobService {
                 runFetchNewsJob(job.id(), chain.id(), targets);
             } finally {
                 runners.remove(job.id());
+                // same pooled-worker rule as the run submit: consume any
+                // interrupt the job ends with
+                Thread.interrupted();
             }
         }, jobRunner).whenComplete((v, e) -> {
             if (e != null) {
@@ -196,10 +199,18 @@ public class RemoteJobService {
         // the CAS: cancelled=true means the CANCELLED record is PERSISTED
         // (a plain save could be overwritten by a racing runner write)
         if (!jobs.saveIfStatus(jobId, job.status(), cancelled)) {
+            // the CAS lost: the record moved on — distinguish "already
+            // finished" from "still running, retry" (US-18.7 third
+            // review: a RUNNING record is NOT "nothing to cancel")
             RemoteJob fresh = jobs.findById(jobId).orElse(job);
+            if (fresh.status().isTerminal()) {
+                return new CancellationOutcome(fresh, false,
+                        "already finished (" + fresh.status()
+                                + ") — nothing to cancel");
+            }
             return new CancellationOutcome(fresh, false,
-                    "already finished (" + fresh.status()
-                            + ") — nothing to cancel");
+                    "the job moved to " + fresh.status()
+                            + " — retry the cancel to stop it");
         }
         log.info("[JOB] {} CANCELLED by the caller while {}",
                 jobId, job.status());
@@ -330,6 +341,12 @@ public class RemoteJobService {
                 runJob(job.id(), run);
             } finally {
                 runners.remove(job.id());
+                // US-18.7 third review: CONSUME any interrupt the job
+                // ends with — jobRunner threads are POOLED, and a flag
+                // left set by a cancelled job fails every future job on
+                // this worker spuriously (two cancels bricked the
+                // 2-thread pool)
+                Thread.interrupted();
             }
         }, jobRunner).whenComplete((v, e) -> {
             if (e != null) {
@@ -621,19 +638,6 @@ public class RemoteJobService {
                 }
                 return record;
             }
-        }
-    }
-
-    private RemoteJob save(RemoteJob job) {
-        try {
-            return jobs.save(job);
-        } catch (RuntimeException e) {
-            // Every store failure is caught and logged: the lifecycle
-            // must never strand the job (same rule as the execution
-            // record's trySave).
-            log.error("[JOB] {}: could not record the {} transition: {}",
-                    job.id(), job.status(), e.toString());
-            return job;
         }
     }
 
