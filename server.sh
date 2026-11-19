@@ -31,11 +31,13 @@ export JAVA_HOME="$JAVA_HOME_CANDIDATE"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 # Build once if the jar is missing
-JAR="$(ls -t target/neis-*.jar 2>/dev/null | grep -v original | head -1 || true)"
+# Jar discovery: installed layout keeps it in lib/, the repository
+# build in target/ (Maven's own dir) — prefer whichever exists.
+JAR="$(ls -t lib/neis-*.jar target/neis-*.jar 2>/dev/null | grep -v original | head -1 || true)"
 if [[ -z "$JAR" ]]; then
   echo "No packaged jar found - building..."
   mvn -B -q -DskipTests package
-  JAR="$(ls -t target/neis-*.jar | grep -v original | head -1)"
+  JAR="$(ls -t lib/neis-*.jar target/neis-*.jar | grep -v original | head -1)"
 fi
 
 # Warn when sources are newer than the packaged jar (stale-jar guard).

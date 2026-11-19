@@ -10,7 +10,10 @@ set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESULTS_DIR="$KIT_DIR/results"
+# Work dir: the installed layout names it data/, the repository
+# checkout work/ — use whichever this kit tree carries.
 WORK_DIR="$KIT_DIR/work"
+[[ -d "$KIT_DIR/data" ]] && WORK_DIR="$KIT_DIR/data"
 
 case "${1:-}" in
   --list-runs)

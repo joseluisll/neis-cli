@@ -24,7 +24,10 @@ CHAIN_NAME="core-chain-ssafp"
 CHAIN_STEPS="WEBSCRAPE,SIMPLIFY,ANALYZE,FILTER,PRINT"
 CHAIN_DESCRIPTION="Core platform SSAFP chain: WEBSCRAPE - SIMPLIFY - ANALYZE - FILTER - PRINT (ex MVP chain)"
 
+# Work dir: the installed layout names it data/, the repository
+# checkout work/ — use whichever this kit tree carries.
 WORK_DIR="$KIT_DIR/work"
+[[ -d "$KIT_DIR/data" ]] && WORK_DIR="$KIT_DIR/data"
 RESULTS_DIR="$KIT_DIR/results"
 mkdir -p "$WORK_DIR" "$RESULTS_DIR"
 
