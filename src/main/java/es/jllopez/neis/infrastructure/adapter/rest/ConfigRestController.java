@@ -1,5 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.rest;
 
+import es.jllopez.neis.infrastructure.adapter.ConditionalOnServerEnabled;
+
 import es.jllopez.neis.application.SettingsService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

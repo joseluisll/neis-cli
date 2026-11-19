@@ -55,6 +55,17 @@
             <artifactId>spring-ai-openai</artifactId>
             <version>${spring-ai.version}</version>
         </dependency>
+        <!-- US-18.3 (issue #118): the MCP server driving adapter over
+             Streamable HTTP. Same Spring AI line as the AI integration
+             (2.0.x; 2.1 is still milestone/RC). The starter's
+             auto-configuration is GATED: spring.ai.mcp.server.enabled
+             tracks neis.server.enabled (application.yml), so one-shot
+             CLI invocations never boot MCP. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>

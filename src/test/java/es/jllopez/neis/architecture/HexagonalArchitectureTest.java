@@ -49,6 +49,27 @@ class HexagonalArchitectureTest {
      * application may never import them — swap a component without
      * touching the inner layers.
      */
+    /**
+     * US-18 (issues #116/#118): REST, MCP and shell are SIBLING driving
+     * adapters over the same application use cases — none may depend on
+     * another (no controller calling a controller, no MCP tool reaching
+     * into the REST layer; the shared server-mode gate annotation lives
+     * in the neutral adapter package above all three).
+     */
+    @Test
+    void drivingAdaptersMustNotDependOnEachOther() {
+        String[][] groups = {
+                {"..adapter.rest..", "..adapter.mcp..", "..adapter.shell.."},
+                {"..adapter.mcp..", "..adapter.rest..", "..adapter.shell.."},
+                {"..adapter.shell..", "..adapter.rest..", "..adapter.mcp.."}};
+        for (String[] g : groups) {
+            ArchRule rule = noClasses().that().resideInAPackage(g[0])
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage(g[1], g[2]);
+            rule.check(importedClasses);
+        }
+    }
+
     @Test
     void domainAndApplicationMustNotDependOnStackLibraries() {
         ArchRule rule = noClasses().that()

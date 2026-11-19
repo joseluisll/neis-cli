@@ -1,5 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.rest;
 
+import es.jllopez.neis.infrastructure.adapter.ConditionalOnServerEnabled;
+
 import es.jllopez.neis.application.AddressCatalogService;
 import es.jllopez.neis.application.AddressPreflightService;
 import es.jllopez.neis.application.AddressSuggestionService;

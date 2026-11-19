@@ -1,4 +1,4 @@
-package es.jllopez.neis.infrastructure.adapter.rest;
+package es.jllopez.neis.infrastructure.adapter;
 
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;

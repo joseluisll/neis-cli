@@ -15,7 +15,6 @@ import es.jllopez.neis.testsupport.InMemoryAddressCatalogPort;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -39,8 +38,7 @@ import static org.mockito.Mockito.when;
  */
 class RestAdaptersWiringTest {
 
-    @Configuration
-    static class UseCases {
+    static class UseCases {  // no @Configuration: registered by the runners (lite mode); invisible to the app's component scan
         @Bean
         AddressCatalogService addressCatalogService() {
             Address verified = new Address("ADDR-001", "Source", "seeded",

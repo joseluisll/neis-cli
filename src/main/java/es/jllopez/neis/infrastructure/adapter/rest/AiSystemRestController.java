@@ -1,5 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.rest;
 
+import es.jllopez.neis.infrastructure.adapter.ConditionalOnServerEnabled;
+
 import es.jllopez.neis.application.AiAssistantService;
 import es.jllopez.neis.application.ManagementInfoService;
 import es.jllopez.neis.application.SystemInfoService;

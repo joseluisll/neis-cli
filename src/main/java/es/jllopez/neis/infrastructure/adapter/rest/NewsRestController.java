@@ -1,5 +1,7 @@
 package es.jllopez.neis.infrastructure.adapter.rest;
 
+import es.jllopez.neis.infrastructure.adapter.ConditionalOnServerEnabled;
+
 import es.jllopez.neis.application.NewsEventExportService;
 import es.jllopez.neis.application.NewsEventService;
 import es.jllopez.neis.domain.model.NewsEventItem;
