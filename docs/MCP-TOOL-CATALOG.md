@@ -23,7 +23,7 @@ same way — examples come from real output, not invented.
 Fetch news/events by running the configured fetch chain over ONE address (address_id) or over ALL registered addresses (omit address_id). ASYNCHRONOUS: returns the job id immediately — poll neis_job_status until finished; the result carries one outcome line per address.
 
 - MCP hints: `destructiveHint`=false, `idempotentHint`=false, `readOnlyHint`=false
-- REST counterpart(s): POST /api/fetch-news (async job)
+- REST counterpart(s): - REST counterpart(s): none direct — the MCP-only fetch wrapper over the US-18.2 job model; the REST equivalents are `POST /api/executions/run` (single task) and `POST /api/chains/{id}/run` (the fetch chain), polled via `GET /api/jobs/{id}`
 - Parameters:
   - `addressId` (optional): string — optional: one address id; omit to fetch ALL registered addresses
   - `connector` (optional): string — optional: fetch strategy for this run; 'cached' serves the address's latest stored scrape (US-06.14) without touching the service's global connector; omit for the configured default
@@ -45,7 +45,7 @@ Content artifacts of the runs: list an execution's or an address's artifacts and
 One stored item in detail: the item record plus its sighting history (every capture in which the logical record appeared), merged.
 
 - MCP hints: `destructiveHint`=false, `idempotentHint`=true, `readOnlyHint`=true
-- REST counterpart(s): GET /api/news/{canonicalId}
+- REST counterpart(s): - REST counterpart(s): `GET /api/news/sightings/{canonicalId}` (the appearance history; the merged item-detail view is MCP-only)
 - Parameters:
   - `canonicalId` **required**: string — the item's canonical id (canonicalId field of a neis_list_news item)
 
@@ -54,7 +54,7 @@ One stored item in detail: the item record plus its sighting history (every capt
 Status of a submitted job; carries the FULL result payload when finished (for neis_fetch_news: one outcome line per address).
 
 - MCP hints: `destructiveHint`=false, `idempotentHint`=true, `readOnlyHint`=true
-- REST counterpart(s): GET /api/jobs · GET /api/jobs/{id} · DELETE /api/jobs/{id}
+- REST counterpart(s): - REST counterpart(s): `GET /api/jobs` · `GET /api/jobs/{id}` · cancel via `POST /api/jobs/{id}/cancel`
 - Parameters:
   - `jobId` **required**: string — the job id (JOB-...)
 
