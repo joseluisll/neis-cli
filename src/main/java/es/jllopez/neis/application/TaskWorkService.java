@@ -864,9 +864,10 @@ public class TaskWorkService {
         // fail-open the US-08 review disqualified (a typo like
         // 'max-ites' would just do nothing).
         for (String key : parameters.keySet()) {
-            if (!"max-items".equals(key) && !"max-pages".equals(key)) {
+            if (!"max-items".equals(key) && !"max-pages".equals(key)
+                    && !"connector".equals(key)) {
                 throw new IllegalArgumentException("Task type PRINT/CHAIN accepts only "
-                        + "max-items and max-pages (got: " + key + ")");
+                        + "max-items, max-pages and connector (got: " + key + ")");
             }
         }
         int maxItems = intParameter(parameters, "max-items", 50, 1, 10_000);
@@ -875,10 +876,13 @@ public class TaskWorkService {
         // the address's preconfigured filter set — PRINT/CHAIN used to
         // silently ignore it. The chain whitelist above admits no
         // filter.* parameters, so the preconfigured catalog is the only
-        // filter source on this path.
+        // filter source on this path. US-06.14: an optional 'connector'
+        // pins the run's retrieval strategy (the cached chain's PRINT
+        // step carries connector=cached).
         PipelineResult result = pipeline.run(address, maxItems, maxPages,
                 chainFilterSpec, executionId,
-                preconfiguredFilters.find(address.id()).orElse(java.util.Map.of()));
+                preconfiguredFilters.find(address.id()).orElse(java.util.Map.of()),
+                parameters.get("connector"));
         String report = PipelineReport.render(
                 chainName != null ? chainName : "PRINT", result);
         Path reportArtifact = pipeline.writeArtifact(address, "PRINT", "report",

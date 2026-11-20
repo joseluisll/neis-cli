@@ -205,6 +205,20 @@ public class PipelineService {
     public PipelineResult run(Address address, int maxItems, int maxPages,
                               FilterSpec filterSpec, String executionId,
                               java.util.Map<String, String> scrapeFilters) {
+        return run(address, maxItems, maxPages, filterSpec, executionId,
+                scrapeFilters, null);
+    }
+
+    /**
+     * US-06.14 (issue #138): the connector override rides the whole
+     * run — a PRINT/CHAIN step that pins {@code connector=cached}
+     * serves the stored content for the SCRAPE stage (and every
+     * re-scrape inside it), never silently touching the global mode.
+     */
+    public PipelineResult run(Address address, int maxItems, int maxPages,
+                              FilterSpec filterSpec, String executionId,
+                              java.util.Map<String, String> scrapeFilters,
+                              String connectorOverride) {
         // Eligibility pre-check (US-04.1/#21 + US-04.3/#23): the URL
         // must be syntactically valid and the address verified BEFORE
         // the chain uses it.
@@ -223,8 +237,9 @@ public class PipelineService {
         // pipeline consumes the page — the same semantics as the
         // WEBSCRAPE task's own scrape.
         ScrapeResult scrape = scrapeFilters == null || scrapeFilters.isEmpty()
-                ? scrapePort.scrape(address)
-                : scrapePort.scrapeWithFilters(address, scrapeFilters, null);
+                ? scrapePort.scrape(address, connectorOverride)
+                : scrapePort.scrapeWithFilters(address, scrapeFilters,
+                        connectorOverride);
         // US-06.14 (issue #138): a CACHED fetch names its reuse on the
         // result — the report carries it and the repository write skips
         // the sightings (US-14.12): the page was re-served, not captured.

@@ -56,6 +56,9 @@ class TaskWorkServiceParameterTest {
         PipelineService pipeline = mock(PipelineService.class);
         when(pipeline.run(any(Address.class), anyInt(), anyInt(), any(), any(),
                 any())).thenReturn(result);
+        // the US-06.14 connector-override overload (PRINT may pin it)
+        when(pipeline.run(any(Address.class), anyInt(), anyInt(), any(), any(),
+                any(), any())).thenReturn(result);
         return pipeline;
     }
 
@@ -66,7 +69,7 @@ class TaskWorkServiceParameterTest {
         String outcome = service(pipeline).execute("PRINT", address,
                 Map.of("max-items", "5", "max-pages", "2"));
 
-        verify(pipeline).run(address, 5, 2, null, null, java.util.Map.of());
+        verify(pipeline).run(address, 5, 2, null, null, java.util.Map.of(), null);
         assertTrue(outcome.startsWith("CHAIN:"));
     }
 
@@ -105,7 +108,7 @@ class TaskWorkServiceParameterTest {
 
         service(pipeline).execute("PRINT", address, Map.of());
 
-        verify(pipeline).run(address, 50, 10, null, null, java.util.Map.of());
+        verify(pipeline).run(address, 50, 10, null, null, java.util.Map.of(), null);
     }
 
     @Test
@@ -132,7 +135,7 @@ class TaskWorkServiceParameterTest {
         work.execute("PRINT", address, Map.of());
 
         verify(pipeline).run(address, 50, 10, null, null,
-                java.util.Map.of("programme", "EU4Health"));
+                java.util.Map.of("programme", "EU4Health"), null);
     }
 
     @Test
