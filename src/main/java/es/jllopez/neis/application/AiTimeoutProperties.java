@@ -5,6 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Name;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Per-operation timeouts for AI service calls (US-13.8, issue #132):
@@ -53,6 +56,12 @@ public record AiTimeoutProperties(
 
     /** The requirement's default: 240 seconds for every operation. */
     public static final Duration DEFAULT_AI_TIMEOUT = Duration.ofSeconds(240);
+
+    /** The property prefix (also used by the key gate). */
+    public static final String PREFIX = "neis.ai.timeouts";
+
+    /** The environment-variable form of the prefix (key gate). */
+    public static final String ENV_PREFIX = "NEIS_AI_TIMEOUTS_";
 
     public AiTimeoutProperties {
         defaultTimeout = positiveOrNull(defaultTimeout, "default");
@@ -124,5 +133,65 @@ public record AiTimeoutProperties(
             }
         }
         return max;
+    }
+
+    /**
+     * The gate's logic (invoked by {@link AiTimeoutConfig} as a
+     * BeanFactoryPostProcessor): throws naming the first unknown key
+     * found under {@link #PREFIX} — Spring constructor binding cannot
+     * honor {@code ignoreUnknownFields=false} (verified live: unknown
+     * keys are simply not bound), so the gate scans the environment
+     * itself, yml-style AND environment-variable style, BEFORE any
+     * bean is bound.
+     */
+    public static void rejectUnknownKeys(
+            org.springframework.core.env.Environment environment) {
+        Set<String> known = new HashSet<>(Arrays.asList("default"));
+        for (AiOperation operation : AiOperation.values()) {
+            known.add(operation.configKey());
+        }
+        for (var source : ((org.springframework.core.env.ConfigurableEnvironment)
+                environment).getPropertySources()) {
+            if (!(source instanceof org.springframework.core.env.
+                    EnumerablePropertySource<?> enumerable)) {
+                continue;
+            }
+            for (String name : enumerable.getPropertyNames()) {
+                String key = timeoutKeyOf(name);
+                if (key != null && !known.contains(key)) {
+                    throw new IllegalStateException(
+                            "Unknown AI timeout key 'neis.ai.timeouts."
+                                    + key + "' — known keys: default, "
+                                    + "generic, classification, "
+                                    + "selector-news, selector-events, "
+                                    + "capability-detection, "
+                                    + "capability-repair, "
+                                    + "filter-zone-selector, "
+                                    + "filter-criterion, filter-apply, "
+                                    + "registration, preflight (US-13.8: "
+                                    + "a typo'd override would be "
+                                    + "silently ignored, so the boot "
+                                    + "fails instead)");
+                }
+            }
+        }
+    }
+
+    /**
+     * Extracts the timeout key from a property name, accepting both
+     * the yml form ({@code neis.ai.timeouts.selector-news}) and the
+     * environment-variable form ({@code NEIS_AI_TIMEOUTS_SELECTOR_NEWS}
+     * — relaxed to {@code selector-news}). Returns null for names
+     * outside the prefix.
+     */
+    private static String timeoutKeyOf(String name) {
+        if (name.startsWith(PREFIX + ".")) {
+            return name.substring(PREFIX.length() + 1);
+        }
+        if (name.startsWith(ENV_PREFIX)) {
+            return name.substring(ENV_PREFIX.length())
+                    .toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+        }
+        return null;
     }
 }

@@ -8,6 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Connector (driven adapter) implementing the AI port with Spring AI's
  * OpenAI-compatible chat model.
@@ -77,15 +81,25 @@ public class SpringAiConnector implements AiAssistantPort,
         this.chatModel = chatModel;
         this.model = model == null || model.isBlank() ? "(provider default)" : model;
         this.aiTimeouts = aiTimeouts;
-        this.aiCallExecutor = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
-            Thread t = new Thread(r, "ai-calls");
-            t.setDaemon(true);
-            return t;
-        });
+        this.aiCallExecutor = Executors.newFixedThreadPool(2,
+                namedDaemonFactory("ai-calls"));
     }
 
-    private static ChatModel resolveChatModel(
-            String provider, String baseUrl, String model, String apiKeyRef,
+    /**
+     * Daemon-pool threads with INDEXED names — thread dumps must
+     * distinguish the workers (review finding).
+     */
+    private static ThreadFactory namedDaemonFactory(String prefix) {
+        AtomicInteger index = new AtomicInteger();
+        return r -> {
+            Thread t = new Thread(r,
+                    prefix + "-" + index.incrementAndGet());
+            t.setDaemon(true);
+            return t;
+        };
+    }
+
+    private static ChatModel resolveChatModel(String provider, String baseUrl, String model, String apiKeyRef,
             org.springframework.core.env.Environment environment,
             es.jllopez.neis.application.AiTimeoutProperties aiTimeouts) {
         // US-15.3 (issue #66): exactly one provider is accepted in this
