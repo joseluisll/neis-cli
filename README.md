@@ -15,13 +15,17 @@ Requires JDK 21+ and Maven 3.9+.
 
 ## Run
 
-Interactive shell:
+The interactive shell is DISABLED by default (owner decision
+2026-11-20): the CLI is one-shot — a bare invocation runs its command
+(if any) and exits.
 
-    java -jar target/neis-0.1.0-SNAPSHOT.jar
+Run a single command:
 
-Run a single command non-interactively (Spring Shell 4):
+    java -jar target/neis-0.1.0-SNAPSHOT.jar help
 
-    java -Dspring.shell.interactive.enabled=false -jar target/neis-0.1.0-SNAPSHOT.jar help
+Opt into the interactive shell explicitly:
+
+    java -jar target/neis-0.1.0-SNAPSHOT.jar --spring.shell.interactive.enabled=true
 
 ## Status
 

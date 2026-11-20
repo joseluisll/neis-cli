@@ -14,6 +14,11 @@
 # AI is enabled by setting neis.ai.enabled=true as a SEPARATE argument
 # (Spring Boot lifts --key=value arguments into the environment) when
 # MELIOUS_API_KEY is available (environment or ~/.hermes/.env).
+#
+# The interactive shell is DISABLED BY DEFAULT since the application.yml
+# default flip (owner decision 2026-11-20): one-shot is the jar's own
+# behavior — no -D flag needed here anymore. Opt in for a REPL session:
+#   core/start.sh -- '--spring.shell.interactive.enabled=true'
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -50,7 +55,7 @@ if [[ -n "$(find src pom.xml -newer "$JAR" -print -quit 2>/dev/null)" ]]; then
 fi
 
 if [[ "${1:-}" == "--list" ]]; then
-  exec java -Dspring.shell.interactive.enabled=false -jar "$JAR" 'address list'
+  exec java -jar "$JAR" 'address list'
 fi
 
 if [[ "${1:-}" == "--" ]]; then
@@ -63,9 +68,9 @@ if [[ "${1:-}" == "--" ]]; then
   if [[ -n "${1:-}" && "$1" != -* ]]; then
     # Whole command as ONE argument (the non-interactive runner re-parses
     # it, so nested quoting works for values with spaces).
-    exec java -Dspring.shell.interactive.enabled=false -jar "$JAR" "$1" "${AI_ARGS[@]}"
+    exec java -jar "$JAR" "$1" "${AI_ARGS[@]}"
   fi
-  exec java -Dspring.shell.interactive.enabled=false -jar "$JAR" "$@" "${AI_ARGS[@]}"
+  exec java -jar "$JAR" "$@" "${AI_ARGS[@]}"
 fi
 
 cat >&2 <<'EOF'

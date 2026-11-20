@@ -28,6 +28,15 @@ spring:
         # @McpTool bean
         annotation-scanner:
           enabled: ${neis.server.enabled:false}
+  shell:
+    # Interactive REPL off by default (owner decision 2026-11-20): the
+    # CLI is one-shot — a bare invocation executes its command (if any)
+    # and exits, and can never silently hang on a TTY waiting for input
+    # (the failure mode that motivated the -D flags in every launcher).
+    # Opt back into the interactive shell explicitly:
+    #   --spring.shell.interactive.enabled=true
+    interactive:
+      enabled: false
   main:
     # US-18.6 (issue #121): the SERVER run mode gate. CLI mode (the
     # default) runs with NO web server: one-shot invocations must exit

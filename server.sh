@@ -52,7 +52,6 @@ fi
 exec java -jar "$JAR" \
   --spring.main.web-application-type=servlet \
   --neis.server.enabled=true \
-  --spring.shell.interactive.enabled=false \
   --neis.server.bind="${NEIS_SERVER_BIND:-127.0.0.1}" \
   --neis.server.port="${NEIS_SERVER_PORT:-8080}" \
   "$@"
