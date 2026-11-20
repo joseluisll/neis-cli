@@ -53,10 +53,11 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         long stamp = ++lastWrite;
         int stored = 0;
         for (NewsEventItem item : items) {
-            // US-13.9: the same relevance validation as the real
+            // US-13.9: the same relevance VALIDATION as the real
             // connector (the shared domain classifier — the filter
-            // cannot drift between the double and the store), with
-            // the same logged-exclusion semantics.
+            // cannot drift between the double and the store); the
+            // connector additionally logs each exclusion, the double
+            // only drops (it has no logger).
             if (NewsItemRelevance.exclusionOf(item) != null) {
                 continue;
             }

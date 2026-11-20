@@ -70,6 +70,27 @@ class NewsItemRelevanceTest {
                 "El Congreso aprueba la ley de menores",
                 "https://www.abc.es/x/congreso-20261119222527-nt.html")),
                 "a plain political news piece passes");
+        // The review's executed counter-examples — real coverage the
+        // first rule set wrongly excluded:
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Primer contacto entre el Gobierno y Puigdemont",
+                "https://www.abc.es/x/contacto-20261119222527-nt.html")),
+                "bare 'contacto' is news vocabulary (review finding)");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "La sonda retoma el contacto con la Tierra", null)),
+                "'contacto' in space coverage is news");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Inglaterra gana el tercer Test ante Australia", null)),
+                "a cricket 'Test' is real sport coverage (review finding)");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Los tests de antígenos se agotan en las farmacias", null)),
+                "'tests de antígenos' is health coverage (review finding)");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Netflix sube el precio de la suscripción estándar", null)),
+                "bare 'suscripción' is business coverage (review finding)");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Voter registration deadline extended to Friday", null)),
+                "bare 'registration' is politics coverage (review finding)");
     }
 
     @Test

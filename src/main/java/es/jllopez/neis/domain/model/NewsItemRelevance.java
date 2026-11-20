@@ -34,34 +34,40 @@ public final class NewsItemRelevance {
 
     private record Rule(String name, Pattern pattern) {}
 
-    /** Cookie banners, legal and navigation-utility links. */
+    /** Cookie banners, legal and navigation-utility links. Kept to
+     * multi-word legal/cookie phrases — single generic words were
+     * rejected by review (bare 'contacto' excluded real headlines like
+     * 'Primer contacto entre el Gobierno y Puigdemont'). */
     private static final Rule UTILITY = new Rule("utility-page",
             Pattern.compile("pol[ií]tica de privacidad|aviso legal|"
                     + "t[eé]rminos y condiciones|pol[ií]tica de cookies|"
                     + "configuraci[oó]n de cookies|qui[eé]nes somos|"
-                    + "contacto|sitemap|mapa web|"
+                    + "mapa web|"
                     + "privacy policy|terms (of|and) (service|use)|"
-                    + "cookie (settings|policy)|about us",
+                    + "cookie (settings|policy)",
                     Pattern.CASE_INSENSITIVE));
 
-    /** Subscription and newsletter prompts ('Newsletter especial —
-     * Apúntate' was stored as news on ADDR-010). */
+    /** Subscription/newsletter prompts. IMPERATIVE CTA FORMS ONLY —
+     * bare 'newsletter'/'suscripción'/'registration' were rejected by
+     * review (they appear in real coverage like 'Netflix sube el
+     * precio de la suscripción estándar'); the ADDR-010 subscription
+     * card ('Newsletter especial — Apúntate') is caught by its
+     * imperative 'apúntate'. */
     private static final Rule SUBSCRIPTION = new Rule("subscription",
-            Pattern.compile("newsletter|suscr[ií]bete|suscripci[oó]n|"
-                    + "ap[uú]ntate|reg[ií]strate|recibe cada|"
-                    + "subscribe|sign up (for|to)|registration",
+            Pattern.compile("suscr[ií]bete|ap[uú]ntate|reg[ií]strate|"
+                    + "recibe cada|\\bsubscribe\\b|sign up (for|to)",
                     Pattern.CASE_INSENSITIVE));
 
-    /** Quizzes and interactive widgets. Deliberately NARROW: generic
-     * words ('encuesta', 'vota', 'poll') appear in real poll-coverage
-     * headlines ('Cómo van las encuestas del 29N' is news, not a
-     * widget) — only unambiguous widget markers qualify. The ADDR-010
-     * quiz card is caught by its URL marker; a widget whose title AND
-     * url carry no marker is a known heuristic limitation (the
-     * AI-assisted tier would refine it). */
+    /** Quizzes and interactive widgets. DELIBERATELY NARROW: '\\btests?\\b'
+     * was rejected by review (cricket 'tercer Test', 'tests de
+     * antígenos' are real coverage); generic words ('encuesta', 'vota',
+     * 'poll') likewise. Only unambiguous widget markers qualify. The
+     * ADDR-010 quiz card is caught by its URL marker; a widget whose
+     * title AND url carry no marker is a known heuristic limitation
+     * (the AI-assisted tier would refine it). */
     private static final Rule INTERACTIVE = new Rule("interactive-widget",
             Pattern.compile("\\bquiz\\b|\\bquizzes\\b|\\btrivia\\b|"
-                    + "juega con|\\btests?\\b",
+                    + "juega con|¿qu[eé] (tan|tipo de)",
                     Pattern.CASE_INSENSITIVE));
 
     /** Section/campaign hubs and teasers ('Toda la información de la
