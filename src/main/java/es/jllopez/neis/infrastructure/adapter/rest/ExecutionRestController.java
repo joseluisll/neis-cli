@@ -50,14 +50,22 @@ public class ExecutionRestController {
     @PostMapping("/run")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public RunAccepted runTask(@RequestBody RunRequest request) {
-        if (request.taskCode() == null || request.addressId() == null) {
+        // US-18.1 review finding 4: a cheap synchronous sanity check —
+        // null OR BLANK identifiers are refused at submit (400), never
+        // surfaced later through job polling.
+        if (isBlank(request.taskCode()) || isBlank(request.addressId())) {
             throw new IllegalArgumentException(
-                    "taskCode and addressId are required");
+                    "taskCode and addressId are required and must not be "
+                            + "blank");
         }
-        RemoteJob job = jobs.submitRunTask(request.taskCode(),
-                request.addressId(), request.parameters());
-        return new RunAccepted(job.id(), job.operation(),
-                job.status().name());
+        RemoteJob job = jobs.submitRunTask(request.taskCode().trim(),
+                request.addressId().trim(), request.parameters());
+        return new RunAccepted(job.id(), job.operation(), job.status().name());
+    }
+
+    /** US-18.1 review finding 4's blank check (null-safe). */
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     @GetMapping

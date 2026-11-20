@@ -88,10 +88,17 @@ public class ChainRestController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public RunAccepted run(@PathVariable String id,
                            @RequestBody ChainRunRequest request) {
-        if (request == null || request.addressId() == null) {
-            throw new IllegalArgumentException("addressId is required");
+        // US-18.1 review finding 4: blank identifiers refused at
+        // submit (400), never surfaced later through job polling.
+        if (id == null || id.isBlank() || request == null
+                || request.addressId() == null
+                || request.addressId().isBlank()) {
+            throw new IllegalArgumentException(
+                    "chain id and addressId are required and must not be "
+                            + "blank");
         }
-        RemoteJob job = jobs.submitRunChain(id, request.addressId());
+        RemoteJob job = jobs.submitRunChain(id.trim(),
+                request.addressId().trim());
         return new RunAccepted(job.id(), job.operation(),
                 job.status().name());
     }
