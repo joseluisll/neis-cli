@@ -419,4 +419,116 @@ public class NewsCommands {
             default -> null;
         };
     }
+
+    /**
+     * Manual item correction (US-14.10, issue #124): fixes a
+     * mis-extracted item's metadata, TRACEABLY — the store records
+     * what changed (old -> new per field), when and by whom; the
+     * canonical id and the provenance are never touched. At least one
+     * field must be given (a no-op correction is refused: it would
+     * record nothing and change nothing).
+     */
+    @Command(name = {"news", "correct"}, group = "News",
+            description = "Correct a stored news/event item's metadata (US-14.10): "
+                    + "title, description, date or kind — traceable (what changed, "
+                    + "when, by whom), canonical id and provenance preserved")
+    public String correct(
+            @Option(shortName = 'i', longName = "item", required = true,
+                    description = "The item's canonical id (cn-…, from 'news list')")
+            String itemId,
+            @Option(shortName = 't', longName = "title",
+                    description = "The corrected title (omit to keep)") String title,
+            @Option(shortName = 'd', longName = "description",
+                    description = "The corrected description (omit to keep)")
+            String description,
+            @Option(longName = "date",
+                    description = "The corrected date — ISO (yyyy-MM-dd) or the "
+                            + "extractor's form (omit to keep)") String date,
+            @Option(shortName = 'k', longName = "kind",
+                    description = "The corrected kind: news or event (omit to keep)")
+            String kind,
+            @Option(shortName = 'n', longName = "note",
+                    description = "Why the correction was made (recorded in the trace)")
+            String note) {
+        if (date != null && !date.isBlank()
+                && NewsEventQuery.parseLenient(date) == null) {
+            return "Invalid --date '" + date + "' — use ISO (yyyy-MM-dd) "
+                    + "or the extractor's form (e.g. 'Jul 16, 2026')";
+        }
+        if (kind != null && !kind.isBlank()
+                && !"news".equalsIgnoreCase(kind.trim())
+                && !"event".equalsIgnoreCase(kind.trim())) {
+            return "Invalid --kind '" + kind + "' — 'news' or 'event'";
+        }
+        var correction = new es.jllopez.neis.domain.model.NewsItemCorrection(
+                title, description, date, kind, note);
+        if (correction.isEmpty()) {
+            return "Nothing to correct — give at least one of --title, "
+                    + "--description, --date, --kind (US-14.10)";
+        }
+        NewsEventItem before = newsEvents.item(itemId.trim()).orElse(null);
+        if (before == null) {
+            return "Unknown item id '" + itemId.trim()
+                    + "' — canonical ids look like 'cn-xxxxxxxx' "
+                    + "(see 'news list')";
+        }
+        int rows = newsEvents.correct(itemId.trim(), correction,
+                "operator (news correct)");
+        if (rows == 0) {
+            return "Nothing changed on " + itemId.trim()
+                    + " (the given values already match, or the record is "
+                    + "pruned — pruned records are decided false positives)";
+        }
+        NewsEventItem after = newsEvents.item(itemId.trim()).orElseThrow();
+        StringBuilder out = new StringBuilder("Corrected ")
+                .append(itemId.trim()).append(" (").append(rows)
+                .append(" row(s)):\n");
+        for (var change : correction.changesOn(before).entrySet()) {
+            out.append("  ").append(change.getKey()).append(": '")
+                    .append(change.getValue()[0] == null ? ""
+                            : change.getValue()[0])
+                    .append("' -> '").append(change.getValue()[1])
+                    .append("'\n");
+        }
+        out.append("  canonical id preserved: ").append(after.canonicalId())
+                .append("\n");
+        out.append("  provenance preserved: address ").append(after.addressId())
+                .append(", execution ")
+                .append(after.executionId() == null ? "<none>" : after.executionId())
+                .append(", content ")
+                .append(after.contentId() == null ? "<none>" : after.contentId())
+                .append("\n");
+        out.append("  trace: ").append(newsEvents.correctionTrace(itemId.trim()).size())
+                .append(" recorded correction(s)");
+        return out.toString();
+    }
+
+    /**
+     * Manual item prune (US-14.10, issue #124): soft-deletes a
+     * false-positive logical record — excluded from list, search and
+     * export, while the rows stay so the provenance history remains
+     * inspectable. A re-extraction never resurrects a pruned record.
+     */
+    @Command(name = {"news", "prune"}, group = "News",
+            description = "Prune a stored news/event item (US-14.10): soft-delete "
+                    + "a false positive — excluded from list, search and export; "
+                    + "the provenance history stays readable")
+    public String prune(
+            @Option(shortName = 'i', longName = "item", required = true,
+                    description = "The item's canonical id (cn-…, from 'news list')")
+            String itemId,
+            @Option(shortName = 'r', longName = "reason",
+                    description = "Why the item is a false positive (recorded)")
+            String reason) {
+        int rows = newsEvents.prune(itemId.trim(), reason);
+        if (rows == 0) {
+            return "Unknown item id '" + itemId.trim()
+                    + "' — canonical ids look like 'cn-xxxxxxxx' "
+                    + "(see 'news list')";
+        }
+        return "Pruned " + itemId.trim() + " (" + rows + " row(s)) — "
+                + "excluded from list, search and export; provenance "
+                + "stays readable ('news sightings')" + (reason == null || reason.isBlank() ? ""
+                : "; reason recorded: " + reason.trim());
+    }
 }

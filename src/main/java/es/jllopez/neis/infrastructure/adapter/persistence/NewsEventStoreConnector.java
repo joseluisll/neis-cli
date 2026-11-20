@@ -156,6 +156,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     @Override
     public List<NewsEventItem> byAddress(String addressId) {
         return jpa.findByAddressIdOrderByUpdatedAtDesc(addressId).stream()
+                .filter(NewsEventStoreConnector::notPruned)
                 .map(NewsEventStoreConnector::toItem)
                 .toList();
     }
@@ -163,6 +164,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     @Override
     public List<NewsEventItem> all() {
         return jpa.findAllByOrderByUpdatedAtDesc().stream()
+                .filter(NewsEventStoreConnector::notPruned)
                 .map(NewsEventStoreConnector::toItem)
                 .toList();
     }
@@ -173,10 +175,11 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         // NORMALIZED value (US-14.9: a legacy un-backfilled row falls
         // back to the lenient raw parse inside the query), then the
         // limit. The unbounded fetch is fine at the repository's local
-        // scale (US-14.3).
+        // scale (US-14.3). Pruned records are excluded (US-14.10).
         return jpa.search(
                         blankToNull(query.addressId()),
                         blankToNull(query.kind())).stream()
+                .filter(NewsEventStoreConnector::notPruned)
                 .map(NewsEventStoreConnector::toItem)
                 .filter(item -> query.dateInRange(item))
                 .limit(query.limit())
@@ -219,6 +222,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         // Rank order is the SQL order: restore it from the id list
         // (findAllById returns the entities in no defined order).
         var byId = jpa.findAllById(ids).stream()
+                .filter(NewsEventStoreConnector::notPruned)
                 .collect(Collectors.toMap(NewsEventEntity::getId,
                         NewsEventStoreConnector::toItem));
         return ids.stream()
@@ -251,7 +255,9 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
 
     @Override
     public long count() {
-        return jpa.count();
+        // US-14.10: the repository's logical-record count excludes
+        // pruned records (they are excluded from every view).
+        return jpa.countByPrunedFalse();
     }
 
     @Override
@@ -261,14 +267,205 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         // the user item dates, which need the lenient domain parser.
         // The bound always carries a fraction so the trailing 'Z' of a
         // fraction-less instant cannot sort after a fractional row.
+        // US-14.10: pruned records are excluded (consistent with count).
         String bound = since.toString();
         if (!bound.contains(".")) {
             bound = bound.replace("Z", ".000000Z");
         }
         Long count = jdbc.queryForObject(
-                "select count(*) from news_events where created_at >= ?",
+                "select count(*) from news_events "
+                        + "where created_at >= ? and pruned = 0",
                 Long.class, bound);
         return count == null ? 0 : count;
+    }
+
+    /** The pruned rows are invisible to every repository view
+     * (US-14.10) — the soft-delete stays queryable in provenance. */
+    private static boolean notPruned(NewsEventEntity e) {
+        return !e.isPruned();
+    }
+
+    @Override
+    public int correct(String canonicalId,
+                       es.jllopez.neis.domain.model.NewsItemCorrection correction,
+                       String actor) {
+        if (canonicalId == null || canonicalId.isBlank()
+                || correction == null || correction.isEmpty()) {
+            return 0;
+        }
+        List<NewsEventEntity> rows =
+                jpa.findByCanonicalIdOrderByUpdatedAtDesc(canonicalId);
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        String now = Instant.now().toString();
+        String by = actor == null || actor.isBlank()
+                ? "operator" : actor.trim();
+        int corrected = 0;
+        for (NewsEventEntity entity : rows) {
+            // US-14.10: corrections apply to LIVE rows — a pruned
+            // record is a decided false positive, not editable data.
+            if (entity.isPruned()) {
+                continue;
+            }
+            NewsEventItem item = toItem(entity);
+            var changes = correction.changesOn(item);
+            if (changes.isEmpty()) {
+                continue; // nothing this row actually changes
+            }
+            NewsEventItem correctedItem = correction.applyTo(item);
+            entity.setTitle(correctedItem.title());
+            entity.setDescription(correctedItem.description());
+            entity.setDate(correctedItem.date());
+            entity.setDateNormalized(correctedItem.dateNormalized());
+            entity.setKind(correctedItem.kind());
+            entity.setIncomplete(correctedItem.incomplete());
+            entity.setMissingFields(correctedItem.missingFields());
+            // The trace: what changed, when, by whom — appended, never
+            // a silent overwrite. The canonical id, url and the
+            // US-14.2 provenance are untouched.
+            entity.setCorrections(appendCorrection(entity.getCorrections(),
+                    now, by, correction.note(), changes));
+            entity.setUpdatedAt(now);
+            jpa.save(entity);
+            corrected++;
+        }
+        if (corrected > 0) {
+            log.info("[NewsItem] {} corrected: {} row(s) updated, trace "
+                    + "recorded, by {} (US-14.10)", canonicalId, corrected, by);
+        }
+        return corrected;
+    }
+
+    @Override
+    public int prune(String canonicalId, String reason) {
+        if (canonicalId == null || canonicalId.isBlank()) {
+            return 0;
+        }
+        List<NewsEventEntity> rows =
+                jpa.findByCanonicalIdOrderByUpdatedAtDesc(canonicalId);
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        String now = Instant.now().toString();
+        for (NewsEventEntity entity : rows) {
+            entity.setPruned(true);
+            entity.setPrunedAt(now);
+            entity.setPruneReason(reason == null || reason.isBlank()
+                    ? null : reason.trim());
+            entity.setUpdatedAt(now);
+            jpa.save(entity);
+        }
+        log.info("[NewsItem] {} pruned: {} row(s), reason: {} (US-14.10) "
+                + "- excluded from list/search/export, provenance stays "
+                + "readable", canonicalId, rows.size(),
+                reason == null || reason.isBlank() ? "<none>" : reason);
+        return rows.size();
+    }
+
+    @Override
+    public List<String> correctionTrace(String canonicalId) {
+        if (canonicalId == null || canonicalId.isBlank()) {
+            return List.of();
+        }
+        // The rows' stored correction arrays, flattened oldest-first.
+        return jpa.findByCanonicalIdOrderByUpdatedAtDesc(canonicalId)
+                .stream()
+                .map(NewsEventEntity::getCorrections)
+                .filter(stored -> stored != null && !stored.isBlank())
+                .flatMap(NewsEventStoreConnector::parseCorrections)
+                .toList();
+    }
+
+    private static java.util.stream.Stream<String> parseCorrections(
+            String stored) {
+        try {
+            var node = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(stored);
+            if (!node.isArray()) {
+                return java.util.stream.Stream.empty();
+            }
+            var out = new java.util.ArrayList<String>(node.size());
+            node.forEach(entry -> out.add(entry.toString()));
+            return out.stream();
+        } catch (java.io.IOException e) {
+            log.warn("Unreadable correction trace entry skipped (US-14.10)");
+            return java.util.stream.Stream.empty();
+        }
+    }
+
+    /**
+     * Appends one correction entry to the row's stored trace array:
+     * {"at":<iso>,"by":<actor>,"note":<note|null>,"fields":{
+     * "<field>":["<old>","<new>"],...}}. The entry JSON is hand-built
+     * with the shared minimal escaping (the store's JSON emitters do
+     * not drift); the existing array is re-serialized through Jackson
+     * so legacy content can never corrupt the append.
+     */
+    private static String appendCorrection(String existing, String at,
+                                           String by, String note,
+                                           java.util.Map<String, String[]> changes) {
+        StringBuilder entry = new StringBuilder("{\"at\":\"")
+                .append(escape(at)).append("\",\"by\":\"")
+                .append(escape(by)).append("\",\"note\":")
+                .append(note == null || note.isBlank()
+                        ? "null" : "\"" + escape(note.trim()) + "\"")
+                .append(",\"fields\":{");
+        boolean first = true;
+        for (var e : changes.entrySet()) {
+            if (!first) {
+                entry.append(',');
+            }
+            first = false;
+            entry.append('"').append(escape(e.getKey())).append("\":[")
+                    .append('"').append(escape(
+                            e.getValue()[0] == null ? "" : e.getValue()[0]))
+                    .append("\",\"")
+                    .append(escape(e.getValue()[1])).append("\"]");
+        }
+        entry.append("}}");
+        if (existing == null || existing.isBlank()) {
+            return "[" + entry + "]";
+        }
+        try {
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var array = mapper.readTree(existing);
+            if (!array.isArray()) {
+                return "[" + entry + "]";
+            }
+            var items = new java.util.ArrayList<String>();
+            array.forEach(n -> items.add(n.toString()));
+            items.add(entry.toString());
+            return "[" + String.join(",", items) + "]";
+        } catch (java.io.IOException e) {
+            // A legacy value we cannot parse must not be silently
+            // destroyed by the append.
+            log.warn("Unreadable existing correction trace replaced "
+                    + "(US-14.10)");
+            return "[" + entry + "]";
+        }
+    }
+
+    /** Minimal JSON string escaping (the store emitter rule). */
+    private static String escape(String value) {
+        StringBuilder out = new StringBuilder(value.length() + 8);
+        for (char c : value.toCharArray()) {
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
+        }
+        return out.toString();
     }
 
     private static NewsEventItem toItem(NewsEventEntity e) {

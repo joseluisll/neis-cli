@@ -106,4 +106,27 @@ public class NewsEventService {
     public java.util.Optional<NewsEventItem> item(String canonicalId) {
         return newsEventStore.byCanonicalId(canonicalId);
     }
+
+    /**
+     * The manual correction of a logical record (US-14.10, issue
+     * #124): traceable — the store records what changed, when and by
+     * whom — and canonical-identity-preserving. The actor is the CLI
+     * operator; remote callers (a later slice) will carry their own.
+     */
+    public int correct(String canonicalId,
+                       es.jllopez.neis.domain.model.NewsItemCorrection correction,
+                       String actor) {
+        return newsEventStore.correct(canonicalId, correction, actor);
+    }
+
+    /** The prune of a logical record (US-14.10): soft-delete, excluded
+     * from list/search/export, provenance remains readable. */
+    public int prune(String canonicalId, String reason) {
+        return newsEventStore.prune(canonicalId, reason);
+    }
+
+    /** The stored correction trace of a logical record (US-14.10). */
+    public List<String> correctionTrace(String canonicalId) {
+        return newsEventStore.correctionTrace(canonicalId);
+    }
 }

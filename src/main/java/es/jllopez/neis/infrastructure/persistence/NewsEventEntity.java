@@ -81,6 +81,57 @@ public class NewsEventEntity {
     @Column(name = "canonical_id")
     private String canonicalId;
 
+    /** The soft-delete of a false positive (US-14.10, V22): pruned
+     * rows stay (provenance inspectable) but are excluded from list,
+     * search, export and the counts. SQLite integer boolean. */
+    @Column(nullable = false)
+    private boolean pruned;
+
+    /** When the prune happened (ISO-8601 TEXT). */
+    @Column(name = "pruned_at")
+    private String prunedAt;
+
+    /** The operator's reason for the prune. */
+    @Column(name = "prune_reason")
+    private String pruneReason;
+
+    /** The correction trace, a JSON array of
+     * {at, by, note, fields:{field:[old,new]}} entries (US-14.10). */
+    @Column
+    private String corrections;
+
+    public boolean isPruned() {
+        return pruned;
+    }
+
+    public void setPruned(boolean pruned) {
+        this.pruned = pruned;
+    }
+
+    public String getPrunedAt() {
+        return prunedAt;
+    }
+
+    public void setPrunedAt(String prunedAt) {
+        this.prunedAt = prunedAt;
+    }
+
+    public String getPruneReason() {
+        return pruneReason;
+    }
+
+    public void setPruneReason(String pruneReason) {
+        this.pruneReason = pruneReason;
+    }
+
+    public String getCorrections() {
+        return corrections;
+    }
+
+    public void setCorrections(String corrections) {
+        this.corrections = corrections;
+    }
+
     public String getId() {
         return id;
     }

@@ -33,4 +33,7 @@ public interface NewsEventJpaRepository extends JpaRepository<NewsEventEntity, S
     /** The rows forming one logical record (US-14.5 canonical id). */
     List<NewsEventEntity> findByCanonicalIdOrderByUpdatedAtDesc(
             String canonicalId);
+
+    /** The logical-record count excludes pruned records (US-14.10). */
+    long countByPrunedFalse();
 }

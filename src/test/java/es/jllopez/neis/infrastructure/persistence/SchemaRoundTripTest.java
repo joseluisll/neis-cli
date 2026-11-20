@@ -92,8 +92,10 @@ class SchemaRoundTripTest {
         // jobs table (US-18.2, issue #117); V20 = the executions
         // trigger-type vocabulary widened with REMOTE (US-18.2, table
         // rebuild — SQLite cannot alter a CHECK constraint); V21 = the
-        // news_events normalized-date column (US-14.9, issue #123).
-        assertEquals(21, applied.size(),
+        // news_events normalized-date column (US-14.9, issue #123);
+        // V22 = the news_events management columns (US-14.10, issue
+        // #124: pruned soft-delete + the correction trace).
+        assertEquals(22, applied.size(),
                 "the applied Flyway migrations should be applied");
         var row = (Map<String, Object>) applied.get(0);
         assertEquals("1", String.valueOf(row.get("version")));

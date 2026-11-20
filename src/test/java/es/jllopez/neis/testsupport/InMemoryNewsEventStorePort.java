@@ -44,6 +44,13 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     /** First-storage timestamps (US-16.8 growth delta): a re-upserted
      * row keeps its first stamp, like the real store's created_at. */
     private final Map<String, Instant> firstCreatedAt = new HashMap<>();
+    /** US-14.10: per-key management state — pruned (with reason) and
+     * the correction trace entries, mirrored from the real store's
+     * V22 columns. The upsert preserves the state (a re-extraction
+     * never resurrects a pruned record and never wipes a trace). */
+    private final Map<String, Boolean> pruned = new HashMap<>();
+    private final Map<String, String> pruneReason = new HashMap<>();
+    private final Map<String, List<String>> corrections = new HashMap<>();
 
     private int saveAllInternal(String addressId, String kind,
                                 List<NewsEventItem> items, String executionId,
@@ -124,12 +131,14 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     @Override
     public List<NewsEventItem> byAddress(String addressId) {
         return newestFirst(store.entrySet().stream()
-                .filter(e -> e.getKey().startsWith(addressId + "|")));
+                .filter(e -> e.getKey().startsWith(addressId + "|"))
+                .filter(e -> !isPruned(e.getKey())));
     }
 
     @Override
     public List<NewsEventItem> all() {
-        return newestFirst(store.entrySet().stream());
+        return newestFirst(store.entrySet().stream()
+                .filter(e -> !isPruned(e.getKey())));
     }
 
     @Override
@@ -137,6 +146,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         // The kind filter mirrors the connector's SQL exactly: exact,
         // case-sensitive equality on the (already normalized) value.
         return newestFirst(store.entrySet().stream()
+                .filter(e -> !isPruned(e.getKey()))
                 .filter(e -> query.addressId() == null || query.addressId().isBlank()
                         || e.getKey().startsWith(query.addressId().trim() + "|")))
                 .stream()
@@ -149,15 +159,18 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
 
     @Override
     public long count() {
-        return store.size();
+        // US-14.10: the logical-record count excludes pruned records.
+        return store.keySet().stream()
+                .filter(key -> !isPruned(key)).count();
     }
 
     @Override
     public long countCreatedSince(java.time.Instant since) {
         // First-storage timestamps (created_at) stand in for the real
         // store's column: a re-upserted row keeps its first stamp, like
-        // the connector's created_at.
+        // the connector's created_at. US-14.10: pruned excluded.
         return store.keySet().stream()
+                .filter(key -> !isPruned(key))
                 .filter(key -> !firstCreatedAt
                         .getOrDefault(key, Instant.MAX).isBefore(since))
                 .count();
@@ -195,6 +208,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                 .map(t -> t.toLowerCase(Locale.ROOT))
                 .toList();
         return newestFirst(store.entrySet().stream()
+                .filter(e -> !isPruned(e.getKey()))
                 .filter(e -> {
                     NewsEventItem item = e.getValue();
                     String haystack = (nullSafe(item.title()) + " "
@@ -211,6 +225,91 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                 .filter(item -> filters.dateInRange(item))
                 .limit(filters.limit())
                 .toList();
+    }
+
+    @Override
+    public int correct(String canonicalId,
+                       es.jllopez.neis.domain.model.NewsItemCorrection correction,
+                       String actor) {
+        if (canonicalId == null || canonicalId.isBlank()
+                || correction == null || correction.isEmpty()) {
+            return 0;
+        }
+        String by = actor == null || actor.isBlank()
+                ? "operator" : actor.trim();
+        String now = Instant.now().toString();
+        int corrected = 0;
+        for (var entry : store.entrySet()) {
+            NewsEventItem item = entry.getValue();
+            if (!canonicalId.equals(item.canonicalId())
+                    || isPruned(entry.getKey())) {
+                continue; // live rows only (US-14.10)
+            }
+            var changes = correction.changesOn(item);
+            if (changes.isEmpty()) {
+                continue;
+            }
+            NewsEventItem updated = correction.applyTo(item);
+            store.put(entry.getKey(), updated);
+            corrections.computeIfAbsent(entry.getKey(),
+                            k -> new ArrayList<>())
+                    .add("{\"at\":\"" + now + "\",\"by\":\"" + by
+                            + "\",\"note\":"
+                            + (correction.note() == null
+                                    || correction.note().isBlank() ? "null"
+                                    : "\"" + correction.note().trim() + "\"")
+                            + ",\"fields\":" + jsonOf(changes) + "}");
+            corrected++;
+        }
+        return corrected;
+    }
+
+    @Override
+    public int prune(String canonicalId, String reason) {
+        if (canonicalId == null || canonicalId.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (var entry : store.entrySet()) {
+            if (canonicalId.equals(entry.getValue().canonicalId())
+                    && !isPruned(entry.getKey())) {
+                pruned.put(entry.getKey(), true);
+                pruneReason.put(entry.getKey(), reason);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    @Override
+    public List<String> correctionTrace(String canonicalId) {
+        if (canonicalId == null || canonicalId.isBlank()) {
+            return List.of();
+        }
+        return store.keySet().stream()
+                .filter(key -> canonicalId.equals(store.get(key).canonicalId()))
+                .flatMap(key -> corrections
+                        .getOrDefault(key, List.of()).stream())
+                .toList();
+    }
+
+    private boolean isPruned(String key) {
+        return pruned.getOrDefault(key, false);
+    }
+
+    private static String jsonOf(Map<String, String[]> changes) {
+        StringBuilder out = new StringBuilder("{");
+        boolean first = true;
+        for (var e : changes.entrySet()) {
+            if (!first) {
+                out.append(',');
+            }
+            first = false;
+            out.append('"').append(e.getKey()).append("\":[\"")
+                    .append(e.getValue()[0] == null ? "" : e.getValue()[0])
+                    .append("\",\"").append(e.getValue()[1]).append("\"]");
+        }
+        return out.append("}").toString();
     }
 
     private static String nullSafe(String value) {

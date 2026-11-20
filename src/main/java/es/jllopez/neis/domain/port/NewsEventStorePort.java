@@ -113,4 +113,38 @@ public interface NewsEventStorePort {
      * sightings query returns that; this returns the newest row itself.
      */
     Optional<NewsEventItem> byCanonicalId(String canonicalId);
+
+    /**
+     * The manual correction of a logical record (US-14.10, issue
+     * #124): every live row of the canonical id gets the corrected
+     * fields (the shared domain transformation in
+     * {@link es.jllopez.neis.domain.model.NewsItemCorrection#applyTo}),
+     * and each changed row records the trace entry (what changed, when,
+     * by whom). The canonical id, url and provenance are never touched.
+     *
+     * @return the number of rows corrected (0 = unknown canonical id
+     *         or nothing to change)
+     */
+    int correct(String canonicalId,
+                es.jllopez.neis.domain.model.NewsItemCorrection correction,
+                String actor);
+
+    /**
+     * The prune of a logical record (US-14.10): every row of the
+     * canonical id is soft-deleted (excluded from list, search, export
+     * and the counts; the rows stay so the provenance history remains
+     * inspectable; a re-extraction never resurrects the record).
+     *
+     * @return the number of rows pruned (0 = unknown canonical id)
+     */
+    int prune(String canonicalId, String reason);
+
+    /**
+     * The correction trace of a logical record (US-14.10): the stored
+     * correction JSON entries of its rows, oldest first — what changed,
+     * when and by whom. Empty for an uncorrected or unknown record.
+     * Readable for pruned records too (the provenance stays
+     * inspectable).
+     */
+    List<String> correctionTrace(String canonicalId);
 }
