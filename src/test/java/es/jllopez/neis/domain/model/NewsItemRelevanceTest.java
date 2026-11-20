@@ -91,6 +91,15 @@ class NewsItemRelevanceTest {
         assertNull(NewsItemRelevance.exclusionOf(item(
                 "Voter registration deadline extended to Friday", null)),
                 "bare 'registration' is politics coverage (review finding)");
+        // The second review round: the Spanish question framing is
+        // real opinion/ideas headline vocabulary, not a widget marker.
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "Fondos buitre, turistas y alquileres imposibles: "
+                        + "¿qué tipo de ciudad queremos?", null)),
+                "'¿qué tipo de' opens real essays (review round 2)");
+        assertNull(NewsItemRelevance.exclusionOf(item(
+                "¿Qué tan serio es el riesgo?", null)),
+                "'¿qué tan' opens real analysis (review round 2)");
     }
 
     @Test

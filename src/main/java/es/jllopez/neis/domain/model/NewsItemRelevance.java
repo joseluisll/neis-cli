@@ -61,13 +61,16 @@ public final class NewsItemRelevance {
     /** Quizzes and interactive widgets. DELIBERATELY NARROW: '\\btests?\\b'
      * was rejected by review (cricket 'tercer Test', 'tests de
      * antígenos' are real coverage); generic words ('encuesta', 'vota',
-     * 'poll') likewise. Only unambiguous widget markers qualify. The
+     * 'poll') likewise; the Spanish question framing '¿qué tipo de /
+     * ¿qué tan' was ALSO rejected by review — real opinion/ideas
+     * headlines use it ('Fondos buitre...: ¿qué tipo de ciudad
+     * queremos?'). Only unambiguous widget markers qualify. The
      * ADDR-010 quiz card is caught by its URL marker; a widget whose
      * title AND url carry no marker is a known heuristic limitation
      * (the AI-assisted tier would refine it). */
     private static final Rule INTERACTIVE = new Rule("interactive-widget",
             Pattern.compile("\\bquiz\\b|\\bquizzes\\b|\\btrivia\\b|"
-                    + "juega con|¿qu[eé] (tan|tipo de)",
+                    + "juega con",
                     Pattern.CASE_INSENSITIVE));
 
     /** Section/campaign hubs and teasers ('Toda la información de la
