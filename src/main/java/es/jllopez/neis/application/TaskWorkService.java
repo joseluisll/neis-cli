@@ -474,7 +474,10 @@ public class TaskWorkService {
                 : pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
         String selectorEmptyNote = selector.isEmpty()
                 ? "; no preconfigured selector for " + address.id()
-                        + " — item extraction skipped (US-06.4)" : "";
+                        + " — extraction SKIPPED IN THIS RUN (US-06.4); "
+                        + "the ANALYZE step of this fetch discovers and "
+                        + "stores the selector, so the NEXT fetch extracts "
+                        + "the items with it (first-fetch bootstrap)" : "";
         String clearNote = cleared.removedCount() > 0
                 ? "; cleared " + cleared.removedCount() + " obstructing element(s)"
                 : "";

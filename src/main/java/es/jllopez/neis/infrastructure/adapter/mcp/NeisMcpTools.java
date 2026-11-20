@@ -317,15 +317,25 @@ public class NeisMcpTools {
                     + "description and location", required = false)
             String query,
             @McpToolParam(description = "max items (default 20)",
-                    required = false) Integer limit) {
+                    required = false) Integer limit,
+            @McpToolParam(description = "skip this many items before the "
+                    + "page (US-18.9 pagination; default 0)",
+                    required = false) Integer offset) {
+        int effectiveLimit = limit == null
+                ? NewsEventQuery.DEFAULT_LIMIT : limit;
+        int skip = offset == null || offset < 0 ? 0 : offset;
         NewsEventQuery filters = new NewsEventQuery(
                 blankToNull(addressId), blankToNull(kind),
                 blankToNull(dateFrom), blankToNull(dateTo),
-                limit == null ? NewsEventQuery.DEFAULT_LIMIT : limit);
-        List<NewsEventItem> items = blankToNull(query) == null
+                skip + effectiveLimit);
+        List<NewsEventItem> found = blankToNull(query) == null
                 ? news.search(filters)
                 : news.search(query, filters);
-        return new NewsListResult(items, items.size());
+        List<NewsEventItem> items = found.size() <= skip ? List.of()
+                : found.subList(skip, found.size());
+        // The total is the MATCHED SET (not the page): a caller paging
+        // with offset+limit sees whether more pages exist.
+        return new NewsListResult(items, found.size());
     }
 
     // ---- tool 9: one item in detail ------------------------------------

@@ -159,9 +159,31 @@ class NeisMcpToolsTest {
         NeisMcpTools tools = tools();
 
         assertEquals(1, tools.listNews("ADDR-001", "news", null, null,
-                null, null).total());
+                null, null, null).total());
         assertEquals("can-2", tools.listNews(null, "news", null, null,
-                "environment", null).items().get(0).canonicalId());
+                "environment", null, null).items().get(0).canonicalId());
+    }
+
+    @Test
+    void listNewsPaginatesWithOffset() {
+        // US-18.9 finding 6: the query tools paginate — offset skips
+        // into the result, the page never exceeds the limit, and the
+        // total reflects the matched set (not the page).
+        NewsEventQuery page2 = new NewsEventQuery("ADDR-001", "news",
+                null, null, 22);
+        List<NewsEventItem> twentyTwo = new java.util.ArrayList<>();
+        for (int i = 0; i < 22; i++) {
+            twentyTwo.add(item("can-" + i));
+        }
+        when(news.search(page2)).thenReturn(twentyTwo);
+        NeisMcpTools tools = tools();
+
+        NeisMcpTools.NewsListResult result = tools.listNews("ADDR-001",
+                "news", null, null, null, 20, 2);
+        assertEquals(20, result.items().size(), "the page is the limit");
+        assertEquals("can-2", result.items().get(0).canonicalId(),
+                "offset 2 skips the first two");
+        assertEquals(22, result.total(), "the total is the matched set");
     }
 
     @Test
