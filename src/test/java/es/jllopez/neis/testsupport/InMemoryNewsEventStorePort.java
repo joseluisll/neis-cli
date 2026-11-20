@@ -3,6 +3,7 @@ package es.jllopez.neis.testsupport;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
+import es.jllopez.neis.domain.model.NewsItemRelevance;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 
 import java.util.ArrayList;
@@ -44,15 +45,22 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
      * row keeps its first stamp, like the real store's created_at. */
     private final Map<String, Instant> firstCreatedAt = new HashMap<>();
 
-    @Override
-    public int saveAll(String addressId, String kind, List<NewsEventItem> items,
-                       String executionId, String contentId) {
+    private int saveAllInternal(String addressId, String kind,
+                                List<NewsEventItem> items, String executionId,
+                                String contentId, boolean cachedReuse,
+                                boolean recordSighting) {
         provenanceCalls.add(new ProvenanceCall(executionId, contentId));
         long stamp = ++lastWrite;
         int stored = 0;
         for (NewsEventItem item : items) {
+            // US-13.9: the same relevance validation as the real
+            // connector (the shared domain classifier — the filter
+            // cannot drift between the double and the store), with
+            // the same logged-exclusion semantics.
+            if (NewsItemRelevance.exclusionOf(item) != null) {
+                continue;
+            }
             String key = key(addressId, item);
-            List<String> missing = item.missingMandatory();
             // The real connector normalizes blank urls to null (unique
             // index key) and evaluates completeness on save (US-14.4):
             // the double mirrors both — plus the US-14.9 normalized
@@ -60,6 +68,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
             // so unit tests see the same rows.
             String url = item.url() == null || item.url().isBlank()
                     ? null : item.url();
+            List<String> missing = item.missingMandatory();
             NewsEventItem row = new NewsEventItem(addressId,
                     kind == null ? item.kind() : kind,
                     item.title() == null ? "" : item.title(),
@@ -72,18 +81,31 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                     NewsEventQuery.normalizeDate(item.date()));
             store.put(key, row);
             firstCreatedAt.putIfAbsent(key, Instant.now());
-            // US-14.5 sighting: one per saveAll that produced the item,
-            // carrying the same provenance — idempotent per (execution,
-            // content) triple like the real store's deterministic id.
-            sightingHistory
-                    .computeIfAbsent(row.canonicalId(), k -> new LinkedHashMap<>())
-                    .putIfAbsent(addressId + "|" + executionId + "|" + contentId,
-                            new NewsEventSighting(row.canonicalId(), addressId,
-                                    contentId, executionId, Instant.now()));
+            if (recordSighting) {
+                // US-14.5 sighting: one per saveAll that produced the
+                // item, carrying the same provenance — idempotent per
+                // (execution, content) triple like the real store's
+                // deterministic id.
+                sightingHistory
+                        .computeIfAbsent(row.canonicalId(),
+                                k -> new LinkedHashMap<>())
+                        .putIfAbsent(
+                                addressId + "|" + executionId + "|" + contentId,
+                                new NewsEventSighting(row.canonicalId(),
+                                        addressId, contentId, executionId,
+                                        Instant.now()));
+            }
             sequence.put(key, stamp);
             stored++;
         }
         return stored;
+    }
+
+    @Override
+    public int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                       String executionId, String contentId) {
+        return saveAllInternal(addressId, kind, items, executionId,
+                contentId, false, true);
     }
 
     /**
@@ -94,34 +116,8 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
     @Override
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
                        String executionId, String contentId, boolean cachedReuse) {
-        if (!cachedReuse) {
-            return saveAll(addressId, kind, items, executionId, contentId);
-        }
-        provenanceCalls.add(new ProvenanceCall(executionId, contentId));
-        long stamp = ++lastWrite;
-        int stored = 0;
-        for (NewsEventItem item : items) {
-            String key = key(addressId, item);
-            String url = item.url() == null || item.url().isBlank()
-                    ? null : item.url();
-            List<String> missing = item.missingMandatory();
-            NewsEventItem row = new NewsEventItem(addressId,
-                    kind == null ? item.kind() : kind,
-                    item.title() == null ? "" : item.title(),
-                    item.description(), url,
-                    item.date(), item.picture(), item.location(),
-                    executionId, contentId,
-                    !missing.isEmpty(),
-                    missing.isEmpty() ? null : String.join(", ", missing),
-                    item.computedCanonicalId(),
-                    NewsEventQuery.normalizeDate(item.date()));
-            store.put(key, row);
-            firstCreatedAt.putIfAbsent(key, Instant.now());
-            // NO sighting: the US-14.12 cached-reuse semantics.
-            sequence.put(key, stamp);
-            stored++;
-        }
-        return stored;
+        return saveAllInternal(addressId, kind, items, executionId,
+                contentId, cachedReuse, !cachedReuse);
     }
 
     @Override

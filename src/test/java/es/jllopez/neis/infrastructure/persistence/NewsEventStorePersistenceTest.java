@@ -788,6 +788,45 @@ class NewsEventStorePersistenceTest {
         assertEquals("2025-03-03", backfilledRow.getDateNormalized());
     }
 
+    @Test
+    void promoCardExcludedRealItemStoredOnTheFileStore() {
+        // US-13.9 (issue #136): a fixture listing with one promo card
+        // and one real item — the promo card is excluded (LOGGED, with
+        // the rule), the real item stored. The selector/FK mechanics
+        // are untouched: this filters items, not the page selector.
+        seedAddress("ADDR-NR");
+        store.saveAll("ADDR-NR", "news", List.of(
+                new NewsEventItem("ADDR-NR", "news",
+                        "Newsletter especial — Apúntate",
+                        "Subscribe now", "https://example.eu/nl", null),
+                new NewsEventItem("ADDR-NR", "news",
+                        "Real story about transport policy",
+                        "Description",
+                        "https://example.eu/transportes-20261119222527-nt.html",
+                        null)), null, null);
+
+        assertEquals(1, jpa.search("ADDR-NR", null).stream()
+                        .filter(e -> "Real story about transport policy"
+                                .equals(e.getTitle())).count(),
+                "the real item is stored");
+        assertEquals(0, jpa.search("ADDR-NR", null).stream()
+                        .filter(e -> e.getTitle().contains("Newsletter"))
+                        .count(),
+                "the promo card never reaches the repository");
+        // Item-identity assertions, not counts alone: the stored row
+        // is THE real story.
+        var stored = jpa.search("ADDR-NR", null).stream()
+                .filter(e -> "Real story about transport policy"
+                        .equals(e.getTitle())).findFirst().orElseThrow();
+        assertEquals("https://example.eu/transportes-20261119222527-nt.html",
+                stored.getUrl());
+        // The sighting history is untouched by the exclusion: the
+        // stored item's sighting exists; the promo card has none.
+        assertTrue(sightingJpa.findByItemIdOrderBySeenAtDesc(
+                        stored.getId()).size() >= 1,
+                "the stored item carries its capture sighting");
+    }
+
     /** Delegating wrapper whose FIRST guarded-update call performs the
      * 'concurrent capture' — the sweep has READ the legacy row and is
      * about to WRITE it when the capture lands (the interleaving the

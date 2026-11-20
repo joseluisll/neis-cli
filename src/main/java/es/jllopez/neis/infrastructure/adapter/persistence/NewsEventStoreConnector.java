@@ -3,6 +3,7 @@ package es.jllopez.neis.infrastructure.adapter.persistence;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
+import es.jllopez.neis.domain.model.NewsItemRelevance;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
 import es.jllopez.neis.infrastructure.persistence.NewsEventEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventJpaRepository;
@@ -10,6 +11,8 @@ import es.jllopez.neis.infrastructure.persistence.NewsEventSightingEntity;
 import es.jllopez.neis.infrastructure.persistence.NewsEventSightingJpaRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -31,6 +34,9 @@ import java.util.stream.Collectors;
  */
 @Component
 public class NewsEventStoreConnector implements NewsEventStorePort {
+
+    private static final Logger log = LoggerFactory.getLogger(
+            NewsEventStoreConnector.class);
 
     private final NewsEventJpaRepository jpa;
     private final NewsEventSightingJpaRepository sightingJpa;
@@ -71,6 +77,20 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         String now = Instant.now().toString();
         int stored = 0;
         for (NewsEventItem item : items) {
+            // US-13.9 (issue #136): item-relevance validation BEFORE
+            // storage — promo/utility cards (subscription prompts,
+            // quizzes, campaign hubs, legal links) never enter the
+            // repository. The exclusion is a LOGGED decision (rule +
+            // evidence), never a silent drop; the selector and FK
+            // mechanics are untouched — this filters items only.
+            NewsItemRelevance.Exclusion excluded =
+                    NewsItemRelevance.exclusionOf(item);
+            if (excluded != null) {
+                log.info("[NewsRelevance] {} item excluded ({}, {}): '{}'",
+                        addressId, excluded.rule(), excluded.detail(),
+                        item.title() == null ? "" : item.title());
+                continue;
+            }
             String id = deterministicId(addressId, item);
             NewsEventEntity entity = jpa.findById(id).orElseGet(NewsEventEntity::new);
             boolean isNew = entity.getId() == null;
