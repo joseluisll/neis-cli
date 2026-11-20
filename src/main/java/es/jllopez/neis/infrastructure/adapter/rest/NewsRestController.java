@@ -75,7 +75,7 @@ public class NewsRestController {
      * file, the record count and the format (US-18.8 replaces this
      * with a download endpoint). */
     @PostMapping("/export")
-    public NewsEventExportService.ExportResult export(
+    public ResponseEntity<byte[]> export(
             @RequestParam(name = "format", defaultValue = "json") String format,
             @RequestParam(name = "addressId", required = false) String addressId,
             @RequestParam(name = "kind", required = false) String kind,
@@ -86,8 +86,27 @@ public class NewsRestController {
         NewsEventExportService.Completeness level =
                 NewsEventExportService.Completeness.valueOf(
                         completeness.trim().toUpperCase());
-        return export.export(query, level, format,
-                java.nio.file.Files.createTempFile("neis-news-export-",
-                        "." + ("csv".equalsIgnoreCase(format) ? "csv" : "json")));
+        // US-18.1 review finding 2 (resolved with US-18.8's download
+        // endpoint): the archive streams as the response ATTACHMENT —
+        // the temp file is deleted in all cases, and the server-side
+        // path is never echoed to the caller.
+        String ext = "csv".equalsIgnoreCase(format) ? "csv" : "json";
+        java.nio.file.Path temp = java.nio.file.Files.createTempFile(
+                "neis-news-export-", "." + ext);
+        try {
+            export.export(query, level, format, temp);
+            byte[] body = java.nio.file.Files.readAllBytes(temp);
+            return ResponseEntity.ok()
+                    .contentType("csv".equals(ext)
+                            ? MediaType.parseMediaType("text/csv")
+                            : MediaType.APPLICATION_JSON)
+                    .header("Content-Disposition",
+                            "attachment; filename=\"news-export." + ext
+                                    + "\"")
+                    .contentLength(body.length)
+                    .body(body);
+        } finally {
+            java.nio.file.Files.deleteIfExists(temp);
+        }
     }
 }
