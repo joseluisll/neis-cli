@@ -60,7 +60,7 @@ class RemoteJobServiceTest {
                                      ChainService chains,
                                      AddressCatalogService catalog) {
         return new RemoteJobService(store, executions, chains, catalog,
-                DIRECT, "core-chain-ssafp");
+                DIRECT, null, "core-chain-ssafp");
     }
 
     private TaskExecution execution(ExecutionStatus status, String outcome) {
@@ -365,7 +365,7 @@ class RemoteJobServiceTest {
                     Thread t = new Thread(r, "test-job-runner");
                     t.setDaemon(true);
                     return t;
-                }), "core-chain-ssafp");
+                }), null, "core-chain-ssafp");
     }
 
     private void awaitStatus(RemoteJobService service, String jobId,

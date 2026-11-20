@@ -202,22 +202,38 @@ class NeisMcpToolsTest {
                 "getContent must not read the whole table"));
         NeisMcpTools tools = tools();
 
-        assertEquals(1, tools.getContent("EXEC-1", null, null, null)
-                .total());
-        assertEquals(1, tools.getContent(null, "ADDR-002", null, null)
-                .total());
-        assertEquals("CONT-1", tools.getContent(null, null, "CONT-1", null)
-                .records().get(0).id());
+        NeisMcpTools.ContentListResult byExec = (NeisMcpTools.ContentListResult)
+                tools.getContent("EXEC-1", null, null, null);
+        assertEquals(1, byExec.total());
+        NeisMcpTools.ContentListResult byAddr = (NeisMcpTools.ContentListResult)
+                tools.getContent(null, "ADDR-002", null, null);
+        assertEquals(1, byAddr.total());
+        NeisMcpTools.ContentListResult byId = (NeisMcpTools.ContentListResult)
+                tools.getContent(null, null, "CONT-1", null);
+        assertEquals("CONT-1", byId.records().get(0).id());
         assertThrows(NoSuchElementException.class,
                 () -> tools.getContent(null, null, "CONT-nope", null));
     }
 
     @Test
-    void theExportModeRefusesVisiblyUntilUs188Lands() {
-        IllegalStateException refused = assertThrows(
-                IllegalStateException.class,
-                () -> tools().getContent(null, "ADDR-001", null, "export"));
-        assertTrue(refused.getMessage().contains("US-18.8"));
+    void theExportModeSubmitsTheJobAndPointsAtJobStatus() {
+        // US-18.8 (issue #126): mode=export submits the export job —
+        // the download URL arrives via neis_job_status, never inline
+        // bytes in the tool result.
+        RemoteJob job = new RemoteJob("JOB-exp", "export-content",
+                "ADDR-001", Map.of("address-id", "ADDR-001"),
+                JobStatus.QUEUED, Instant.now(), null, null, null, null,
+                null);
+        when(jobs.submitExport("ADDR-001", null)).thenReturn(job);
+        NeisMcpTools.ContentExportResult accepted =
+                (NeisMcpTools.ContentExportResult) tools()
+                        .getContent(null, "ADDR-001", null, "export");
+        assertEquals("JOB-exp", accepted.jobId());
+        assertEquals("export-content", accepted.operation());
+        assertEquals("QUEUED", accepted.status());
+        assertTrue(accepted.next().contains("neis_job_status"),
+                "the result points at the job-status poll: "
+                        + accepted.next());
     }
 
     /**

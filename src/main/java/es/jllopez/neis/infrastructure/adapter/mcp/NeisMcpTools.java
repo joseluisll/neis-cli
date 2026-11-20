@@ -390,8 +390,8 @@ public class NeisMcpTools {
                     + "address_id) submit a content-export job instead — the "
                     + "download URL arrives via neis_job_status.",
             annotations = @McpTool.McpAnnotations(
-                    readOnlyHint = true, destructiveHint = false))
-    public ContentListResult getContent(
+                    readOnlyHint = false, destructiveHint = false))
+    public Object getContent(
             @McpToolParam(description = "filter: one execution id",
                     required = false) String executionId,
             @McpToolParam(description = "filter: one address id",
@@ -427,17 +427,23 @@ public class NeisMcpTools {
     }
 
     /**
-     * The export path lands with US-18.8 (issue #126) — the ZIP export
-     * use case (US-11.5) does not exist yet; refuse visibly instead of
-     * pretending. (This is the catalog's only placeholder; the tool
-     * count stays at EXACTLY 10.)
+     * The export path (US-18.8, issue #126): submits the export job
+     * (the US-18.2 model — {@code neis_job_status} then carries the
+     * metadata and the download URL); NO base64 content blobs in tool
+     * results. Exactly one selector.
      */
-    private ContentListResult exportContent(String executionId,
-                                            String addressId) {
-        throw new IllegalStateException(
-                "Content export over the remote adapters lands with "
-                        + "US-18.8 (issue #126) — use the CLI's export for now");
+    private ContentExportResult exportContent(String executionId,
+                                              String addressId) {
+        RemoteJob job = jobs.submitExport(addressId, executionId);
+        return new ContentExportResult(job.id(), job.operation(),
+                job.status().name(),
+                "poll neis_job_status for the metadata and the download "
+                        + "URL (/api/exports/<token>); fetch the ZIP with a "
+                        + "plain HTTP GET (US-18.8)");
     }
+
+    public record ContentExportResult(String jobId, String operation,
+                                      String status, String next) {}
 
     // ---- helpers --------------------------------------------------------
 

@@ -55,6 +55,8 @@ public class RemoteJobService {
     private final ChainService chains;
     private final AddressCatalogService catalog;
     private final Executor jobRunner;
+    /** The US-11.5 export behind the export-content jobs (US-18.8). */
+    private final es.jllopez.neis.application.RemoteExportService exports;
     /** The fetch chain neis_fetch_news wraps (US-18.4, issue #119). */
     private final String fetchChainName;
     /**
@@ -72,6 +74,7 @@ public class RemoteJobService {
     public RemoteJobService(JobStorePort jobs, ExecutionService executions,
                             ChainService chains, AddressCatalogService catalog,
                             @Qualifier("jobRunner") Executor jobRunner,
+                            es.jllopez.neis.application.RemoteExportService exports,
                             @org.springframework.beans.factory.annotation
                                     .Value("${neis.fetch.chain-name:core-chain-ssafp}")
                             String fetchChainName) {
@@ -80,6 +83,7 @@ public class RemoteJobService {
         this.chains = chains;
         this.catalog = catalog;
         this.jobRunner = jobRunner;
+        this.exports = exports;
         this.fetchChainName = fetchChainName;
     }
 
@@ -389,6 +393,93 @@ public class RemoteJobService {
         executions.validateRemoteChainSubmission(chainId, addressId);
         return submit("run-chain", addressId, Map.of("chain-id", chainId),
                 () -> executions.submitChain(chainId, addressId, TriggerType.REMOTE));
+    }
+
+    /**
+     * Submits a CONTENT EXPORT as a remote job (US-18.8, issue #126):
+     * the job wraps the US-11.5 ZIP export (one address's tree or one
+     * execution's artifacts) and its RESULT carries the archive's
+     * metadata plus the download path ({@code /api/exports/<token>}) —
+     * never the bytes. The work runs directly in the job runner (no
+     * execution record: an export is not a task run; the US-18.2 job
+     * model covers it through the same QUEUED/RUNNING/terminal CAS
+     * machinery).
+     *
+     * @throws IllegalArgumentException synchronously when the selector
+     *         set is not exactly one of address/execution
+     */
+    public RemoteJob submitExport(String addressId, String executionId) {
+        boolean hasAddress = addressId != null && !addressId.isBlank();
+        boolean hasExecution = executionId != null && !executionId.isBlank();
+        if (hasAddress == hasExecution) {
+            throw new IllegalArgumentException(
+                    "Choose exactly one selector: addressId or "
+                            + "executionId (US-18.8)");
+        }
+        Map<String, String> params = new LinkedHashMap<>();
+        if (hasAddress) {
+            params.put("address-id", addressId.trim());
+        } else {
+            params.put("execution-id", executionId.trim());
+        }
+        RemoteJob job = new RemoteJob("JOB-" + java.util.UUID.randomUUID(),
+                "export-content", hasAddress ? addressId.trim() : null,
+                Map.copyOf(params), JobStatus.QUEUED, Instant.now(),
+                null, null, null, null, null);
+        jobs.save(job);
+        log.info("[JOB] {} submitted: export-content ({})", job.id(),
+                hasAddress ? "address " + addressId.trim()
+                        : "execution " + executionId.trim());
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            runners.put(job.id(), Thread.currentThread());
+            try {
+                runExportJob(job.id(), addressId, executionId);
+            } finally {
+                runners.remove(job.id());
+            }
+        }, jobRunner);
+        return job;
+    }
+
+    /**
+     * The export job's runner: the same CAS pickup/finalize machinery
+     * as the execution jobs (a cancel while QUEUED aborts; a cancel
+     * during the run preserves the outcome on the CANCELLED record).
+     */
+    private void runExportJob(String jobId, String addressId,
+                              String executionId) {
+        RemoteJob job;
+        try {
+            job = jobs.findById(jobId).orElse(null);
+        } catch (RuntimeException storeDown) {
+            log.error("[JOB] {}: could not read the job before its run: {}",
+                    jobId, storeDown.toString());
+            return;
+        }
+        if (job == null) {
+            log.error("[JOB] {} vanished before its runner started", jobId);
+            return;
+        }
+        if (!pickup(jobId, job)) {
+            log.info("[JOB] {} cancelled while QUEUED — runner aborts", jobId);
+            return;
+        }
+        job = job.transition(JobStatus.RUNNING, Instant.now(), null);
+        try {
+            String result = exports.runExport(addressId, executionId);
+            finalizeTerminal(jobId, job, JobStatus.COMPLETED,
+                    truncate(result), null);
+            log.info("[JOB] {} COMPLETED (export-content)", jobId);
+        } catch (Throwable t) {
+            String error = t.getClass().getSimpleName()
+                    + (t.getMessage() != null ? ": " + t.getMessage() : "");
+            finalizeTerminal(jobId, job, JobStatus.FAILED, null,
+                    truncate(error));
+            log.info("[JOB] {} FAILED (export-content): {}", jobId, error);
+            if (t instanceof Error errorT) {
+                throw errorT;
+            }
+        }
     }
 
     /** One job record, if it exists. */
