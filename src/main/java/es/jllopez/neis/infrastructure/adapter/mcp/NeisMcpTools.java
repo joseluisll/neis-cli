@@ -262,13 +262,6 @@ public class NeisMcpTools {
         return new FetchAccepted(job.id(), job.operation(), targets);
     }
 
-    // ---- tool 11: the cache source (US-18.11) ---------------------------
-
-    /**
-     * US-18.11 (issue #141): what a CACHED fetch would serve for the
-     * address — its content id, original scrape timestamp and computed
-     * age. Empty (neverScraped) for a never-scraped address.
-     */
     // ---- tool 7: job polling -------------------------------------------
     // Note (US-18.4, issue #119): the catalog is EXACTLY the 10 owner-
     // decided tools — the per-address cache metadata (US-18.11, #139)
@@ -321,7 +314,7 @@ public class NeisMcpTools {
             @McpToolParam(description = "skip this many items before the "
                     + "page (US-18.9 pagination; default 0)",
                     required = false) Integer offset) {
-        int effectiveLimit = limit == null
+        int effectiveLimit = limit == null || limit <= 0
                 ? NewsEventQuery.DEFAULT_LIMIT : limit;
         int skip = offset == null || offset < 0 ? 0 : offset;
         NewsEventQuery filters = new NewsEventQuery(
