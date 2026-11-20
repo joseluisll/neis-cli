@@ -34,20 +34,35 @@ class NewsEventQueryTest {
     }
 
     @Test
+    void normalizeDateIsTheSharedIsoNormalizer() {
+        // US-14.9 (issue #123): one shared normalizer — human format
+        // and ISO both land as ISO-8601; unparseable input is null.
+        assertEquals("2026-07-16", NewsEventQuery.normalizeDate("Jul 16, 2026"));
+        assertEquals("2026-07-16", NewsEventQuery.normalizeDate("2026-07-16"));
+        assertEquals("2026-07-16", NewsEventQuery.normalizeDate("  2026-07-16  "));
+        // The long month-name form found in the real stored data
+        // (US-14.9 backfill live evidence).
+        assertEquals("2025-07-04", NewsEventQuery.normalizeDate("July 4, 2025"));
+        assertNull(NewsEventQuery.normalizeDate("whenever"));
+        assertNull(NewsEventQuery.normalizeDate(null));
+        assertNull(NewsEventQuery.normalizeDate(""));
+    }
+
+    @Test
     void rangeBoundsAreInclusiveAndUndatedRowsAreExcluded() {
         NewsEventQuery window = new NewsEventQuery(null, null, "2026-07-01", "2026-07-31", 20);
         assertTrue(window.dateInRange("Jul 1, 2026"), "the from bound is inclusive");
         assertTrue(window.dateInRange("Jul 31, 2026"), "the to bound is inclusive");
         assertTrue(window.dateInRange("Jul 16, 2026"));
         assertFalse(window.dateInRange("Aug 16, 2026"));
-        assertFalse(window.dateInRange(null), "undated rows are outside any range");
+        assertFalse(window.dateInRange((String) null), "undated rows are outside any range");
         assertFalse(window.dateInRange("whenever"), "unparseable rows too");
     }
 
     @Test
     void noBoundsMeansEverythingAndABadBoundIsInactive() {
         NewsEventQuery unfiltered = new NewsEventQuery(null, null, null, null, 20);
-        assertTrue(unfiltered.dateInRange(null),
+        assertTrue(unfiltered.dateInRange((String) null),
                 "no active range: even undated rows pass");
         // A bound that does not parse is inactive (the driving adapter
         // validates user input, so this only happens for internal use).

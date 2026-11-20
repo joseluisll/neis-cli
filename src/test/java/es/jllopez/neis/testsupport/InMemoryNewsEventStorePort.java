@@ -52,12 +52,14 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         int stored = 0;
         for (NewsEventItem item : items) {
             String key = key(addressId, item);
+            List<String> missing = item.missingMandatory();
             // The real connector normalizes blank urls to null (unique
             // index key) and evaluates completeness on save (US-14.4):
-            // the double mirrors both so unit tests see the same rows.
+            // the double mirrors both — plus the US-14.9 normalized
+            // date computed through the ONE shared domain normalizer —
+            // so unit tests see the same rows.
             String url = item.url() == null || item.url().isBlank()
                     ? null : item.url();
-            List<String> missing = item.missingMandatory();
             NewsEventItem row = new NewsEventItem(addressId,
                     kind == null ? item.kind() : kind,
                     item.title() == null ? "" : item.title(),
@@ -66,7 +68,8 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                     executionId, contentId,
                     !missing.isEmpty(),
                     missing.isEmpty() ? null : String.join(", ", missing),
-                    item.computedCanonicalId());
+                    item.computedCanonicalId(),
+                    NewsEventQuery.normalizeDate(item.date()));
             store.put(key, row);
             firstCreatedAt.putIfAbsent(key, Instant.now());
             // US-14.5 sighting: one per saveAll that produced the item,
@@ -110,7 +113,8 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                     executionId, contentId,
                     !missing.isEmpty(),
                     missing.isEmpty() ? null : String.join(", ", missing),
-                    item.computedCanonicalId());
+                    item.computedCanonicalId(),
+                    NewsEventQuery.normalizeDate(item.date()));
             store.put(key, row);
             firstCreatedAt.putIfAbsent(key, Instant.now());
             // NO sighting: the US-14.12 cached-reuse semantics.
@@ -141,7 +145,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                 .stream()
                 .filter(item -> query.kind() == null || query.kind().isBlank()
                         || query.kind().equals(item.kind()))
-                .filter(item -> query.dateInRange(item.date()))
+                .filter(item -> query.dateInRange(item))
                 .limit(query.limit())
                 .toList();
     }
@@ -207,7 +211,7 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
                         || filters.addressId().trim().equals(item.addressId()))
                 .filter(item -> filters.kind() == null || filters.kind().isBlank()
                         || filters.kind().equals(item.kind()))
-                .filter(item -> filters.dateInRange(item.date()))
+                .filter(item -> filters.dateInRange(item))
                 .limit(filters.limit())
                 .toList();
     }

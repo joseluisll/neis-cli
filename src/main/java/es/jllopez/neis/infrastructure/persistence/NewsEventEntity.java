@@ -35,6 +35,12 @@ public class NewsEventEntity {
     @Column
     private String date;
 
+    /** The normalized ISO-8601 date (US-14.9, issue #123) — the raw
+     * text through the shared domain normalizer; null when the raw
+     * date is missing or unparseable. */
+    @Column(name = "date_normalized")
+    private String dateNormalized;
+
     @Column
     private String url;
 
@@ -121,6 +127,14 @@ public class NewsEventEntity {
 
     public void setDate(String date) {
         this.date = date;
+    }
+
+    public String getDateNormalized() {
+        return dateNormalized;
+    }
+
+    public void setDateNormalized(String dateNormalized) {
+        this.dateNormalized = dateNormalized;
     }
 
     public String getUrl() {

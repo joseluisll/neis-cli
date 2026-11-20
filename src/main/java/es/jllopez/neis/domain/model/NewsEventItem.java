@@ -53,14 +53,23 @@ public record NewsEventItem(
          * captures, paginated pages, other addresses). Set by the
          * store on save from {@link #canonicalKey()}; null on rows
          * persisted before V6. */
-        String canonicalId) {
+        String canonicalId,
+        /** The normalized ISO-8601 date (US-14.9, issue #123):
+         * the raw extracted date through the ONE shared domain
+         * normalizer ({@link NewsEventQuery#normalizeDate}) — the
+         * machine-comparable value queries filter on. The raw
+         * {@code date} stays for audit. Null when the raw date is
+         * missing or unparseable (the row is flagged, never dropped
+         * or defaulted); null on legacy rows until the startup
+         * backfill normalizes them. */
+        String dateNormalized) {
 
     /** Convenience constructor for extracted items: no provenance yet —
      * the store attaches it on {@code saveAll} (US-14.2). */
     public NewsEventItem(String addressId, String kind, String title,
                          String description, String url, String date) {
         this(addressId, kind, title, description, url, date,
-                null, null, null, null, false, null, null);
+                null, null, null, null, false, null, null, null);
     }
 
     /** Convenience constructor carrying US-14.2 provenance. */
@@ -68,7 +77,7 @@ public record NewsEventItem(
                          String description, String url, String date,
                          String executionId, String contentId) {
         this(addressId, kind, title, description, url, date,
-                null, null, executionId, contentId, false, null, null);
+                null, null, executionId, contentId, false, null, null, null);
     }
 
     /** Extracted item with the optional US-14.4 metadata (picture,
@@ -79,7 +88,7 @@ public record NewsEventItem(
                                           String picture, String location) {
         return new NewsEventItem(addressId, kind, title, description, url, date,
                 blankToNull(picture), blankToNull(location),
-                null, null, false, null, null);
+                null, null, false, null, null, null);
     }
 
     /**
@@ -126,9 +135,19 @@ public record NewsEventItem(
         if (url != null && !url.isBlank()) {
             return "url:" + canonicalUrl(url);
         }
-        LocalDate parsed = NewsEventQuery.parseLenient(date);
-        String dateKey = parsed != null ? parsed.toString()
-                : (date == null ? "" : date.trim());
+        // US-14.9: the identity's date component is the NORMALIZED
+        // value when the store has one; a not-yet-normalized item
+        // falls back to the same shared parser the normalizer uses —
+        // both paths produce the identical ISO form, so re-extraction
+        // and backfill hash the same key.
+        String dateKey;
+        if (dateNormalized != null) {
+            dateKey = dateNormalized;
+        } else {
+            LocalDate parsed = NewsEventQuery.parseLenient(date);
+            dateKey = parsed != null ? parsed.toString()
+                    : (date == null ? "" : date.trim());
+        }
         return "titdate:" + normalize(title) + "|" + dateKey;
     }
 

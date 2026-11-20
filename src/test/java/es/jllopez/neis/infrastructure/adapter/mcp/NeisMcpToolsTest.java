@@ -67,7 +67,7 @@ class NeisMcpToolsTest {
     private NewsEventItem item(String canonicalId) {
         return new NewsEventItem("ADDR-001", "news", "Title",
                 "Description", "https://example.eu/item", "Jul 16, 2026",
-                null, null, "EXEC-1", "CONT-1", false, null, canonicalId);
+                null, null, "EXEC-1", "CONT-1", false, null, canonicalId, null);
     }
 
     @Test

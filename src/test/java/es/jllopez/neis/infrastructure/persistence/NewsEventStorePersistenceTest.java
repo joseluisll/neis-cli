@@ -5,6 +5,7 @@ import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
 import es.jllopez.neis.domain.port.NewsEventStorePort;
+import es.jllopez.neis.infrastructure.adapter.persistence.NewsDateNormalizationStartup;
 import es.jllopez.neis.infrastructure.adapter.persistence.NewsEventStoreConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -683,6 +685,81 @@ class NewsEventStorePersistenceTest {
         assertEquals(0, store.countCreatedSince(
                         java.time.Instant.now().plusSeconds(3600)),
                 "nothing was stored after the future bound");
+    }
+
+    @Test
+    void captureNormalizesHumanDatesAndRangeQueriesUseTheNormalizedValue() {
+        // US-14.9 (issue #123): the normalized ISO date is computed AT
+        // CAPTURE TIME through the shared domain helper; the raw text
+        // stays for audit; a date-range query matches the item WITHOUT
+        // parsing the raw stored form.
+        seedAddress("ADDR-NP");
+        store.saveAll("ADDR-NP", "news", List.of(new NewsEventItem(
+                "ADDR-NP", "news", "Normalized capture story",
+                "Description", "https://example.eu/np1", "Jul 16, 2026")),
+                null, null);
+
+        var row = jpa.search("ADDR-NP", null).stream()
+                .filter(e -> "Normalized capture story".equals(e.getTitle()))
+                .findFirst().orElseThrow();
+        assertEquals("2026-07-16", row.getDateNormalized(),
+                "the capture normalizes the extractor's human format");
+        assertEquals("Jul 16, 2026", row.getDate(),
+                "the raw text stays for audit");
+
+        // The range query runs against the normalized value (ISO
+        // bounds), filtering the item IN.
+        var hits = store.search(new NewsEventQuery("ADDR-NP", null,
+                "2026-07-01", "2026-07-31", 20));
+        assertEquals(1, hits.stream()
+                        .filter(i -> "Normalized capture story"
+                                .equals(i.title())).count(),
+                "the human-formatted item is inside the ISO range");
+        var outside = store.search(new NewsEventQuery("ADDR-NP", null,
+                "2026-08-01", "2026-08-31", 20));
+        assertTrue(outside.stream().noneMatch(i ->
+                        "Normalized capture story".equals(i.title())),
+                "the item is outside an August range");
+    }
+
+    @Test
+    void startupBackfillNormalizesLegacyRowsAndFlagsUnparseable() {
+        // US-14.9 (issue #123): rows captured before V21 carry a raw
+        // date and no normalized value — the server-startup backfill
+        // computes them leniently; unparseable rows keep null (the
+        // observable flag) and are logged, never dropped or defaulted.
+        seedAddress("ADDR-NQ");
+        var legacy = new NewsEventItem("ADDR-NQ", "news",
+                "Legacy human-date story", "Description",
+                "https://example.eu/nq1", "Mar 3, 2025");
+        store.saveAll("ADDR-NQ", "news", List.of(legacy), null, null);
+        var odd = new NewsEventItem("ADDR-NQ", "news",
+                "Legacy unparseable story", "Description",
+                "https://example.eu/nq2", "whenever");
+        store.saveAll("ADDR-NQ", "news", List.of(odd), null, null);
+
+        // Simulate the pre-V21 state: normalized values wiped.
+        jdbcTemplate.update(
+                "UPDATE news_events SET date_normalized = NULL "
+                        + "WHERE address_id = 'ADDR-NQ'");
+
+        new NewsDateNormalizationStartup(jpa).normalize();
+
+        var backfilled = jpa.search("ADDR-NQ", null).stream()
+                .filter(e -> "Legacy human-date story".equals(e.getTitle()))
+                .findFirst().orElseThrow();
+        assertEquals("2025-03-03", backfilled.getDateNormalized(),
+                "the legacy raw date is backfilled through the shared "
+                        + "lenient parser");
+        var flagged = jpa.search("ADDR-NQ", null).stream()
+                .filter(e -> "Legacy unparseable story".equals(e.getTitle()))
+                .findFirst().orElseThrow();
+        assertNull(flagged.getDateNormalized(),
+                "an unparseable raw date stays null — the flagged row, "
+                        + "never dropped or defaulted");
+        // The sweep is idempotent: a second pass changes nothing.
+        new NewsDateNormalizationStartup(jpa).normalize();
+        assertEquals("2025-03-03", backfilled.getDateNormalized());
     }
 
     /** Recording wrapper: delegates everything, counts findById. */

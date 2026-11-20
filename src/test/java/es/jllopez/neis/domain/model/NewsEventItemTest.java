@@ -124,7 +124,7 @@ class NewsEventItemTest {
         // with reads.
         var stored = new NewsEventItem("ADDR-1", "news", "Story", "d",
                 "https://example.eu/s", "2026-11-14",
-                null, null, null, null, false, null, "cn-storedvalue");
+                null, null, null, null, false, null, "cn-storedvalue", null);
         assertEquals("cn-storedvalue", stored.canonicalId());
         assertTrue(!stored.canonicalId()
                 .equals(stored.computedCanonicalId()));

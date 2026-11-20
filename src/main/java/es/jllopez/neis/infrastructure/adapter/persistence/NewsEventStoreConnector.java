@@ -84,6 +84,13 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             entity.setTitle(item.title() == null ? "" : item.title());
             entity.setDescription(item.description());
             entity.setDate(item.date());
+            // US-14.9 (issue #123): the normalized ISO date is computed
+            // AT CAPTURE TIME through the ONE shared domain normalizer —
+            // the machine-comparable value date-range queries filter on;
+            // the raw text above stays for audit. Unparseable raw dates
+            // store null (the row is flagged by the startup normalizer's
+            // report, never silently dropped or defaulted).
+            entity.setDateNormalized(NewsEventQuery.normalizeDate(item.date()));
             // A blank-but-non-null url (raw href fallback in the
             // extractor) would break the unique index's COALESCE key:
             // normalize to null so the title-based key applies
@@ -142,15 +149,16 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
 
     @Override
     public List<NewsEventItem> search(NewsEventQuery query) {
-        // Address and kind in SQL; the date range in Java through the
-        // query's lenient parser (stored dates are ISO or human-formatted
-        // — SQL cannot compare those), then the limit. The unbounded
-        // fetch is fine at the repository's local scale (US-14.3).
+        // Address and kind in SQL; the date range in Java AGAINST THE
+        // NORMALIZED value (US-14.9: a legacy un-backfilled row falls
+        // back to the lenient raw parse inside the query), then the
+        // limit. The unbounded fetch is fine at the repository's local
+        // scale (US-14.3).
         return jpa.search(
                         blankToNull(query.addressId()),
                         blankToNull(query.kind())).stream()
                 .map(NewsEventStoreConnector::toItem)
-                .filter(item -> query.dateInRange(item.date()))
+                .filter(item -> query.dateInRange(item))
                 .limit(query.limit())
                 .toList();
     }
@@ -196,7 +204,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
         return ids.stream()
                 .map(byId::get)
                 .filter(item -> item != null
-                        && filters.dateInRange(item.date()))
+                        && filters.dateInRange(item))
                 .limit(filters.limit())
                 .collect(Collectors.toList());
     }
@@ -249,7 +257,7 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
                 e.getPicture(), e.getLocation(),
                 e.getExecutionId(), e.getContentId(),
                 e.isIncomplete(), e.getMissingFields(),
-                e.getCanonicalId());
+                e.getCanonicalId(), e.getDateNormalized());
     }
 
     @Override

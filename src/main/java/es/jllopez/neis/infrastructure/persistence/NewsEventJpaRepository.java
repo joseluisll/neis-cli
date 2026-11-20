@@ -33,4 +33,8 @@ public interface NewsEventJpaRepository extends JpaRepository<NewsEventEntity, S
     /** The rows forming one logical record (US-14.5 canonical id). */
     List<NewsEventEntity> findByCanonicalIdOrderByUpdatedAtDesc(
             String canonicalId);
+
+    /** The US-14.9 legacy rows: a raw date present but no normalized
+     * value yet — the startup normalizer's backfill sweep. */
+    List<NewsEventEntity> findByDateNormalizedIsNullAndDateIsNotNull();
 }

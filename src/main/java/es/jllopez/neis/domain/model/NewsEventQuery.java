@@ -9,11 +9,14 @@ import java.util.Locale;
  * issue #57): every field is optional — null means "do not filter".
  *
  * <p>{@code dateFrom}/{@code dateTo} bound the item's own publication
- * date ({@link NewsEventItem#date()}). Dates are parsed leniently —
- * ISO-8601 ({@code 2026-11-01}) and the extractor's human format
- * ({@code Jul 16, 2026}) are both understood — so the range works on
- * the real extracted data, not only on ISO rows (verified live during
- * US-14.3: stored dates are human-formatted). Rows whose date is
+ * date. Since US-14.9 (#123) the store carries a NORMALIZED ISO-8601
+ * date per item ({@link NewsEventItem#dateNormalized()}) and the range
+ * compares against THAT value — never lexically against the raw text.
+ * The range bounds themselves are parsed leniently (ISO-8601
+ * {@code 2026-11-01} and the extractor's human format {@code Jul 16,
+ * 2026} are both understood). A legacy row without a normalized value
+ * (not yet backfilled) falls back to the lenient parse of its raw
+ * date, so an un-backfilled store keeps working. Rows whose date is
  * missing or unparseable are excluded while a range is active.
  * {@code limit} caps the result size (values &lt;= 0 fall back to the
  * default of 20). Results are always newest first.</p>
@@ -30,6 +33,12 @@ public record NewsEventQuery(
     private static final DateTimeFormatter HUMAN =
             DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
 
+    /** The legacy long form ('July 4, 2025') found in the real stored
+     * data — the same pattern with the FULL month name (US-14.9
+     * backfill live evidence). */
+    private static final DateTimeFormatter HUMAN_LONG =
+            DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+
     public NewsEventQuery {
         if (limit <= 0) {
             limit = DEFAULT_LIMIT;
@@ -39,6 +48,33 @@ public record NewsEventQuery(
     /** An unfiltered search: everything stored, newest first. */
     public static NewsEventQuery everything() {
         return new NewsEventQuery(null, null, null, null, DEFAULT_LIMIT);
+    }
+
+    /**
+     * Whether the item falls inside the query's range (US-14.9): the
+     * comparison runs against the item's NORMALIZED ISO date when it
+     * has one; a legacy row without a normalized value falls back to
+     * the lenient parse of its raw date. True when no bound is active;
+     * a missing or unparseable date is outside any active range.
+     */
+    public boolean dateInRange(NewsEventItem item) {
+        if ((dateFrom == null || dateFrom.isBlank())
+                && (dateTo == null || dateTo.isBlank())) {
+            return true;
+        }
+        if (item == null) {
+            return false;
+        }
+        if (item.dateNormalized() != null) {
+            LocalDate date;
+            try {
+                date = LocalDate.parse(item.dateNormalized());
+            } catch (RuntimeException e) {
+                return false;
+            }
+            return withinBounds(date);
+        }
+        return dateInRange(item.date());
     }
 
     /**
@@ -57,6 +93,10 @@ public record NewsEventQuery(
         if (date == null) {
             return false;
         }
+        return withinBounds(date);
+    }
+
+    private boolean withinBounds(LocalDate date) {
         LocalDate from = parse(dateFrom);
         LocalDate to = parse(dateTo);
         return (from == null || !date.isBefore(from))
@@ -73,6 +113,19 @@ public record NewsEventQuery(
         return parse(value);
     }
 
+    /**
+     * The ONE shared date normalizer (US-14.9, issue #123): the raw
+     * extracted date as a machine-comparable ISO-8601 string
+     * ({@code yyyy-MM-dd}), or null when it does not parse. The store
+     * connector, the in-memory test double and the legacy-row backfill
+     * all call THIS method — no second parser may exist anywhere, so
+     * a capture and a backfill of the same text always agree.
+     */
+    public static String normalizeDate(String raw) {
+        LocalDate parsed = parse(raw);
+        return parsed == null ? null : parsed.toString();
+    }
+
     private static LocalDate parse(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -81,10 +134,15 @@ public record NewsEventQuery(
         try {
             return LocalDate.parse(trimmed);
         } catch (RuntimeException ignored) {
-            // fall through to the extractor's human format
+            // fall through to the extractor's human formats
         }
         try {
             return LocalDate.parse(trimmed, HUMAN);
+        } catch (RuntimeException ignored) {
+            // fall through to the long month-name form
+        }
+        try {
+            return LocalDate.parse(trimmed, HUMAN_LONG);
         } catch (RuntimeException ignored) {
             return null;
         }
