@@ -366,6 +366,8 @@ application.yml):
 | `neis.schedule.entries` | `[]` | Scheduled runs (§12) |
 | `neis.ai.enabled` / `provider` / `base-url` / `api-key-ref` / `model` | `false` / `melious` / Melious URL / `MELIOUS_API_KEY` / `glm-5.3-flash` | AI provider (§11) |
 | `neis.ai.timeouts.default` / `neis.ai.timeouts.<operation>` | `240s` / (unset) | Per-operation AI call timeouts (US-13.8): `default` applies to every operation without an explicit value; operation keys: `generic`, `classification`, `selector-news`, `selector-events`, `capability-detection`, `capability-repair`, `filter-zone-selector`, `filter-criterion`, `filter-apply`, `registration`, `preflight`. A timed-out call falls back to the non-AI path; the HTTP client itself is hard-bounded at the longest configured value. |
+| `neis.scrape.connector` | `static` | The SCRAPE connector: `static` (bundled fixtures), `live` (per-type HTTP/rendered retrieval), `cached` (US-06.14: serves the address's latest stored scrape — provenance-marked, fail-closed when nothing is stored). |
+| `neis.scrape.cached-max-age` / `neis.scrape.fallback-to-stored` | (unset) / `false` | US-06.15/US-06.14: max age of served cached content (ISO-8601, e.g. `PT72H`; unset = unlimited; exceeded content fails the fetch naming age and bound) and the opt-in fallback of a FAILED static/live fetch to the latest stored content (never silent — provenance-marked). |
 
 A configuration overview with every layer marked (override vs
 from-configuration vs default) is in the management UI's configuration

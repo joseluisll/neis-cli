@@ -114,7 +114,10 @@ public class CachedScrapeConnector
         }
         try {
             String html = Files.readString(file, StandardCharsets.UTF_8);
+            Duration age = scrapedAt == null ? null
+                    : Duration.between(scrapedAt, Instant.now());
             String note = "cached; original scrape " + scrapedAt
+                    + (age == null ? "" : ", age " + age)
                     + " (" + source.id() + ")";
             log.info("SCRAPE {}: serving STORED content — {}", address.id(), note);
             return new ScrapeResult(html, "text/html; charset=UTF-8",
