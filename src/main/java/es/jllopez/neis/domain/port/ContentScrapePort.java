@@ -109,4 +109,17 @@ public interface ContentScrapePort {
     default List<FilterRequestOption> supportedFilterRequests(Address address) {
         return List.of();
     }
+
+    /**
+     * The fetchability warning for the address under the ACTIVE
+     * connector configuration (US-06.12, issue #134): a non-empty
+     * value states what a fetch of this address would do or why it
+     * would FAIL — naming the mode and the remedy — so registration
+     * and verification can surface it before the first fetch. Empty
+     * means the address fetches fine as things stand. Connectors
+     * without configuration awareness report nothing.
+     */
+    default java.util.Optional<String> fetchabilityWarning(Address address) {
+        return java.util.Optional.empty();
+    }
 }

@@ -26,13 +26,40 @@ import java.util.Set;
 @Service
 public class AddressCatalogService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(AddressCatalogService.class);
+
     private final AddressCatalogPort catalogPort;
     private final UrlSyntaxValidator urlValidator;
+    /**
+     * US-06.12 (issue #134): registration consults the ACTIVE scrape
+     * configuration — an address the current mode cannot fetch (or
+     * one whose fetch would leave the offline contract) produces a
+     * clear warning at registration, naming the mode and the remedy.
+     */
+    private final es.jllopez.neis.domain.port.ContentScrapePort scrape;
 
+    /** Production constructor: Spring injects the active SCRAPE port. */
+    @org.springframework.beans.factory.annotation.Autowired
     public AddressCatalogService(AddressCatalogPort catalogPort,
-                                 UrlSyntaxValidator urlValidator) {
+                                 UrlSyntaxValidator urlValidator,
+                                 es.jllopez.neis.domain.port.ContentScrapePort scrape) {
         this.catalogPort = catalogPort;
         this.urlValidator = urlValidator;
+        this.scrape = scrape;
+    }
+
+    /**
+     * Test/back-compat convenience (US-06.12): no scrape
+     * configuration — the catalog never emits fetchability warnings.
+     * The production constructor is marked {@code @Autowired} (the
+     * two-constructor trap: with several constructors and none
+     * marked, Spring silently falls back to the default constructor).
+     */
+    @SuppressWarnings("unused")
+    public AddressCatalogService(AddressCatalogPort catalogPort,
+                                 UrlSyntaxValidator urlValidator) {
+        this(catalogPort, urlValidator, NoopScrapePort.INSTANCE);
     }
 
     /** Every registered address, ordered by id. */
@@ -85,8 +112,21 @@ public class AddressCatalogService {
             }
             return update(existing.id(), name, description, url, type);
         }
-        return catalogPort.save(new Address(addressId, name, description,
-                url, type, Set.of()));
+        Address saved = catalogPort.save(new Address(addressId, name,
+                description, url, type, Set.of()));
+        warnFetchability(saved);
+        return saved;
+    }
+
+    /**
+     * US-06.12 (issue #134): the registration fetchability warning —
+     * what the ACTIVE connector configuration would do (or why it
+     * would fail) for the address, named with mode and remedy. Logged
+     * by {@link #create} and {@link #update}.
+     */
+    private void warnFetchability(Address saved) {
+        scrape.fetchabilityWarning(saved).ifPresent(warning ->
+                log.warn("[Fetchability] {}: {}", saved.id(), warning));
     }
 
     /**
@@ -103,7 +143,7 @@ public class AddressCatalogService {
         // either — only 'address verify' and 'address webpage-type' do
         // (fa42575 review blocking finding: the 8-arg rebuild silently
         // nulled the stored type).
-        return catalogPort.save(new Address(current.id(),
+        Address saved = catalogPort.save(new Address(current.id(),
                 name != null ? name : current.name(),
                 description != null ? description : current.description(),
                 url != null ? url : current.url(),
@@ -111,6 +151,8 @@ public class AddressCatalogService {
                 current.capabilities(),
                 current.verificationStatus(), current.verifiedAt(),
                 current.webpageType()));
+        warnFetchability(saved);
+        return saved;
     }
 
     /**

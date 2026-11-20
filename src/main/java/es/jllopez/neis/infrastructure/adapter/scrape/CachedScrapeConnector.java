@@ -155,6 +155,16 @@ public class CachedScrapeConnector
                                 + "then the cached mode serves it"));
     }
 
+    /**
+     * Whether any scrape is stored for the address (US-06.12,
+     * issue #134): the router's fetchability warning consults this —
+     * an address with stored content is fetchable under every
+     * no-network policy.
+     */
+    public boolean hasStored(String addressId) {
+        return store.findLatestWebpageScrape(addressId).isPresent();
+    }
+
     @Override
     public String toString() {
         return "CachedScrapeConnector(maxAge=" + maxAge + ")";

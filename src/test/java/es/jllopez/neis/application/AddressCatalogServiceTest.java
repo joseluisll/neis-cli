@@ -42,6 +42,50 @@ class AddressCatalogServiceTest {
     }
 
     @Test
+    void registrationConsultsTheActiveScrapeConfigurationForFetchability() {
+        // US-06.12 (issue #134): create() and update() consult the
+        // ACTIVE scrape configuration — an address the mode cannot
+        // fetch produces the warning naming mode and remedy. The
+        // recording stub pins the WIRING (the port is consulted with
+        // the SAVED record; a no-op port never warns).
+        class RecordingScrapePort implements
+                es.jllopez.neis.domain.port.ContentScrapePort {
+            final List<String> consulted = new java.util.ArrayList<>();
+
+            @Override
+            public es.jllopez.neis.domain.model.ScrapeResult scrape(
+                    Address address) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public java.util.Optional<String> fetchabilityWarning(
+                    Address address) {
+                consulted.add(address.id());
+                return java.util.Optional.of("connector mode 'static' has "
+                        + "no fixture for " + address.id() + " — fetches "
+                        + "will go LIVE (US-06.12)");
+            }
+        }
+        RecordingScrapePort scrape = new RecordingScrapePort();
+        AddressCatalogService catalog = new AddressCatalogService(
+                new InMemoryAddressCatalogPort(), new UrlSyntaxValidator(),
+                scrape);
+
+        catalog.create("ADDR-050", "Source", null,
+                "https://example.eu/s", AddressType.URL_NEWS);
+
+        assertEquals(List.of("ADDR-050"), scrape.consulted,
+                "create() consults the scrape configuration with the "
+                        + "saved record");
+        catalog.update("ADDR-050", "Renamed", null, null, null);
+        assertEquals(List.of("ADDR-050", "ADDR-050"), scrape.consulted,
+                "update() consults it too");
+        assertEquals("Renamed", catalog.byId("ADDR-050").name(),
+                "the registration behavior itself is unchanged");
+    }
+
+    @Test
     void reRegistrationWithIdenticalStateIsANoOpAndWithChangesUpdates() {
         // US-15.4 (issue #70): re-running a registration is a no-op when
         // the state already matches; different fields update to the

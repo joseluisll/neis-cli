@@ -518,6 +518,144 @@ class ScrapeConnectorRouterTest {
         }
     }
 
+    // ---- US-06.12 (issue #134): fixture-less addresses are fetchable
+
+    private static final Address FIXTURELESS = new Address("ADDR-010",
+            "New address", null, "https://example.invalid/new-listing",
+            es.jllopez.neis.domain.model.AddressType.URL_NEWS);
+
+    @Test
+    void fixturelessAddressFetchesLiveInStaticModeByDefault() {
+        // US-06.12 acceptance: a registered address without a fixture
+        // is FETCHED SUCCESSFULLY in static mode — never a fetch-time
+        // IllegalStateException (the ADDR-010 evidence). Default
+        // policy 'live', nothing stored: one operational line and the
+        // live HTTP fetch.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(),
+                singleProvider(httpStub("live-listing")),
+                emptyRendered(), cachedNever(), catalog(), "static", false);
+
+        ScrapeResult result = router.scrape(FIXTURELESS);
+
+        assertEquals("live-listing", result.html(),
+                "the fixture-less address fetches LIVE under the "
+                        + "default static-fallback policy");
+    }
+
+    @Test
+    void fixturelessAddressServesStoredContentBeforeGoingLive() {
+        // Policy 'live' prefers the stored scrape (offline when
+        // possible): the served result is the stored page with the
+        // CACHED provenance note — never a network call.
+        String body = "<html>stored ADDR-010 listing</html>";
+        java.nio.file.Path file;
+        try {
+            file = java.nio.file.Files.writeString(
+                    java.nio.file.Files.createTempFile("fless", ".html"),
+                    body);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        es.jllopez.neis.domain.model.ContentRecord record =
+                new es.jllopez.neis.domain.model.ContentRecord("CONT-f10",
+                        "ADDR-010", "cap-f10", "WEBSCRAPE", "listing-html",
+                        file.toString(), java.time.Instant.now(), null);
+        CachedScrapeConnector cached = new CachedScrapeConnector(
+                new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                        java.util.List.of(record)), "");
+        // The http stub would fail the test if consulted (its body is
+        // distinct); the stored content must win.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(),
+                singleProvider(httpStub("SHOULD-NOT-BE-FETCHED")),
+                emptyRendered(), cached, catalog(),
+                "static", false, "live");
+
+        ScrapeResult result = router.scrape(FIXTURELESS);
+
+        assertEquals(body, result.html(), "stored content wins");
+        assertTrue(result.sourceNote() != null
+                        && result.sourceNote().startsWith("cached"),
+                "the stored serve carries the CACHED provenance note");
+    }
+
+    @Test
+    void fixturelessAddressWithCachedPolicyNeverTouchesTheNetwork() {
+        // Policy 'cached': no fixture, nothing stored — a loud
+        // failure NAMING THE REMEDY (never network, never silent).
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(),
+                singleProvider(httpStub("SHOULD-NOT-BE-FETCHED")),
+                emptyRendered(), cachedNever(), catalog(),
+                "static", false, "cached");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> router.scrape(FIXTURELESS));
+        assertTrue(e.getMessage().contains("fetch live once"),
+                "the refusal names the remedy: " + e.getMessage());
+    }
+
+    @Test
+    void fixturelessAddressWithOffPolicyKeepsTheStrictRefusal() {
+        // Policy 'off': the pre-US-06.12 strict behavior — the
+        // operator opted out of the fallback.
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(),
+                singleProvider(httpStub("SHOULD-NOT-BE-FETCHED")),
+                emptyRendered(), cachedNever(), catalog(),
+                "static", false, "off");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> router.scrape(FIXTURELESS));
+        assertTrue(e.getMessage().contains("static-fallback=off"),
+                "the refusal names the policy and remedy: "
+                        + e.getMessage());
+    }
+
+    @Test
+    void unknownStaticFallbackPolicyRefusesTheBoot() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new ScrapeConnectorRouter(new StaticScrapeConnector(),
+                        emptyProvider(), emptyRendered(), cachedNever(),
+                        catalog(), "static", false, "maybe"),
+                "a typo must never silently pick a network policy");
+    }
+
+    @Test
+    void fetchabilityWarningNamesModeAndRemedyBeforeTheFirstFetch() {
+        // Registration/verification consult this — the warning states
+        // what a fetch would do (or why it would fail).
+        ScrapeConnectorRouter staticLive = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(),
+                emptyRendered(), cachedNever(), catalog(), "static", false, "live");
+        ScrapeConnectorRouter staticOff = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(),
+                emptyRendered(), cachedNever(), catalog(), "static", false, "off");
+        ScrapeConnectorRouter liveMode = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(),
+                emptyRendered(), cachedNever(), catalog(), "live", false);
+
+        String warning = staticLive.fetchabilityWarning(FIXTURELESS)
+                .orElseThrow();
+        assertTrue(warning.contains("LIVE") && warning.contains("fixture"),
+                "the live-policy warning names the fallback and the "
+                        + "fixture remedy: " + warning);
+        assertTrue(staticLive.fetchabilityWarning(UNCLASSIFIED).isEmpty(),
+                "a seeded (fixture) address fetches offline — no warning");
+        assertTrue(liveMode.fetchabilityWarning(FIXTURELESS).isEmpty(),
+                "live mode fetches everything — no warning");
+        assertTrue(staticOff.fetchabilityWarning(FIXTURELESS)
+                        .orElseThrow().contains("static-fallback=off"),
+                "the off-policy warning names the failing policy");
+        ScrapeConnectorRouter cachedMode = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(),
+                emptyRendered(), cachedNever(), catalog(), "cached", false);
+        assertTrue(cachedMode.fetchabilityWarning(FIXTURELESS)
+                        .orElseThrow().contains("nothing stored"),
+                "the cached-mode warning names the empty store");
+    }
+
     private static WebpageTypeCatalogPort catalog() {
         return new WebpageTypeCatalog(new WebpageTypeProperties());
     }

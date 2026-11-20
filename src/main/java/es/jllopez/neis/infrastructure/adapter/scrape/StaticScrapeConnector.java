@@ -98,6 +98,16 @@ public class StaticScrapeConnector implements ContentScrapePort {
         return scrape(address, 0);
     }
 
+    /**
+     * Whether the base-listing fixture exists for the address
+     * (US-06.12, issue #134): the router's fetchability warning and
+     * its no-fixture fallback consult this instead of trying a fetch
+     * and matching the failure.
+     */
+    public boolean hasFixture(String addressId) {
+        return FIXTURES.containsKey(addressId);
+    }
+
     @Override
     public List<FilterRequestOption> supportedFilterRequests(Address address) {
         FilterRequestOption option = FILTER_CRITERIA.get(address.id());

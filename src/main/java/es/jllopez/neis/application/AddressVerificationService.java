@@ -26,13 +26,36 @@ public class AddressVerificationService {
     private final AddressCatalogService catalog;
     private final AddressVerificationPort verificationPort;
     private final UrlSyntaxValidator urlValidator;
+    /**
+     * US-06.12 (issue #134): verification consults the ACTIVE scrape
+     * configuration — an address the current mode cannot fetch
+     * produces a clear warning, naming the mode and the remedy, so a
+     * VERIFIED address never silently hides an un-fetchable state.
+     */
+    private final es.jllopez.neis.domain.port.ContentScrapePort scrape;
 
+    /** Production constructor: Spring injects the active SCRAPE port. */
+    @org.springframework.beans.factory.annotation.Autowired
     public AddressVerificationService(AddressCatalogService catalog,
                                       AddressVerificationPort verificationPort,
-                                      UrlSyntaxValidator urlValidator) {
+                                      UrlSyntaxValidator urlValidator,
+                                      es.jllopez.neis.domain.port.ContentScrapePort scrape) {
         this.catalog = catalog;
         this.verificationPort = verificationPort;
         this.urlValidator = urlValidator;
+        this.scrape = scrape;
+    }
+
+    /**
+     * Test/back-compat convenience (US-06.12): no scrape
+     * configuration — verification never emits fetchability warnings.
+     * See the two-constructor trap note on the production constructor.
+     */
+    @SuppressWarnings("unused")
+    public AddressVerificationService(AddressCatalogService catalog,
+                                      AddressVerificationPort verificationPort,
+                                      UrlSyntaxValidator urlValidator) {
+        this(catalog, verificationPort, urlValidator, NoopScrapePort.INSTANCE);
     }
 
     /** Verifies one address and persists the outcome. */
@@ -50,6 +73,12 @@ public class AddressVerificationService {
         persist(address, outcome);
         log.info("Address {} verification outcome: {} ({})", address.id(),
                 outcome.status(), outcome.detail());
+        // US-06.12: the fetchability warning rides on every
+        // verification — the catalog view must not say VERIFIED while
+        // the active mode cannot fetch the address.
+        scrape.fetchabilityWarning(address).ifPresent(warning ->
+                log.warn("[Fetchability] verified {}: {}", address.id(),
+                        warning));
         return outcome;
     }
 

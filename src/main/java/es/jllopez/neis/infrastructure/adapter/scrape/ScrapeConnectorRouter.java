@@ -41,6 +41,16 @@ import java.util.List;
  *   when nothing is stored.</li>
  * </ul>
  *
+ * <p>US-06.12 (issue #134): static mode never leaves a fixture-less
+ * address un-fetchable — {@code neis.scrape.static-fallback} decides
+ * what such a fetch does: {@code live} (default) serves the stored
+ * content when one exists and otherwise fetches LIVE (one operational
+ * line per fallback); {@code cached} never touches the network;
+ * {@code off} is the strict fixture-only refusal. The
+ * {@link #fetchabilityWarning} tells registration and verification —
+ * before the first fetch — what an address would do or why it would
+ * fail, naming the mode and the remedy.</p>
+ *
  * <p>US-06.14's opt-in {@code neis.scrape.fallback-to-stored} (default
  * false) lets a FAILED static/live fetch of the plain-listing path
  * serve the stored content instead of failing the job — provenance
@@ -74,7 +84,18 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
      * failure semantics are unchanged.
      */
     private final boolean fallbackToStored;
+    /**
+     * US-06.12 (issue #134): what the STATIC mode does for an address
+     * with no fixture — {@code live} (default) serves the stored
+     * content when one exists and otherwise fetches LIVE;
+     * {@code cached} never touches the network (stored content or a
+     * loud failure naming the remedy); {@code off} is the strict
+     * fixture-only behavior.
+     */
+    private final String staticFallback;
 
+    /** Production constructor (Spring binds the configuration). */
+    @org.springframework.beans.factory.annotation.Autowired
     public ScrapeConnectorRouter(StaticScrapeConnector staticConnector,
                                  ObjectProvider<HttpScrapeConnector> httpConnector,
                                  ObjectProvider<PlaywrightRenderConnector> renderedConnector,
@@ -82,16 +103,62 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
                                  WebpageTypeCatalogPort webpageTypes,
                                  @Value("${neis.scrape.connector:static}") String mode,
                                  @Value("${neis.scrape.fallback-to-stored:false}")
-                                 boolean fallbackToStored) {
+                                 boolean fallbackToStored,
+                                 @Value("${neis.scrape.static-fallback:live}")
+                                 String staticFallback) {
         this.staticConnector = staticConnector;
         this.httpConnector = httpConnector;
         this.renderedConnector = renderedConnector;
         this.cachedConnector = cachedConnector;
         this.webpageTypes = webpageTypes;
         this.fallbackToStored = fallbackToStored;
+        this.staticFallback = validateStaticFallback(staticFallback);
         String normalized = validateMode(mode);
         this.live = normalized.equals("live");
         this.cached = normalized.equals("cached");
+    }
+
+    /**
+     * Test convenience: the default US-06.12 policy ({@code live}).
+     * The two-constructor trap needs the production constructor
+     * marked {@code @Autowired} — with several constructors and none
+     * marked, Spring silently falls back to the default constructor.
+     */
+    public ScrapeConnectorRouter(StaticScrapeConnector staticConnector,
+                                 ObjectProvider<HttpScrapeConnector> httpConnector,
+                                 ObjectProvider<PlaywrightRenderConnector> renderedConnector,
+                                 CachedScrapeConnector cachedConnector,
+                                 WebpageTypeCatalogPort webpageTypes,
+                                 String mode,
+                                 boolean fallbackToStored) {
+        this(staticConnector, httpConnector, renderedConnector, cachedConnector,
+                webpageTypes, mode, fallbackToStored, "live");
+    }
+
+    /**
+     * US-06.12 boot validation: blank resolves to the default
+     * ('live'); an unknown value fails the boot — a typo must never
+     * silently pick a network (or no-network) policy.
+     */
+    static String validateStaticFallback(String policy) {
+        String normalized = policy == null ? "" : policy.trim();
+        if (normalized.isEmpty()) {
+            return "live";
+        }
+        switch (normalized) {
+            case "live" -> log.info("SCRAPE static mode: addresses without "
+                    + "a fixture serve stored content or fetch LIVE "
+                    + "(neis.scrape.static-fallback=live, US-06.12)");
+            case "cached" -> log.info("SCRAPE static mode: addresses without "
+                    + "a fixture serve stored content only, no network "
+                    + "(neis.scrape.static-fallback=cached, US-06.12)");
+            case "off" -> log.info("SCRAPE static mode: fixtures only — "
+                    + "addresses without a fixture FAIL (US-06.12)");
+            default -> throw new IllegalArgumentException(
+                    "Unknown neis.scrape.static-fallback policy '" + policy
+                            + "' (expected 'live', 'cached' or 'off') (US-06.12)");
+        }
+        return normalized;
     }
 
     /** Boot + override validation, shared (US-06.14 added 'cached'). */
@@ -117,6 +184,93 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
     }
 
     /**
+     * US-06.12's no-fixture fetch (static mode, issue #134): the
+     * policy decides — {@code live}: stored content first (offline
+     * when possible, provenance-marked by the cached connector),
+     * else a LIVE per-type fetch with one operational line;
+     * {@code cached}: stored content or a loud failure naming the
+     * remedy (never network); {@code off}: the strict refusal. A live
+     * fallback fetch honors the US-06.14 stored-fallback flag (it IS
+     * the primary fetch of this address). One operational line per
+     * fallback, never silent.
+     */
+    private ScrapeResult staticFallbackFetch(Address address) {
+        if ("off".equals(staticFallback)) {
+            throw new IllegalStateException("No static fixture for "
+                    + address.id() + " and neis.scrape.static-fallback=off"
+                    + " — add a fixture or set the policy to 'live'/'cached'"
+                    + " (US-06.12)");
+        }
+        try {
+            ScrapeResult stored = cachedConnector.scrape(address);
+            log.info("[Fetchability] {}: no static fixture — serving the "
+                            + "stored scrape (static mode, static-fallback={}; "
+                            + "US-06.12)", address.id(), staticFallback);
+            return stored;
+        } catch (RuntimeException storedMiss) {
+            if ("live".equals(staticFallback)) {
+                log.info("[Fetchability] {}: no static fixture and nothing "
+                        + "stored — fetching LIVE (static mode, "
+                        + "static-fallback=live; US-06.12)", address.id());
+                return withStoredFallback(address,
+                        () -> forAddress(address).scrape(address));
+            }
+            throw new IllegalStateException("No static fixture and no "
+                    + "stored content for " + address.id()
+                    + " (neis.scrape.static-fallback=cached) — fetch live "
+                    + "once to seed the store, or set the policy to 'live'"
+                    + " (US-06.12)");
+        }
+    }
+
+    /** The static connector's base-listing fixture probe (US-06.12). */
+    private boolean staticHasFixture(Address address) {
+        return ((StaticScrapeConnector) staticConnector).hasFixture(address.id());
+    }
+
+    /**
+     * US-06.12 (issue #134): the fetchability warning under the ACTIVE
+     * configuration — registration and verification surface it, so no
+     * address sits in the catalog as fetchable when it is not. The
+     * warning names the mode and the remedy.
+     */
+    @Override
+    public java.util.Optional<String> fetchabilityWarning(Address address) {
+        if (cached) {
+            return cachedConnector.hasStored(address.id())
+                    ? java.util.Optional.empty()
+                    : java.util.Optional.of("connector mode 'cached' has "
+                            + "nothing stored for " + address.id()
+                            + " — a fetch will fail: fetch live once (mode "
+                            + "'live', or the per-run connector=http) to seed "
+                            + "the store (US-06.12)");
+        }
+        if (live) {
+            return java.util.Optional.empty();
+        }
+        if (staticHasFixture(address)) {
+            return java.util.Optional.empty();
+        }
+        return switch (staticFallback) {
+            case "live" -> java.util.Optional.of("connector mode 'static' "
+                    + "has no fixture for " + address.id() + " — fetches "
+                    + "will go LIVE (neis.scrape.static-fallback=live); add "
+                    + "a fixture to keep it offline (US-06.12)");
+            case "cached" -> cachedConnector.hasStored(address.id())
+                    ? java.util.Optional.empty()
+                    : java.util.Optional.of("connector mode 'static' "
+                            + "(static-fallback=cached) has no fixture and "
+                            + "nothing stored for " + address.id() + " — a "
+                            + "fetch will fail: fetch live once to seed the "
+                            + "store or set static-fallback=live (US-06.12)");
+            default -> java.util.Optional.of("connector mode 'static' "
+                    + "(static-fallback=off) has no fixture for "
+                    + address.id() + " — a fetch will fail: add a fixture or "
+                    + "set neis.scrape.static-fallback=live (US-06.12)");
+        };
+    }
+
+    /**
      * Applies a persisted/live override of {@code neis.scrape.connector}
      * (US-16.5 edit path): the same validation as the boot constructor —
      * an unknown value is refused loud, never half-applied. Takes effect
@@ -135,6 +289,13 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             return cachedConnector.scrape(address);
         }
         if (!live) {
+            // US-06.12 (issue #134): an address with no fixture is
+            // FETCHABLE in static mode — the policy decides stored
+            // content vs a live fetch vs the strict refusal. The
+            // fixture-present path keeps the US-06.14 semantics.
+            if (!staticHasFixture(address)) {
+                return staticFallbackFetch(address);
+            }
             // US-06.14: the fallback covers the static branch too — a
             // failed fixture fetch falls back to the stored content
             // when the flag is set (the review's no-op-in-default-mode
