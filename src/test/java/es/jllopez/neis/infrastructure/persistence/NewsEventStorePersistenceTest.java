@@ -747,27 +747,30 @@ class NewsEventStorePersistenceTest {
                 "UPDATE news_events SET date_normalized = NULL "
                         + "WHERE address_id = 'ADDR-NQ'");
 
-        // Simulate a CONCURRENT capture of one legacy row between the
-        // sweep's read and its write (the blocking review finding on
-        // the first boot, where the scheduler can fire inside the
-        // init→reconcile window): the capture rewrote the row AND set
-        // its normalized value. The guarded partial update must leave
-        // the captured data untouched (0 rows changed — skipped).
-        jdbcTemplate.update(
-                "UPDATE news_events SET title = 'Captured during window', "
-                        + "date_normalized = '2025-03-03' "
-                        + "WHERE title = 'Legacy human-date story'");
+        // The interleaving the guard pins (blocking review finding):
+        // the capture must fire BETWEEN the sweep's read and its
+        // write, not before the sweep starts. The wrapper's FIRST
+        // guarded-update call performs the capture — the sweep has
+        // read the row (normalized null) and is about to write it.
+        // The capture writes a normalized value ONLY the capture would
+        // write ('2030-01-01'), so surviving it proves the guarded
+        // update skipped the row instead of overwriting it.
+        CaptureDuringWindowJdbcTemplate racing =
+                new CaptureDuringWindowJdbcTemplate(jdbcTemplate);
 
-        new NewsDateNormalizationStartup(jdbcTemplate).normalize();
+        new NewsDateNormalizationStartup(racing).normalize();
 
-        var backfilled = jpa.search("ADDR-NQ", null).stream()
-                .filter(e -> "Legacy human-date story".equals(e.getTitle())
-                        || "Captured during window".equals(e.getTitle()))
+        assertTrue(racing.captureFired,
+                "the interleaved capture actually fired inside the "
+                        + "sweep's write");
+        var captured = jpa.search("ADDR-NQ", null).stream()
+                .filter(e -> "Captured during window".equals(e.getTitle()))
                 .findFirst().orElseThrow();
-        assertEquals("Captured during window", backfilled.getTitle(),
+        assertEquals("Captured during window", captured.getTitle(),
                 "the concurrent capture is NOT clobbered by the backfill");
-        assertEquals("2025-03-03", backfilled.getDateNormalized(),
-                "the capture's own normalized value wins");
+        assertEquals("2030-01-01", captured.getDateNormalized(),
+                "the capture's own normalized value wins — the guarded "
+                        + "update changed 0 rows (skipped)");
         var flagged = jpa.search("ADDR-NQ", null).stream()
                 .filter(e -> "Legacy unparseable story".equals(e.getTitle()))
                 .findFirst().orElseThrow();
@@ -783,6 +786,38 @@ class NewsEventStorePersistenceTest {
         // The sweep is idempotent: a second pass changes nothing.
         new NewsDateNormalizationStartup(jdbcTemplate).normalize();
         assertEquals("2025-03-03", backfilledRow.getDateNormalized());
+    }
+
+    /** Delegating wrapper whose FIRST guarded-update call performs the
+     * 'concurrent capture' — the sweep has READ the legacy row and is
+     * about to WRITE it when the capture lands (the interleaving the
+     * guard exists for). Delegates everything else untouched. */
+    private static final class CaptureDuringWindowJdbcTemplate
+            extends org.springframework.jdbc.core.JdbcTemplate {
+        private final JdbcTemplate delegate;
+        boolean captureFired;
+
+        CaptureDuringWindowJdbcTemplate(JdbcTemplate delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public int update(String sql, Object... args) {
+            if (!captureFired && sql.contains("date_normalized = ?")) {
+                captureFired = true;
+                delegate.update(
+                        "UPDATE news_events SET title = 'Captured during "
+                                + "window', date_normalized = '2030-01-01' "
+                                + "WHERE title = 'Legacy human-date story'");
+            }
+            return delegate.update(sql, args);
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, Object>> queryForList(
+                String sql) {
+            return delegate.queryForList(sql);
+        }
     }
 
     /** Recording wrapper: delegates everything, counts findById. */
