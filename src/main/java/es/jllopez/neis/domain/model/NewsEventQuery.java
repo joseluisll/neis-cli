@@ -137,6 +137,47 @@ public record NewsEventQuery(
         return parsed == null ? null : parsed.toString();
     }
 
+    /**
+     * The US-14.11 (issue #135) publication-date fallback: a
+     * URL-embedded timestamp — the ABC-style {@code YYYYMMDDHHMMSS}
+     * run inside the article URL (e.g.
+     * {@code ...-20261119222527-nt.html}) — as the NORMALIZED ISO
+     * date, or null when the URL carries no plausible timestamp. The
+     * strict parse rejects digit runs that are not a real date-time
+     * (month 13, day 32, ...); part of the ONE domain date toolkit,
+     * so the connector and the test double cannot drift. Only a full
+     * 14-digit run counts — a shorter digit run (an 8-digit article
+     * id, say) is not a timestamp.
+     */
+    public static String dateFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        java.time.format.DateTimeFormatter strict =
+                java.time.format.DateTimeFormatter
+                        // 'uuuu' (proleptic year): STRICT resolution
+                        // rejects year-of-era without an era context.
+                        .ofPattern("uuuuMMddHHmmss")
+                        .withResolverStyle(
+                                java.time.format.ResolverStyle.STRICT);
+        java.util.regex.Matcher m = URL_TIMESTAMP.matcher(url);
+        while (m.find()) {
+            try {
+                return java.time.LocalDateTime
+                        .parse(m.group(), strict)
+                        .toLocalDate().toString();
+            } catch (RuntimeException ignored) {
+                // a 14-digit run that is not a plausible date-time:
+                // keep scanning (the next run may be the timestamp)
+            }
+        }
+        return null;
+    }
+
+    /** Exactly 14 digits — the ABC-style URL-embedded timestamp shape. */
+    private static final java.util.regex.Pattern URL_TIMESTAMP =
+            java.util.regex.Pattern.compile("\\d{14}");
+
     private static LocalDate parse(String value) {
         if (value == null || value.isBlank()) {
             return null;

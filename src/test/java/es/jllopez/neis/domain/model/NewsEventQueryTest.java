@@ -55,6 +55,29 @@ class NewsEventQueryTest {
     }
 
     @Test
+    void dateFromUrlIsTheUrlTimestampFallback() {
+        // US-14.11 (issue #135): an ABC-style URL-embedded timestamp
+        // resolves to the normalized ISO date; non-timestamp URLs stay
+        // null; implausible 14-digit runs are rejected strictly.
+        assertEquals("2026-11-19", NewsEventQuery.dateFromUrl(
+                "https://www.abc.es/x/noticia-titulo-20261119222527-nt.html"));
+        assertEquals("2026-11-19", NewsEventQuery.dateFromUrl(
+                "https://example.eu/20261119222527/plain"));
+        assertEquals("2026-11-19", NewsEventQuery.dateFromUrl(
+                "https://example.eu/a-20261119222527-b-19991231000000-c"));
+        // A 14-digit run that is not a real date-time: skipped, the
+        // scan continues and the plausible run is found.
+        assertEquals("2026-11-19", NewsEventQuery.dateFromUrl(
+                "https://example.eu/x-20261319222527-y-20261119222527-z"),
+                "implausible run skipped, the plausible one found");
+        assertNull(NewsEventQuery.dateFromUrl(
+                "https://example.eu/article/123456789012345678"));
+        assertNull(NewsEventQuery.dateFromUrl("https://example.eu/no-digits"));
+        assertNull(NewsEventQuery.dateFromUrl(null));
+        assertNull(NewsEventQuery.dateFromUrl(""));
+    }
+
+    @Test
     void rangeBoundsAreInclusiveAndUndatedRowsAreExcluded() {
         NewsEventQuery window = new NewsEventQuery(null, null, "2026-07-01", "2026-07-31", 20);
         assertTrue(window.dateInRange("Jul 1, 2026"), "the from bound is inclusive");

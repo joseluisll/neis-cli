@@ -69,6 +69,42 @@ class JsoupSelectorConnectorTest {
     }
 
     @Test
+    void cardWithoutDateFallsBackToTheUrlEmbeddedTimestamp() {
+        // US-14.11 (issue #135): a listing card that renders no date
+        // but whose article URL embeds the publication timestamp (the
+        // ABC-style scheme) gets its date from the URL and is NOT
+        // incomplete; a card without either stays incomplete.
+        String abcStyle = "<html><body><ul class='news-list'>"
+                + "<li><h2><a href='/x/noticia-titulo-20261119222527-nt.html'>"
+                + "Portada card</a></h2><p>Summary.</p></li>"
+                + "<li><h2><a href='/x/section-hub'>Undated no-timestamp"
+                + "</a></h2><p>Summary.</p></li>"
+                + "</ul></body></html>";
+        List<NewsEventItem> items = connector.extract(
+                abcStyle, "ul.news-list li", "news", "ADDR-T", 50,
+                "https://www.abc.es");
+
+        NewsEventItem stamped = items.get(0);
+        assertEquals("2026-11-19", stamped.date(),
+                "the URL-embedded timestamp is the date fallback");
+        assertTrue(stamped.missingMandatory().isEmpty(),
+                "the item is complete — the date fallback counts");
+        NewsEventItem undated = items.get(1);
+        assertTrue(undated.missingMandatory().contains("date"),
+                "no card date and no URL timestamp: incomplete, as before");
+
+        // The card's own date still wins over the URL timestamp.
+        String both = "<html><body><ul class='news-list'>"
+                + "<li><h2><a href='/x/a-20261119222527-nt.html'>Both</a></h2>"
+                + "<time datetime='2020-01-01'>1 January 2020</time></li>"
+                + "</ul></body></html>";
+        assertEquals("2020-01-01", connector.extract(
+                both, "ul.news-list li", "news", "ADDR-T", 50,
+                "https://www.abc.es").get(0).date(),
+                "the card date has priority over the URL fallback");
+    }
+
+    @Test
     void invalidSelectorYieldsNoItems() {
         assertTrue(connector.extract(
                 LISTING, "###not-a-selector", "news", "ADDR-T", 50, null).isEmpty());

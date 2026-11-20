@@ -1,11 +1,14 @@
 package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.domain.model.NewsEventItem;
+import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.port.SelectorExtractionPort;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,6 +24,9 @@ import java.util.regex.Pattern;
  */
 @Component
 public class JsoupSelectorConnector implements SelectorExtractionPort {
+
+    private static final Logger log = LoggerFactory.getLogger(
+            JsoupSelectorConnector.class);
 
     private static final Pattern DATE_PATTERN = Pattern.compile(
             "\\d{4}-\\d{2}-\\d{2}"
@@ -51,6 +57,9 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
         } catch (RuntimeException e) { // jsoup: SelectorParseException, IAE
             return items; // invalid selector -> no items (validation by extraction)
         }
+        int datesFromCard = 0;
+        int datesFromUrl = 0;
+        int datesMissing = 0;
         for (Element el : matched) {
             if (items.size() >= maxItems) {
                 break;
@@ -60,10 +69,37 @@ public class JsoupSelectorConnector implements SelectorExtractionPort {
             if (title.isBlank() && url == null) {
                 continue; // not a meaningful item
             }
+            // US-14.11 (issue #135) date fallback order: (1) the listing
+            // card's own date, (2) a URL-embedded timestamp when the
+            // site's URL scheme carries one (ABC-style YYYYMMDDHHMMSS,
+            // through the domain helper), (3) none — the item stays
+            // incomplete with 'date' in missingFields, as before.
+            String date = extractDate(el);
+            boolean fromUrl = false;
+            if ((date == null || date.isBlank()) && url != null) {
+                String fromUrlDate = NewsEventQuery.dateFromUrl(url);
+                if (fromUrlDate != null) {
+                    date = fromUrlDate;
+                    fromUrl = true;
+                }
+            }
+            if (date == null || date.isBlank()) {
+                datesMissing++;
+            } else if (fromUrl) {
+                datesFromUrl++;
+            } else {
+                datesFromCard++;
+            }
             items.add(NewsEventItem.extracted(addressId, kind, title,
-                    extractDescription(el), url, extractDate(el),
+                    extractDescription(el), url, date,
                     extractPicture(el), extractLocation(el)));
         }
+        // The capture log records which source produced each item's
+        // date (US-14.11): one operational line per extraction.
+        log.info("[Extract] address {}: item dates — card: {}, URL "
+                        + "timestamp: {}, none (incomplete): {} of {} items",
+                addressId, datesFromCard, datesFromUrl, datesMissing,
+                items.size());
         return items;
     }
 
