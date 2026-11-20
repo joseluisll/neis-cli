@@ -483,7 +483,16 @@ public class NewsCommands {
         StringBuilder out = new StringBuilder("Corrected ")
                 .append(itemId.trim()).append(" (").append(rows)
                 .append(" row(s)):\n");
-        for (var change : correction.changesOn(before).entrySet()) {
+        var changes = correction.changesOn(before);
+        if (changes.isEmpty()) {
+            // Review note: the newest row already matched the given
+            // values — other row(s) of the record were corrected (the
+            // trace count below is accurate).
+            out.append("  (the newest row already carried the given "
+                    + "values — the correction was recorded on the "
+                    + "changed row(s))\n");
+        }
+        for (var change : changes.entrySet()) {
             out.append("  ").append(change.getKey()).append(": '")
                     .append(change.getValue()[0] == null ? ""
                             : change.getValue()[0])

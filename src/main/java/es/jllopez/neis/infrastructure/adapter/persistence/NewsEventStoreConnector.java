@@ -348,19 +348,30 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             return 0;
         }
         String now = Instant.now().toString();
+        int pruned = 0;
         for (NewsEventEntity entity : rows) {
+            // Review consistency note: an already-pruned record is
+            // left untouched — the FIRST prune's timestamp and reason
+            // stand (a re-prune is a no-op returning 0, like the test
+            // double).
+            if (entity.isPruned()) {
+                continue;
+            }
             entity.setPruned(true);
             entity.setPrunedAt(now);
             entity.setPruneReason(reason == null || reason.isBlank()
                     ? null : reason.trim());
             entity.setUpdatedAt(now);
             jpa.save(entity);
+            pruned++;
         }
-        log.info("[NewsItem] {} pruned: {} row(s), reason: {} (US-14.10) "
-                + "- excluded from list/search/export, provenance stays "
-                + "readable", canonicalId, rows.size(),
-                reason == null || reason.isBlank() ? "<none>" : reason);
-        return rows.size();
+        if (pruned > 0) {
+            log.info("[NewsItem] {} pruned: {} row(s), reason: {} "
+                    + "(US-14.10) - excluded from list/search/export, "
+                    + "provenance stays readable", canonicalId, pruned,
+                    reason == null || reason.isBlank() ? "<none>" : reason);
+        }
+        return pruned;
     }
 
     @Override
