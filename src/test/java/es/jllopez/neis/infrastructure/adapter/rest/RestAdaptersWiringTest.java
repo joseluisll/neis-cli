@@ -211,6 +211,16 @@ class RestAdaptersWiringTest {
                 .getStatusCode().value()).isEqualTo(400);
         assertThat(advice.notFound(new java.util.NoSuchElementException("gone"))
                 .getStatusCode().value()).isEqualTo(404);
+        // an unknown path → 404 (was: catch-all 500 + ERROR stack,
+        // found live, issue #143)
+        assertThat(advice.unknownPath(new org.springframework.web.servlet
+                        .resource.NoResourceFoundException(
+                        org.springframework.http.HttpMethod.GET, "api/system-info", "not found"))
+                .getStatusCode().value()).isEqualTo(404);
+        // an unknown method on a known path → 405
+        assertThat(advice.unsupportedMethod(new org.springframework.web
+                        .HttpRequestMethodNotSupportedException("DELETE"))
+                .getStatusCode().value()).isEqualTo(405);
         // internal failures never leak the exception message
         assertThat(advice.internal(new RuntimeException("boom")).getBody()
                 .message()).doesNotContain("boom");

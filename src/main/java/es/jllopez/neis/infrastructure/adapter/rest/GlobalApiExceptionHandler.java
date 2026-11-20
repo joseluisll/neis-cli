@@ -81,6 +81,28 @@ public class GlobalApiExceptionHandler {
                         e.getReason() == null ? e.getMessage() : e.getReason()));
     }
 
+    // an unknown path (and an unknown method on a known path) is a
+    // CALLER error, not an internal failure: Spring 7 throws
+    // NoResourceFoundException from the static-resource handler for
+    // unmatched routes, which used to fall into the catch-all below
+    // and answer 500 with an ERROR stack for a trivial mistake
+    // (found live, issue #143)
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiError> unknownPath(
+            org.springframework.web.servlet.resource.NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of(HttpStatus.NOT_FOUND,
+                        "No such endpoint: " + e.getResourcePath()));
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> unsupportedMethod(
+            org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiError.of(HttpStatus.METHOD_NOT_ALLOWED,
+                        e.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> internal(Exception e) {
         log.error("REST request failed", e);
