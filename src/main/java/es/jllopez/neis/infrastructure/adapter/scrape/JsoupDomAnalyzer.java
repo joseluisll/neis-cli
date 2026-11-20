@@ -216,20 +216,32 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
             if (value.isEmpty()) {
                 value = "true";
             }
-            value = trimValue(value, placeholders);
+            value = trimValue(attr, value, placeholders);
             out.put(attr, value);
         }
         return out;
     }
 
-    /** trim_element: cap the value; hash an oversized URL. */
-    private String trimValue(String value, Map<String, String> placeholders) {
-        boolean isUrl = value.startsWith("http://") || value.startsWith("https://");
-        if (isUrl && value.length() > PrunedElement.MAX_URL_LENGTH) {
-            String hash = sha256(value).substring(0, 12);
-            String placeholder = "hash:" + hash;
-            placeholders.putIfAbsent(placeholder, value);
-            return placeholder;
+    /** URL-typed attributes: their values are URLs even when RELATIVE,
+     * so the generic truncation cap must never corrupt them (#144). */
+    private static final java.util.Set<String> URL_ATTRIBUTES =
+            java.util.Set.of("href", "action", "src");
+
+    /** trim_element: cap the value; hash an oversized URL (#144: a URL
+     * value is exempt from the 200-char cap at ANY length — a substring
+     * of a URL is a corrupted URL, and abs-resolution then stores junk;
+     * up to MAX_URL_LENGTH a URL is kept INTACT, beyond it hashed). */
+    private String trimValue(String attr, String value, Map<String, String> placeholders) {
+        boolean isUrl = URL_ATTRIBUTES.contains(attr)
+                || value.startsWith("http://") || value.startsWith("https://");
+        if (isUrl) {
+            if (value.length() > PrunedElement.MAX_URL_LENGTH) {
+                String hash = sha256(value).substring(0, 12);
+                String placeholder = "hash:" + hash;
+                placeholders.putIfAbsent(placeholder, value);
+                return placeholder;
+            }
+            return value;
         }
         if (value.length() > PrunedElement.MAX_VALUE_LENGTH) {
             return value.substring(0, PrunedElement.MAX_VALUE_LENGTH);

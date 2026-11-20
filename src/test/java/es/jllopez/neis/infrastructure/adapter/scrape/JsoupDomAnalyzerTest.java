@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.application.PipelineService;
 import es.jllopez.neis.domain.model.ElementCatalog;
+import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PrunedElement;
 import org.junit.jupiter.api.Test;
 
@@ -159,6 +160,64 @@ class JsoupDomAnalyzerTest {
         assertTrue(href.startsWith("hash:"), "the oversized URL is a placeholder: " + href);
         assertEquals(longUrl, catalog.placeholders().get(href),
                 "the placeholder maps back to the full URL");
+    }
+
+    @Test
+    void urlValuesBetweenTheCapsAreKeptIntact() {
+        // Issue #144: a URL of 201-2048 chars must NOT fall under the
+        // 200-char generic value cap — a substring of a URL is a
+        // CORRUPTED url (mid-query), and abs-resolution then stores
+        // junk. URL-typed attributes (href/action/src) are exempt at
+        // any length: intact up to MAX_URL_LENGTH, hashed beyond.
+        String abs = "https://example.eu/seccion/noticia-con-titulo-largo"
+                + "/pagina".repeat(30); // 262 chars: above 200, below 2048
+        String rel = "/seccion/otra/" + "b".repeat(250);
+        String html = "<html><body><main>"
+                + "<a href='" + abs + "'>abs</a>"
+                + "<a href='" + rel + "'>rel</a>"
+                + "<a title='" + "x".repeat(300) + "'>txt</a>"
+                + "</main></body></html>";
+
+        ElementCatalog catalog = analyzer.analyze(html);
+        var links = catalog.elements().stream()
+                .filter(e -> e.tag().equals("a")).toList();
+        assertEquals(3, links.size());
+        assertEquals(abs, links.get(0).attributes().get("href"),
+                "an absolute URL of 201-2048 chars is kept INTACT");
+        assertEquals(rel, links.get(1).attributes().get("href"),
+                "a RELATIVE href (URL by attribute name) is kept INTACT");
+        assertEquals(PrunedElement.MAX_VALUE_LENGTH,
+                links.get(2).attributes().get("title").length(),
+                "a non-URL value is still capped at 200");
+
+        // the pruned DOM the extraction reads keeps the URLs too
+        java.util.Map<String, String> placeholders = new java.util.LinkedHashMap<>();
+        org.jsoup.nodes.Document pruned = analyzer.prune(html, placeholders);
+        assertEquals(abs, pruned.select("a").get(0).attr("href"));
+        assertEquals(rel, pruned.select("a").get(1).attr("href"));
+    }
+
+    @Test
+    void longHrefsSurviveSimplifyAndExtractionEndToEnd() {
+        // Issue #144 END TO END: the URL an item carries after
+        // SIMPLIFY (the pruned tree the FULL tier renders) + selector
+        // extraction is the FULL href, not a 200-char substring.
+        String rel = "/seccion/noticia/" + "l".repeat(250);
+        String html = "<html><body><main><ul class='news-list'>"
+                + "<li><h3>Una noticia con titular</h3>"
+                + "<a href='" + rel + "'>leer mas</a></li>"
+                + "</ul></main></body></html>";
+
+        JsoupSimplifyConnector simplify = new JsoupSimplifyConnector(
+                new JsoupDomAnalyzer(), new PrunedTreeHtmlRenderer());
+        var simplified = simplify.simplify(html);
+        List<NewsEventItem> items = new JsoupSelectorConnector().extract(
+                simplified.html(), "ul.news-list li", "NEWS", "ADDR-010", 10,
+                "https://example.eu/portada");
+
+        assertEquals(1, items.size());
+        assertEquals("https://example.eu" + rel, items.get(0).url(),
+                "the stored item URL is the complete href, abs-resolved");
     }
 
     @Test
