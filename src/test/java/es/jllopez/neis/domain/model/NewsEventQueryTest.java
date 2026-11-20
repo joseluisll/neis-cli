@@ -43,6 +43,12 @@ class NewsEventQueryTest {
         // The long month-name form found in the real stored data
         // (US-14.9 backfill live evidence).
         assertEquals("2025-07-04", NewsEventQuery.normalizeDate("July 4, 2025"));
+        // The day-first forms and the ISO datetime form — the
+        // unparseable families the installed store's live backfill
+        // exposed (US-14.9 live evidence).
+        assertEquals("2026-11-05", NewsEventQuery.normalizeDate("5 November 2026"));
+        assertEquals("2026-07-06", NewsEventQuery.normalizeDate("6 Jul 2026"));
+        assertEquals("2026-09-29", NewsEventQuery.normalizeDate("2026-09-29T12:00:00Z"));
         assertNull(NewsEventQuery.normalizeDate("whenever"));
         assertNull(NewsEventQuery.normalizeDate(null));
         assertNull(NewsEventQuery.normalizeDate(""));

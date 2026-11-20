@@ -39,6 +39,17 @@ public record NewsEventQuery(
     private static final DateTimeFormatter HUMAN_LONG =
             DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
 
+    /** The day-first full-month form ('5 November 2026') found in the
+     * real stored data (US-14.9 backfill live evidence, the dominant
+     * unparseable family). */
+    private static final DateTimeFormatter HUMAN_DAY_FIRST =
+            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+
+    /** The day-first abbreviated form ('6 Jul 2026') — the same shape
+     * with the short month name. */
+    private static final DateTimeFormatter HUMAN_DAY_FIRST_SHORT =
+            DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+
     public NewsEventQuery {
         if (limit <= 0) {
             limit = DEFAULT_LIMIT;
@@ -134,7 +145,16 @@ public record NewsEventQuery(
         try {
             return LocalDate.parse(trimmed);
         } catch (RuntimeException ignored) {
-            // fall through to the extractor's human formats
+            // fall through to the human formats below
+        }
+        // An ISO DATETIME ('2026-09-29T12:00:00Z') carries its date in
+        // UTC — the natural publication date of the raw text (US-14.9
+        // backfill live evidence).
+        try {
+            return java.time.Instant.parse(trimmed)
+                    .atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        } catch (RuntimeException ignored) {
+            // fall through to the human formats below
         }
         try {
             return LocalDate.parse(trimmed, HUMAN);
@@ -143,6 +163,16 @@ public record NewsEventQuery(
         }
         try {
             return LocalDate.parse(trimmed, HUMAN_LONG);
+        } catch (RuntimeException ignored) {
+            // fall through to the day-first forms
+        }
+        try {
+            return LocalDate.parse(trimmed, HUMAN_DAY_FIRST);
+        } catch (RuntimeException ignored) {
+            // fall through to the day-first abbreviated form
+        }
+        try {
+            return LocalDate.parse(trimmed, HUMAN_DAY_FIRST_SHORT);
         } catch (RuntimeException ignored) {
             return null;
         }
