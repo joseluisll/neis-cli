@@ -224,13 +224,16 @@ public class TaskWorkService {
                 // US-07.6: an optional variant parameter (full/economy/
                 // lean) pins the tier for this task/chain element; the
                 // default (absent) is full.
-                requireNoParameters(taskCode, parameters, "variant");
+                // US-06.14: an optional 'connector' pins the scrape
+                // strategy for the whole reprocessing run (a cached
+                // chain's steps re-scrape through the same strategy)
+                requireNoParameters(taskCode, parameters, "variant", "connector");
                 yield simplify(address, executionId,
-                        parameters.get("variant"));
+                        parameters.get("variant"), parameters.get("connector"));
             }
             case "ANALYZE" -> {
-                requireNoParameters(taskCode, parameters);
-                yield analyze(address, executionId);
+                requireNoParameters(taskCode, parameters, "connector");
+                yield analyze(address, executionId, parameters.get("connector"));
             }
             case "AI" -> {
                 // US-13.1..4: the AI task runs the classification
@@ -245,7 +248,7 @@ public class TaskWorkService {
                 // heuristic fallbacks, but an AI TASK that ran without
                 // an AI would silently be something else).
                 requireNoParameters(taskCode, parameters);
-                yield aiTask(address, executionId);
+                yield aiTask(address, executionId, parameters.get("connector"));
             }
             case "FILTER" -> {
                 // A chain's FILTER step carries the filter spec as its
@@ -254,8 +257,9 @@ public class TaskWorkService {
                 FilterSpec spec = chainFilterSpec != null
                         ? chainFilterSpec : FilterSpec.of(parameters);
                 requireNoParameters(taskCode, parameters,
-                        FilterSpec.FIELD_KEY, FilterSpec.VALUE_KEY);
-                yield filter(address, spec, executionId);
+                        FilterSpec.FIELD_KEY, FilterSpec.VALUE_KEY, "connector");
+                yield filter(address, spec, executionId,
+                        parameters.get("connector"));
             }
             case "PRINT", "CHAIN" -> fullChain(address, parameters, chainName,
                     chainFilterSpec, executionId);
@@ -704,8 +708,8 @@ public class TaskWorkService {
      * hashed-URL side table (lean tier) lands on the capture metadata
      * (US-11.4, never-wipes). */
     private String simplify(Address address, String executionId,
-                            String variant) {
-        var scrape = pipeline.scrapePort.scrape(address);
+                            String variant, String connectorOverride) {
+        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         // US-06.7 (review blocking finding B3): every re-scrape that
         // (re)writes the stored scrape.html goes through the clearing,
         // so a SIMPLIFY/ANALYZE/FILTER run never restores obstructions
@@ -725,8 +729,9 @@ public class TaskWorkService {
     }
 
     /** ANALYZE (US-12/13/17 slice): + pagination, selector, capabilities. */
-    private String analyze(Address address, String executionId) {
-        var scrape = pipeline.scrapePort.scrape(address);
+    private String analyze(Address address, String executionId,
+                           String connectorOverride) {
+        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
@@ -759,11 +764,12 @@ public class TaskWorkService {
      * selector is persisted with the address (the same working-selector
      * store ANALYZE populates), so a chained extraction task reuses it.
      */
-    private String aiTask(Address address, String executionId) {
+    private String aiTask(Address address, String executionId,
+                          String connectorOverride) {
         // Fails loud when no AI is configured (US-13.1: the AI task is
         // an AI task — silently degrading to heuristics would mislead).
         var ai = pipeline.aiAssistant();
-        var scrape = pipeline.scrapePort.scrape(address);
+        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
@@ -802,8 +808,9 @@ public class TaskWorkService {
     /** FILTER (US-17/US-06.6 slice): + filter extraction and application.
      * The chain's filter spec (owner decision 2026-11-12), when present,
      * is applied offline instead of an AI-chosen criterion. */
-    private String filter(Address address, FilterSpec spec, String executionId) {
-        var scrape = pipeline.scrapePort.scrape(address);
+    private String filter(Address address, FilterSpec spec, String executionId,
+                          String connectorOverride) {
+        var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
         pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
                 "scrape.html", cleared.html(), executionId);
