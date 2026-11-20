@@ -326,9 +326,13 @@ public class RemoteJobService {
     }
 
     /**
-     * US-18.11: the SSAFP stages with an optional WEBSCRAPE connector
-     * pin — the CACHED variant carries {@code connector=cached} so
-     * every run over that chain serves the stored content (US-06.14).
+     * US-18.11: the SSAFP stages with an optional connector pin — the
+     * CACHED variant carries {@code connector=cached} on EVERY
+     * re-scraping step (WEBSCRAPE, SIMPLIFY, ANALYZE, FILTER — each
+     * re-scrapes the listing through the strategy before its work, the
+     * live-verification finding on the installed service); PRINT does
+     * not scrape. Every run over that chain serves the stored content
+     * end to end (US-06.14).
      */
     static List<es.jllopez.neis.domain.model.ChainTask> defaultFetchSteps(
             String connectorOverride) {
@@ -336,9 +340,9 @@ public class RemoteJobService {
                 ? Map.of() : Map.of("connector", connectorOverride);
         return List.of(
                 new es.jllopez.neis.domain.model.ChainTask(1, "WEBSCRAPE", scrapeParams),
-                new es.jllopez.neis.domain.model.ChainTask(2, "SIMPLIFY", Map.of()),
-                new es.jllopez.neis.domain.model.ChainTask(3, "ANALYZE", Map.of()),
-                new es.jllopez.neis.domain.model.ChainTask(4, "FILTER", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(2, "SIMPLIFY", scrapeParams),
+                new es.jllopez.neis.domain.model.ChainTask(3, "ANALYZE", scrapeParams),
+                new es.jllopez.neis.domain.model.ChainTask(4, "FILTER", scrapeParams),
                 new es.jllopez.neis.domain.model.ChainTask(5, "PRINT", Map.of()));
     }
 
