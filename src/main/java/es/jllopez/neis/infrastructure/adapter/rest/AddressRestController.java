@@ -35,15 +35,18 @@ public class AddressRestController {
     private final AddressVerificationService verification;
     private final AddressPreflightService preflight;
     private final AddressSuggestionService suggestions;
+    private final es.jllopez.neis.application.ContentStoreService contentStore;
 
     public AddressRestController(AddressCatalogService catalog,
                                  AddressVerificationService verification,
                                  AddressPreflightService preflight,
-                                 AddressSuggestionService suggestions) {
+                                 AddressSuggestionService suggestions,
+                                 es.jllopez.neis.application.ContentStoreService contentStore) {
         this.catalog = catalog;
         this.verification = verification;
         this.preflight = preflight;
         this.suggestions = suggestions;
+        this.contentStore = contentStore;
     }
 
     /** Address create/edit body: id optional on create (auto ADDR-NNN);
@@ -60,6 +63,28 @@ public class AddressRestController {
     @GetMapping("/{id}")
     public Address show(@PathVariable String id) {
         return PathLookup.or404(() -> catalog.byId(id));
+    }
+
+    /** US-18.11 (issue #141): the address's cache metadata — what a
+     * CACHED fetch (US-06.14) would serve. Nulls are NORMAL response
+     * data (a never-scraped address carries none), so the map is
+     * built null-tolerant (LinkedHashMap), never with Map.of. */
+    @GetMapping("/{id}/cache")
+    public java.util.Map<String, Object> cache(@PathVariable String id) {
+        return PathLookup.or404(() -> {
+            Address address = catalog.byId(id);
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("addressId", address.id());
+            var source = contentStore.latestWebpageScrape(address);
+            payload.put("cacheable", source.isPresent());
+            payload.put("contentId", source.map(r -> r.id()).orElse(null));
+            payload.put("scrapedAt", source.map(r -> r.createdAt().toString())
+                    .orElse(null));
+            payload.put("age", source.map(r -> java.time.Duration
+                    .between(r.createdAt(), java.time.Instant.now()).toString())
+                    .orElse(null));
+            return payload;
+        });
     }
 
     @PostMapping

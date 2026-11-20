@@ -5,6 +5,8 @@ import es.jllopez.neis.application.AddressPreflightService;
 import es.jllopez.neis.application.AddressSuggestionService;
 import es.jllopez.neis.application.AddressVerificationService;
 import es.jllopez.neis.application.AiAssistantService;
+import es.jllopez.neis.application.ContentStoreService;
+import es.jllopez.neis.testsupport.InMemoryContentStorePort;
 import es.jllopez.neis.application.ManagementInfoService;
 import es.jllopez.neis.application.RemoteJobService;
 import es.jllopez.neis.application.SettingsService;
@@ -82,6 +84,13 @@ class RestAdaptersWiringTest {
         @Bean
         ManagementInfoService managementInfoService() {
             return mock(ManagementInfoService.class);
+        }
+
+        /** US-18.11: the address cache endpoint reads the store. */
+        @Bean
+        ContentStoreService contentStoreService() {
+            return new ContentStoreService(new InMemoryContentStorePort(),
+                    "target/rest-wiring-content");
         }
     }
 

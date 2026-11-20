@@ -245,14 +245,58 @@ public class NeisMcpTools {
     public FetchAccepted fetchNews(
             @McpToolParam(description = "optional: one address id; omit to "
                     + "fetch ALL registered addresses", required = false)
-            String addressId) {
+            String addressId,
+            @McpToolParam(description = "optional: fetch strategy for this "
+                    + "run; 'cached' serves the address's latest stored "
+                    + "scrape (US-06.14) without touching the service's "
+                    + "global connector; omit for the configured default",
+                    required = false)
+            String connector) {
         RemoteJob job = jobs.submitFetchNews(
-                addressId == null || addressId.isBlank() ? null : addressId);
+                addressId == null || addressId.isBlank() ? null : addressId,
+                connector == null || connector.isBlank() ? null : connector);
         String joined = job.parameters().get("addresses");
         List<String> targets = joined == null || joined.isBlank()
                 ? List.of()
                 : List.of(joined.split(","));
         return new FetchAccepted(job.id(), job.operation(), targets);
+    }
+
+    // ---- tool 11: the cache source (US-18.11) ---------------------------
+
+    /**
+     * US-18.11 (issue #141): what a CACHED fetch would serve for the
+     * address — its content id, original scrape timestamp and computed
+     * age. Empty (neverScraped) for a never-scraped address.
+     */
+    @McpTool(name = "neis_cache_status",
+            description = "Cache metadata of one address (US-06.14 family): "
+                    + "whether a cached fetch can serve it, the content id "
+                    + "and timestamp of the latest stored scrape, and the "
+                    + "content's age.",
+            annotations = @McpTool.McpAnnotations(
+                    readOnlyHint = true, destructiveHint = false,
+                    idempotentHint = true))
+    public CacheStatus cacheStatus(
+            @McpToolParam(description = "one address id (ADDR-...)") String addressId) {
+        Address address = catalog.byId(addressId); // unknown ids refuse here
+        return content.latestWebpageScrape(address)
+                .<CacheStatus>map(record -> new CacheStatus(address.id(),
+                        true, record.id(), record.createdAt(),
+                        record.createdAt() == null ? null
+                                : java.time.Duration.between(record.createdAt(),
+                                java.time.Instant.now()).toString(),
+                        null))
+                .orElseGet(() -> new CacheStatus(address.id(),
+                        false, null, null, null,
+                        "no stored content — fetch live once and the "
+                                + "cached mode serves it (US-06.14)"));
+    }
+
+    /** US-18.11: the per-address cache metadata payload. */
+    public record CacheStatus(String addressId, boolean cacheable,
+                              String contentId, java.time.Instant scrapedAt,
+                              String age, String note) {
     }
 
     // ---- tool 7: job polling -------------------------------------------

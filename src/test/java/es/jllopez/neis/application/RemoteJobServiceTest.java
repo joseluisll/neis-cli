@@ -289,6 +289,70 @@ class RemoteJobServiceTest {
         assertEquals(0, store.findAll().size());
     }
 
+    // ---- US-18.11 (issue #141): the cached remote fetch -----------------
+
+    @Test
+    void cachedFetchRunsTheCachedChainVariantAndMarksTheJob() {
+        ExecutionService executions = mock(ExecutionService.class);
+        ChainService chains = mock(ChainService.class);
+        when(chains.list()).thenReturn(List.of());
+        Chain cached = new Chain("CHAIN-9", "core-chain-ssafp-cached",
+                "the cached fetch chain", Instant.now(),
+                List.of(new ChainTask(1, "WEBSCRAPE", Map.of("connector", "cached"))));
+        when(chains.create(eq("core-chain-ssafp-cached"), anyString(), any()))
+                .thenReturn(cached);
+// a void method: a mock no-ops it by default
+        when(executions.submitChain("CHAIN-9", "ADDR-001", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        AddressCatalogService catalog = mock(AddressCatalogService.class);
+        when(catalog.list()).thenReturn(List.of(address("ADDR-001")));
+        RemoteJobService service = service(executions, chains, catalog);
+
+        RemoteJob submitted = service.submitFetchNews("ADDR-001", "cached");
+
+        // the CACHED variant chain: its WEBSCRAPE step pins connector=cached
+        verify(chains).create(eq("core-chain-ssafp-cached"), anyString(),
+                argThat(steps -> steps.size() == 5
+                        && "cached".equals(steps.get(0).parameters().get("connector"))));
+        verify(executions).submitChain("CHAIN-9", "ADDR-001", TriggerType.REMOTE);
+        assertEquals("cached", submitted.parameters().get("connector"),
+                "the job record names the connector mode (US-18.11)");
+    }
+
+    @Test
+    void anUnknownRemoteConnectorModeRefusesSynchronously() {
+        RemoteJobService service = service(mock(ExecutionService.class),
+                mock(ChainService.class), mock(AddressCatalogService.class));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.submitFetchNews("ADDR-001", "superfast"));
+        assertTrue(e.getMessage().contains("'cached'"), e.getMessage());
+        assertEquals(0, store.findAll().size(),
+                "a refused submission leaves no job behind");
+    }
+
+    @Test
+    void theDefaultModeRunsTheDefaultChainUntouched() {
+        ExecutionService executions = mock(ExecutionService.class);
+        ChainService chains = mock(ChainService.class);
+        when(chains.list()).thenReturn(List.of(fetchChain()));
+// a void method: a mock no-ops it by default
+        when(executions.submitChain("CHAIN-1", "ADDR-001", TriggerType.REMOTE))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        when(executions.show(anyString()))
+                .thenReturn(execution(ExecutionStatus.SUCCESS, "ok"));
+        RemoteJobService service = service(executions, chains,
+                mock(AddressCatalogService.class));
+
+        service.submitFetchNews("ADDR-001", null);
+
+        verify(chains, org.mockito.Mockito.never()).create(anyString(),
+                anyString(), any());
+        verify(executions).submitChain("CHAIN-1", "ADDR-001", TriggerType.REMOTE);
+    }
+
     // ---- US-18.7 (issue #122): job cancellation ------------------------
 
     /** A real single-thread runner for the RUNNING/QUEUED cancel tests

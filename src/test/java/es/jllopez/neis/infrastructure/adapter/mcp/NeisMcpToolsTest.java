@@ -128,8 +128,8 @@ class NeisMcpToolsTest {
         RemoteJob job = new RemoteJob("JOB-1", "fetch-news", null,
                 Map.of("chain-id", "CHAIN-1", "addresses", "ADDR-001,ADDR-002"),
                 JobStatus.QUEUED, Instant.now(), null, null, null, null, null);
-        when(jobs.submitFetchNews(null)).thenReturn(job);
-        var accepted = tools().fetchNews(null);
+        when(jobs.submitFetchNews(null, null)).thenReturn(job);
+        var accepted = tools().fetchNews(null, null);
         assertEquals("JOB-1", accepted.jobId());
         assertEquals(List.of("ADDR-001", "ADDR-002"), accepted.addresses());
     }

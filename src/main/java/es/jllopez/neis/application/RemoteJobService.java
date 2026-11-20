@@ -96,6 +96,29 @@ public class RemoteJobService {
      *         not verified (US-18.4 review: eligibility has both shapes)
      */
     public RemoteJob submitFetchNews(String addressId) {
+        return submitFetchNews(addressId, null);
+    }
+
+    /**
+     * US-18.11 (issue #141): the connector mode rides the submission —
+     * {@code cached} runs a CACHED fetch-chain variant (its WEBSCRAPE
+     * step pins the per-run {@code connector=cached} override,
+     * US-06.14) so a remote operator can reprocess the stored content
+     * without flipping the service's global connector. Null/blank =
+     * the default chain (the service's configured connector governs);
+     * an unknown value fails loud naming the vocabulary — a typo must
+     * never fetch with the wrong strategy.
+     */
+    public RemoteJob submitFetchNews(String addressId, String connectorMode) {
+        String mode = connectorMode == null || connectorMode.isBlank()
+                ? null : connectorMode.trim().toLowerCase(java.util.Locale.ROOT);
+        if (mode != null && !mode.equals("cached")) {
+            throw new IllegalArgumentException(
+                    "Unknown fetch connector mode '" + connectorMode
+                            + "' (US-18.11: the remote fetch supports 'cached' "
+                            + "— the service's neis.scrape.connector governs "
+                            + "the default modes)");
+        }
         // validation BEFORE the chain resolution (US-18.4 review): a
         // refused first-ever call must not leave a default chain behind
         List<String> targets;
@@ -123,7 +146,7 @@ public class RemoteJobService {
                                 + "first (neis_upsert_address)");
             }
         }
-        Chain chain = resolveFetchChain();
+        Chain chain = resolveFetchChain(mode);
         // re-validate AFTER resolution (US-18.4 re-review): the chain
         // may have been deleted between the pre-check and here — a
         // silently-recreated EMPTY chain would "succeed" doing nothing
@@ -133,14 +156,20 @@ public class RemoteJobService {
             throw new IllegalStateException(
                     "The fetch chain '" + fetchChainName + "' has no steps");
         }
+        java.util.Map<String, String> parameters = new java.util.LinkedHashMap<>(
+                Map.of("chain-id", chain.id(),
+                        "addresses", String.join(",", targets)));
+        if (mode != null) {
+            parameters.put("connector", mode);
+        }
         RemoteJob job = new RemoteJob("JOB-" + UUID.randomUUID(),
                 "fetch-news", addressId,
-                Map.of("chain-id", chain.id(),
-                        "addresses", String.join(",", targets)),
+                parameters,
                 JobStatus.QUEUED, Instant.now(), null, null, null, null, null);
         jobs.save(job);
         log.info("[JOB] {} submitted: fetch-news over {} address(es) "
-                + "(chain {})", job.id(), targets.size(), chain.name());
+                        + "(chain {}{})", job.id(), targets.size(), chain.name(),
+                mode == null ? "" : ", connector " + mode);
         CompletableFuture.runAsync(() -> {
             runners.put(job.id(), Thread.currentThread());
             try {
@@ -257,10 +286,56 @@ public class RemoteJobService {
                 });
     }
 
+    /**
+     * US-18.11: the mode-aware chain resolution — the CACHED mode
+     * resolves (or creates) a SEPARATE chain variant whose WEBSCRAPE
+     * step carries the per-run {@code connector=cached} override, so
+     * the service's global connector stays untouched and the cached
+     * runs are a visible, named chain. Race handling mirrors the
+     * default variant.
+     */
+    private Chain resolveFetchChain(String connectorMode) {
+        if (connectorMode == null) {
+            return resolveFetchChain();
+        }
+        String name = fetchChainName + "-cached";
+        return chains.list().stream()
+                .filter(c -> name.equals(c.name()))
+                .findFirst()
+                .orElseGet(() -> {
+                    log.info("[JOB] creating the cached fetch chain '{}'",
+                            name);
+                    try {
+                        return chains.create(name,
+                                "Cached fetch chain (US-18.11: WEBSCRAPE "
+                                        + "pins connector=cached — serves "
+                                        + "the latest stored scrape)",
+                                defaultFetchSteps("cached"));
+                    } catch (IllegalStateException raced) {
+                        return chains.list().stream()
+                                .filter(c -> name.equals(c.name()))
+                                .findFirst()
+                                .orElseThrow(() -> raced);
+                    }
+                });
+    }
+
     /** The SSAFP stages in pipeline order (the default fetch chain). */
     static List<es.jllopez.neis.domain.model.ChainTask> defaultFetchSteps() {
+        return defaultFetchSteps(null);
+    }
+
+    /**
+     * US-18.11: the SSAFP stages with an optional WEBSCRAPE connector
+     * pin — the CACHED variant carries {@code connector=cached} so
+     * every run over that chain serves the stored content (US-06.14).
+     */
+    static List<es.jllopez.neis.domain.model.ChainTask> defaultFetchSteps(
+            String connectorOverride) {
+        java.util.Map<String, String> scrapeParams = connectorOverride == null
+                ? Map.of() : Map.of("connector", connectorOverride);
         return List.of(
-                new es.jllopez.neis.domain.model.ChainTask(1, "WEBSCRAPE", Map.of()),
+                new es.jllopez.neis.domain.model.ChainTask(1, "WEBSCRAPE", scrapeParams),
                 new es.jllopez.neis.domain.model.ChainTask(2, "SIMPLIFY", Map.of()),
                 new es.jllopez.neis.domain.model.ChainTask(3, "ANALYZE", Map.of()),
                 new es.jllopez.neis.domain.model.ChainTask(4, "FILTER", Map.of()),
