@@ -737,29 +737,52 @@ class NewsEventStorePersistenceTest {
                 "Legacy unparseable story", "Description",
                 "https://example.eu/nq2", "whenever");
         store.saveAll("ADDR-NQ", "news", List.of(odd), null, null);
+        var plain = new NewsEventItem("ADDR-NQ", "news",
+                "Legacy plain story", "Description",
+                "https://example.eu/nq3", "Mar 3, 2025");
+        store.saveAll("ADDR-NQ", "news", List.of(plain), null, null);
 
         // Simulate the pre-V21 state: normalized values wiped.
         jdbcTemplate.update(
                 "UPDATE news_events SET date_normalized = NULL "
                         + "WHERE address_id = 'ADDR-NQ'");
 
-        new NewsDateNormalizationStartup(jpa).normalize();
+        // Simulate a CONCURRENT capture of one legacy row between the
+        // sweep's read and its write (the blocking review finding on
+        // the first boot, where the scheduler can fire inside the
+        // init→reconcile window): the capture rewrote the row AND set
+        // its normalized value. The guarded partial update must leave
+        // the captured data untouched (0 rows changed — skipped).
+        jdbcTemplate.update(
+                "UPDATE news_events SET title = 'Captured during window', "
+                        + "date_normalized = '2025-03-03' "
+                        + "WHERE title = 'Legacy human-date story'");
+
+        new NewsDateNormalizationStartup(jdbcTemplate).normalize();
 
         var backfilled = jpa.search("ADDR-NQ", null).stream()
-                .filter(e -> "Legacy human-date story".equals(e.getTitle()))
+                .filter(e -> "Legacy human-date story".equals(e.getTitle())
+                        || "Captured during window".equals(e.getTitle()))
                 .findFirst().orElseThrow();
+        assertEquals("Captured during window", backfilled.getTitle(),
+                "the concurrent capture is NOT clobbered by the backfill");
         assertEquals("2025-03-03", backfilled.getDateNormalized(),
-                "the legacy raw date is backfilled through the shared "
-                        + "lenient parser");
+                "the capture's own normalized value wins");
         var flagged = jpa.search("ADDR-NQ", null).stream()
                 .filter(e -> "Legacy unparseable story".equals(e.getTitle()))
                 .findFirst().orElseThrow();
         assertNull(flagged.getDateNormalized(),
                 "an unparseable raw date stays null — the flagged row, "
                         + "never dropped or defaulted");
+        var backfilledRow = jpa.search("ADDR-NQ", null).stream()
+                .filter(e -> "Legacy plain story".equals(e.getTitle()))
+                .findFirst().orElseThrow();
+        assertEquals("2025-03-03", backfilledRow.getDateNormalized(),
+                "the legacy raw date is backfilled through the shared "
+                        + "lenient parser");
         // The sweep is idempotent: a second pass changes nothing.
-        new NewsDateNormalizationStartup(jpa).normalize();
-        assertEquals("2025-03-03", backfilled.getDateNormalized());
+        new NewsDateNormalizationStartup(jdbcTemplate).normalize();
+        assertEquals("2025-03-03", backfilledRow.getDateNormalized());
     }
 
     /** Recording wrapper: delegates everything, counts findById. */

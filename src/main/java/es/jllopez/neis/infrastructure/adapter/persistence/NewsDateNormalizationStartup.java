@@ -1,15 +1,15 @@
 package es.jllopez.neis.infrastructure.adapter.persistence;
 
 import es.jllopez.neis.domain.model.NewsEventQuery;
-import es.jllopez.neis.infrastructure.persistence.NewsEventEntity;
-import es.jllopez.neis.infrastructure.persistence.NewsEventJpaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The US-14.9 (issue #123) legacy-row date backfill: rows captured
@@ -30,6 +30,20 @@ import java.util.List;
  * idempotent: only rows with a raw date and no normalized value are
  * selected, so after one pass the per-boot cost is the empty select.</p>
  *
+ * <p>The sweep is a TARGETED PARTIAL UPDATE guarded by the legacy
+ * predicate, never a full-entity merge (blocking review finding,
+ * 2026-11-20): the job scheduler is registered at bean-init time and
+ * can fire a fetch INSIDE the init→reconcile window, and its capture
+ * upsert rewrites the same legacy row — a stale read-modify-write of
+ * the whole row would clobber that concurrent capture (lost title,
+ * date, provenance). Each backfill row is therefore written with
+ * {@code update news_events set date_normalized = ? where id = ? and
+ * date_normalized is null and date is not null}: the statement touches
+ * ONE column and re-checks the legacy predicate, so a capture that
+ * already normalized the row between the read and the write changes 0
+ * rows here (reported as skipped) and no other column can ever be
+ * overwritten.</p>
+ *
  * <p>Rows whose raw date does not parse KEEP a null normalized value
  * (the observable flag the requirement demands) and are LOGGED with
  * their id and raw text — never silently dropped or defaulted. They
@@ -46,12 +60,12 @@ public class NewsDateNormalizationStartup implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(
             NewsDateNormalizationStartup.class);
 
-    private final NewsEventJpaRepository jpa;
+    private final JdbcTemplate jdbc;
 
     private volatile boolean running;
 
-    public NewsDateNormalizationStartup(NewsEventJpaRepository jpa) {
-        this.jpa = jpa;
+    public NewsDateNormalizationStartup(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
 
     @Override
@@ -69,20 +83,20 @@ public class NewsDateNormalizationStartup implements SmartLifecycle {
      * outcome. Public for tests (the SmartLifecycle shell is thin —
      * the sweep IS the component); idempotent. */
     public void normalize() {
-        List<NewsEventEntity> legacy =
-                jpa.findByDateNormalizedIsNullAndDateIsNotNull();
+        List<Map<String, Object>> legacy = jdbc.queryForList(
+                "select id, date from news_events "
+                        + "where date_normalized is null and date is not null");
         if (legacy.isEmpty()) {
             return;
         }
         int backfilled = 0;
         int unparseable = 0;
-        for (NewsEventEntity entity : legacy) {
-            String normalized = NewsEventQuery.normalizeDate(entity.getDate());
-            if (normalized != null) {
-                entity.setDateNormalized(normalized);
-                jpa.save(entity);
-                backfilled++;
-            } else {
+        int skipped = 0;
+        for (Map<String, Object> row : legacy) {
+            String id = String.valueOf(row.get("id"));
+            String raw = String.valueOf(row.get("date"));
+            String normalized = NewsEventQuery.normalizeDate(raw);
+            if (normalized == null) {
                 // The flag is the null value itself; the log line makes
                 // it visible (id + raw text) without inventing a date.
                 unparseable++;
@@ -90,12 +104,28 @@ public class NewsDateNormalizationStartup implements SmartLifecycle {
                                 + "null normalized value (id={}, raw date='{}'); "
                                 + "the row is excluded from date-range queries "
                                 + "until the raw text is corrected",
-                        entity.getId(), entity.getDate());
+                        id, raw);
+                continue;
+            }
+            // The guarded partial update: ONE column, legacy predicate
+            // re-checked — a concurrent capture that normalized the row
+            // between the read and this write changes 0 rows here and
+            // its freshly captured data is untouched.
+            int changed = jdbc.update(
+                    "update news_events set date_normalized = ? "
+                            + "where id = ? and date_normalized is null "
+                            + "and date is not null",
+                    normalized, id);
+            if (changed > 0) {
+                backfilled++;
+            } else {
+                skipped++;
             }
         }
         log.info("[NewsDateBackfill] legacy rows examined: {}, backfilled "
-                + "with normalized ISO dates: {}, flagged unparseable: {}",
-                legacy.size(), backfilled, unparseable);
+                        + "with normalized ISO dates: {}, flagged unparseable: {}"
+                        + ", skipped (concurrently updated): {}",
+                legacy.size(), backfilled, unparseable, skipped);
     }
 
     @Override
