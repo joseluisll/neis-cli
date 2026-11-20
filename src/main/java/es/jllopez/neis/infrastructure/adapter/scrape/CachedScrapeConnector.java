@@ -128,23 +128,17 @@ public class CachedScrapeConnector
 
     /**
      * The address's latest successful scrape: the newest WEBSCRAPE
-     * listing-html content record (findByAddress is newest-first; the
-     * per-address deterministic id means exactly one per capture — a
-     * corrected URL's newer capture wins by createdAt).
+     * listing-html content record (US-11.6's cache-source query —
+     * exactly what the store port answers; a corrected URL's newer
+     * capture wins by createdAt).
      */
     private ContentRecord latestScrape(Address address) {
-        List<ContentRecord> candidates = store.findByAddress(address.id()).stream()
-                .filter(r -> "WEBSCRAPE".equals(r.taskCode()))
-                .filter(r -> "listing-html".equals(r.kind()))
-                .toList();
-        if (candidates.isEmpty()) {
-            throw new IllegalStateException(
-                    "No stored content for " + address.id()
-                            + " — a cached fetch needs at least one prior "
-                            + "successful scrape (US-06.14): fetch live once, "
-                            + "then the cached mode serves it");
-        }
-        return candidates.get(0);
+        return store.findLatestWebpageScrape(address.id())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No stored content for " + address.id()
+                                + " — a cached fetch needs at least one prior "
+                                + "successful scrape (US-06.14): fetch live once, "
+                                + "then the cached mode serves it"));
     }
 
     @Override

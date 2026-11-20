@@ -147,6 +147,15 @@ public class ContentStoreConnector implements ContentStorePort {
                 .map(ContentStoreConnector::toRecord);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ContentRecord> findLatestWebpageScrape(String addressId) {
+        return records
+                .findFirstByAddressIdAndTaskCodeAndKindOrderByCreatedAtDesc(
+                        addressId, "WEBSCRAPE", "listing-html")
+                .map(ContentStoreConnector::toRecord);
+    }
+
     private static ContentRecord toRecord(ContentRecordEntity e) {
         return new ContentRecord(e.getId(), e.getAddressId(), e.getCaptureId(),
                 e.getTaskCode(), e.getKind(), e.getPath(), e.createdAtInstant(),

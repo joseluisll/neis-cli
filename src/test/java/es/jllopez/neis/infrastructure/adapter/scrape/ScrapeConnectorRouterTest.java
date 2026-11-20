@@ -393,6 +393,12 @@ class ScrapeConnectorRouterTest {
                     String id) {
                 return java.util.Optional.empty();
             }
+
+            @Override
+            public java.util.Optional<es.jllopez.neis.domain.model.ContentRecord> findLatestWebpageScrape(
+                    String addressId) {
+                return java.util.Optional.empty();
+            }
         }, "");
     }
 

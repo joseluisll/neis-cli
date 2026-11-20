@@ -83,6 +83,49 @@ class ContentStoreServiceTest {
                 "the file itself is overwritten in place (same folder)");
     }
 
+    /**
+     * US-11.6 (issue #139): the cache-source query — what a cached
+     * fetch (US-06.14) would serve, with its identity and original
+     * scrape timestamp. The overwrite-upsert semantics ARE the
+     * retention guarantee today: the record never disappears (nothing
+     * prunes content), the re-run updates it in place, and non-scrape
+     * records are never served as the source.
+     */
+    @Test
+    void theCacheSourceIsQueryableAndSurvivesReRuns() {
+        ContentStoreService store = service();
+        assertTrue(store.latestWebpageScrape(address).isEmpty(),
+                "a never-scraped address has no cache source");
+
+        store.writeTaskOutput(address, address.url(), "WEBSCRAPE",
+                "listing-html", "scrape.html", "<html>v1</html>");
+        var first = store.latestWebpageScrape(address);
+        assertTrue(first.isPresent());
+        assertEquals("WEBSCRAPE", first.get().taskCode());
+        assertTrue(first.get().createdAt() != null,
+                "the original scrape timestamp rides the source");
+
+        // the re-run updates the SAME record — the source survives,
+        // its file now carries the newer content
+        store.writeTaskOutput(address, address.url(), "WEBSCRAPE",
+                "listing-html", "scrape.html", "<html>v2</html>");
+        var second = store.latestWebpageScrape(address);
+        assertEquals(first.get().id(), second.get().id(),
+                "the re-run updates the cache source in place — it never "
+                        + "disappears (US-11.6 retention)");
+        assertTrue(second.get().createdAt().isAfter(first.get().createdAt()),
+                "the re-run REFRESHES the timestamp — the cache source is "
+                        + "the LATEST scrape");
+        assertTrue(store.listByAddress(address.id()).size() >= 1);
+
+        // a SIMPLIFY record is never the cache source
+        store.writeTaskOutput(address, address.url(), "SIMPLIFY",
+                "simplified-html", "simplified.html", "<html>s</html>");
+        assertEquals("WEBSCRAPE",
+                store.latestWebpageScrape(address).get().taskCode(),
+                "only the WEBSCRAPE listing is the cache source");
+    }
+
     @Test
     void aDifferentWebpageOfTheSameAddressGetsItsOwnCaptureFolder() {
         ContentStoreService store = service();

@@ -106,4 +106,14 @@ public class InMemoryContentStorePort implements ContentStorePort {
     public Optional<ContentRecord> findById(String id) {
         return Optional.ofNullable(records.get(id));
     }
+
+    @Override
+    public Optional<ContentRecord> findLatestWebpageScrape(String addressId) {
+        return records.values().stream()
+                .filter(r -> r.addressId().equals(addressId))
+                .filter(r -> "WEBSCRAPE".equals(r.taskCode()))
+                .filter(r -> "listing-html".equals(r.kind()))
+                .min(Comparator.comparing(ContentRecord::createdAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+    }
 }

@@ -225,6 +225,18 @@ public class ContentStoreService {
                 + "|" + taskCode + "|" + fileName).substring(0, 12);
     }
 
+    /**
+     * US-11.6 (issue #139): the address's cache source — the content a
+     * cached fetch (US-06.14) would serve, with its id and original
+     * scrape timestamp. Empty for a never-scraped address. The remote
+     * cache-status surface (US-18.11) reads this; retention: no
+     * pruning exists today, and when one lands it must never silently
+     * remove this record (the manual-prune confirmation is US-14.10's).
+     */
+    public Optional<ContentRecord> latestWebpageScrape(Address address) {
+        return store.findLatestWebpageScrape(address.id());
+    }
+
     /** Every content record, newest first. */
     public List<ContentRecord> listAll() {
         return store.findAll();

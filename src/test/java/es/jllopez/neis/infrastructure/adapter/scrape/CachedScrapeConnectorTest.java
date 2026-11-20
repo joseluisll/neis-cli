@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
+import java.util.Comparator;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -91,6 +92,16 @@ class CachedScrapeConnectorTest {
         public Optional<ContentRecord> findById(String id) {
             return records.stream()
                     .filter(r -> r.id().equals(id)).findFirst();
+        }
+
+        @Override
+        public Optional<ContentRecord> findLatestWebpageScrape(String addressId) {
+            return records.stream()
+                    .filter(r -> r.addressId().equals(addressId))
+                    .filter(r -> "WEBSCRAPE".equals(r.taskCode()))
+                    .filter(r -> "listing-html".equals(r.kind()))
+                    .min(Comparator.comparing(ContentRecord::createdAt,
+                            Comparator.nullsLast(Comparator.reverseOrder())));
         }
     }
 

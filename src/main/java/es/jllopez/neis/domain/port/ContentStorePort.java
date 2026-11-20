@@ -35,4 +35,12 @@ public interface ContentStorePort {
 
     /** One content record by its deterministic id. */
     Optional<ContentRecord> findById(String id);
+
+    /**
+     * The address's latest WEBSCRAPE listing scrape (US-11.6, issue
+     * #139): the content a cached fetch (US-06.14) would serve — its
+     * id, timestamp and file path are the address's cache-source
+     * identity. Empty when the address has never been scraped.
+     */
+    Optional<ContentRecord> findLatestWebpageScrape(String addressId);
 }
