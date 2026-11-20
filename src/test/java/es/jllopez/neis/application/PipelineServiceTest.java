@@ -7,6 +7,7 @@ import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.FilterRequestOption;
 import es.jllopez.neis.domain.model.FilterSpec;
 import es.jllopez.neis.domain.model.ScrapeResult;
+import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.StoredSelectors;
 import es.jllopez.neis.domain.port.AiAssistantPort;
 import es.jllopez.neis.domain.port.ContentScrapePort;
@@ -217,6 +218,50 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         assertTrue(e.getMessage().contains("not eligible"));
         assertTrue(e.getMessage().contains("UNVERIFIED"));
         assertTrue(e.getMessage().contains("address verify"));
+    }
+
+    @Test
+    void aCachedRunMarksTheProvenanceAndSkipsTheSightings() {
+        // US-06.14 + US-14.12 (issues #138/#140): an SSAFP run whose
+        // scrape carries the CACHED note reports it on the result and
+        // stores the items WITHOUT sightings — the page was re-served,
+        // not captured.
+        String note = "cached; original scrape 2026-11-01T00:00:00Z (CONT-x)";
+        ContentScrapePort cachedPort = new ContentScrapePort() {
+            @Override
+            public ScrapeResult scrape(Address address) {
+                ScrapeResult fresh = scrapePort.scrape(address);
+                return new ScrapeResult(fresh.html(), fresh.contentType(),
+                        fresh.sizeBytes(), note);
+            }
+        };
+        // AI on (like the delivered runs) so extraction follows the
+        // identified selector; no capability flags to keep it focused.
+        PipelineService chain = new PipelineService(cachedPort, simplifyPort,
+                extractionPort, selectorStore, paginationDetector,
+                new ExposedFilterDetector(),
+                aiProvider(aiAnswering("news",
+                        "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
+                catalog, new UrlSyntaxValidator(), preconfigured(),
+                newsEventStore(), contentStore(), clearingConnector(),
+                clearingSelectors(),
+                new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
+                null, workDir.toString());
+
+        PipelineResult result = chain.run(SeedAddresses.verified().get(0));
+
+        assertEquals(note, result.scrapeNote(),
+                "the result carries the CACHED provenance");
+        // the sighting skip: the items were stored, but the cached
+        // reuse recorded NO sighting for any of them
+        assertTrue(newsEventStoreInst.all().size() > 0, "items stored");
+        for (NewsEventItem item : newsEventStoreInst.all()) {
+            assertTrue(
+                    newsEventStoreInst.sightings(item.computedCanonicalId())
+                            .isEmpty(),
+                    "no sighting from the cached re-run: "
+                            + item.computedCanonicalId());
+        }
     }
 
     @Test

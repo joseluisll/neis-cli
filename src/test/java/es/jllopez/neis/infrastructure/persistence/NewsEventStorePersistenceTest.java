@@ -78,6 +78,51 @@ class NewsEventStorePersistenceTest {
                 id);
     }
 
+    /**
+     * US-14.12 (issue #140): a CACHED re-run over the SAME content
+     * upserts the rows in place (a changed extraction rule updates
+     * them) but records NO sighting — the appearance history tracks
+     * real captures, never re-serves of the same page.
+     */
+    @Test
+    void cachedReuseUpsertsRowsButRecordsNoSighting() {
+        seedAddress("ADDR-N14");
+        var item = new NewsEventItem("ADDR-N14", "news", "Cached story",
+                "Summary", "https://example.eu/news/cached", null);
+        String contentId = "CONT-cache";
+
+        // the REAL capture: one sighting for THIS address
+        assertEquals(1, store.saveAll("ADDR-N14", "news", List.of(item),
+                "EXEC-real", contentId));
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM news_event_sightings WHERE address_id = 'ADDR-N14'",
+                Integer.class));
+
+        // the CACHED re-run: same content, NEW execution — rows update
+        // in place (provenance moves to the reprocessing run), but no
+        // new sighting appears
+        var dated = new NewsEventItem("ADDR-N14", "news", "Cached story",
+                "Summary", "https://example.eu/news/cached", "2026-11-19");
+        assertEquals(1, store.saveAll("ADDR-N14", "news", List.of(dated),
+                "EXEC-cached", contentId, true));
+
+        assertEquals(1, store.byAddress("ADDR-N14").size(),
+                "no duplicate rows from the cached re-run");
+        assertEquals("EXEC-cached", store.byAddress("ADDR-N14").get(0).executionId(),
+                "the reprocessing run owns the row's provenance");
+        assertEquals("2026-11-19", store.byAddress("ADDR-N14").get(0).date(),
+                "the changed extraction rule updated the row in place");
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM news_event_sightings WHERE address_id = 'ADDR-N14'",
+                Integer.class),
+                "the cached reuse recorded NO sighting (US-14.12) — the "
+                        + "class-shared store holds only the real capture's");
+        assertEquals("EXEC-real", jdbcTemplate.queryForObject(
+                "SELECT execution_id FROM news_event_sightings "
+                        + "WHERE address_id = 'ADDR-N14'", String.class),
+                "the one sighting is the REAL capture's");
+    }
+
     @Test
     void upsertByDeterministicIdDoesNotDuplicate() {
         seedAddress("ADDR-N1");
