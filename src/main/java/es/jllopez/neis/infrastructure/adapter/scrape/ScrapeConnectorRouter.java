@@ -209,17 +209,30 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             return stored;
         } catch (RuntimeException storedMiss) {
             if ("live".equals(staticFallback)) {
-                log.info("[Fetchability] {}: no static fixture and nothing "
-                        + "stored — fetching LIVE (static mode, "
-                        + "static-fallback=live; US-06.12)", address.id());
+                if (cachedConnector.hasStored(address.id())) {
+                    // Review note: the stored scrape EXISTS but is not
+                    // servable (stale per the US-06.15 bound, missing
+                    // file) — the operational line states the real
+                    // cause, never 'nothing stored'.
+                    log.info("[Fetchability] {}: no static fixture — the "
+                            + "stored scrape is not servable ({}: {}) — "
+                            + "fetching LIVE (static mode, "
+                            + "static-fallback=live; US-06.12)",
+                            address.id(), storedMiss.getClass().getSimpleName(),
+                            storedMiss.getMessage());
+                } else {
+                    log.info("[Fetchability] {}: no static fixture and "
+                            + "nothing stored — fetching LIVE (static mode, "
+                            + "static-fallback=live; US-06.12)", address.id());
+                }
                 return withStoredFallback(address,
                         () -> forAddress(address).scrape(address));
             }
             throw new IllegalStateException("No static fixture and no "
-                    + "stored content for " + address.id()
+                    + "servable stored content for " + address.id()
                     + " (neis.scrape.static-fallback=cached) — fetch live "
                     + "once to seed the store, or set the policy to 'live'"
-                    + " (US-06.12)");
+                    + " (US-06.12)", storedMiss);
         }
     }
 
@@ -253,9 +266,10 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
         }
         return switch (staticFallback) {
             case "live" -> java.util.Optional.of("connector mode 'static' "
-                    + "has no fixture for " + address.id() + " — fetches "
-                    + "will go LIVE (neis.scrape.static-fallback=live); add "
-                    + "a fixture to keep it offline (US-06.12)");
+                    + "has no fixture for " + address.id() + " — the "
+                    + "plain-listing fetch will go LIVE (stored content "
+                    + "first when servable; neis.scrape.static-fallback=live); "
+                    + "add a fixture to keep it offline (US-06.12)");
             case "cached" -> cachedConnector.hasStored(address.id())
                     ? java.util.Optional.empty()
                     : java.util.Optional.of("connector mode 'static' "
