@@ -2,9 +2,13 @@ package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.domain.model.ClearedContent;
 import es.jllopez.neis.domain.port.ObstructionClearingPort;
+import es.jllopez.neis.application.ConsentProperties;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -50,6 +54,43 @@ import java.util.List;
  */
 @Component
 public class JsoupObstructionClearer implements ObstructionClearingPort {
+
+    private static final Logger log = LoggerFactory.getLogger(
+            JsoupObstructionClearer.class);
+
+    /**
+     * US-06.13 (issue #137): the CONSENT markers that classify a
+     * removed overlay as a CONSENT dialog (cookie/data-use acceptance)
+     * rather than another dismissible modal — matched case-insensitively
+     * on the element's id, class and aria-label. The consent/cookie
+     * banner vocabulary sweep below is consent by definition; this
+     * check classifies DECLARED overlays (role=dialog etc.), which may
+     * be either a consent layer or another modal.
+     */
+    private static final String[] CONSENT_MARKERS =
+            {"cookie", "consent", "gdpr"};
+
+    /**
+     * The US-06.13 consent policy (configuration, not hardcode):
+     * ACCEPT or REJECT, default REJECT (ConsentProperties fails the
+     * boot on an unknown value). The jsoup pipeline is
+     * non-interactive — under BOTH policies the dialog markup is
+     * DISMISSED (removed from the capture, never mixed into the page
+     * content); the policy is the operator's RECORDED data-use stance,
+     * logged per encounter and stored on the capture's clearing
+     * record. NOTE: the no-arg constructor binds the DEFAULT policy
+     * (tests) — Spring uses the @Autowired one below.
+     */
+    private final ConsentProperties consentPolicy;
+
+    @Autowired
+    public JsoupObstructionClearer(ConsentProperties consentPolicy) {
+        this.consentPolicy = consentPolicy;
+    }
+
+    public JsoupObstructionClearer() {
+        this(new ConsentProperties(null));
+    }
 
     /**
      * Declared overlay roles/elements removed outright: an OPEN
@@ -103,24 +144,46 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
 
         int removed = 0;
         List<String> rulesApplied = new ArrayList<>();
+        // US-06.13 (issue #137): the classified dialog counts —
+        // consent dialogs (cookie/data-use), other dismissible modals
+        // (newsletter/registration walls), plain obstructing elements
+        // (ads, configured selectors — the pre-existing path).
+        int consentCount = 0;
+        int modalCount = 0;
 
-        // 1. Declared overlays (dialog/roles), guarded.
-        int n = removeGuarded(doc, DECLARED_OVERLAYS);
-        if (n > 0) {
-            removed += n;
+        // 1. Declared overlays (dialog/roles), guarded. Each removed
+        //    overlay is CLASSIFIED: a consent marker on the element
+        //    (cookie/consent/gdpr) makes it a CONSENT dialog, otherwise
+        //    it is another dismissible modal.
+        var declared = doc.select(DECLARED_OVERLAYS).stream()
+                .filter(el -> el.ownerDocument() != null)
+                .filter(el -> !carriesMainContent(el))
+                .toList();
+        for (Element el : declared) {
+            el.remove();
+            removed++;
+            if (isConsentOverlay(el)) {
+                consentCount++;
+            } else {
+                modalCount++;
+            }
+        }
+        if (!declared.isEmpty()) {
             rulesApplied.add("declared-overlays");
         }
 
-        // 2. Consent/cookie banner vocabulary, guarded.
-        n = removeBanners(doc);
-        if (n > 0) {
-            removed += n;
+        // 2. Consent/cookie banner vocabulary, guarded — consent by
+        //    definition.
+        int banners = removeBanners(doc);
+        if (banners > 0) {
+            removed += banners;
+            consentCount += banners;
             rulesApplied.add("consent-banners");
         }
 
         // 3. Advertisement containers (unguarded: an ad container is
-        //    never the listing content).
-        n = removeMatches(doc, AD_SELECTOR);
+        //    never the listing content) — plain obstructing elements.
+        int n = removeMatches(doc, AD_SELECTOR);
         if (n > 0) {
             removed += n;
             rulesApplied.add("advertisements");
@@ -148,10 +211,45 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
             }
         }
 
+        // US-06.13: every dialog encounter produces an operational log
+        // line (type, action taken, element count), and the classified
+        // counts ride on the clearing record into the capture metadata
+        // (consent policy recorded, never hardcoded).
+        List<ClearedContent.DialogEncounter> dialogs = new ArrayList<>();
+        if (consentCount > 0) {
+            String action = "dismissed (removed from the capture); consent "
+                    + "policy " + consentPolicy.policy() + " recorded";
+            log.info("[Consent] consent dialog(s) detected: {} element(s) "
+                            + "— policy {}: dismissed, preference recorded",
+                    consentCount, consentPolicy.policy());
+            dialogs.add(new ClearedContent.DialogEncounter(
+                    "consent", consentCount, action));
+        }
+        if (modalCount > 0) {
+            log.info("[Clearing] dismissible modal(s): {} element(s) "
+                    + "— dismissed (removed from the capture)", modalCount);
+            dialogs.add(new ClearedContent.DialogEncounter(
+                    "modal", modalCount,
+                    "dismissed (removed from the capture)"));
+        }
+
         String cleaned = doc.html();
         return new ClearedContent(cleaned,
                 cleaned.getBytes(StandardCharsets.UTF_8).length,
-                removed, rulesApplied);
+                removed, rulesApplied, dialogs);
+    }
+
+    /** Whether a removed declared overlay is a CONSENT dialog (US-06.13):
+     * a cookie/consent/gdpr marker on its id, class or aria-label. */
+    private boolean isConsentOverlay(Element el) {
+        String haystack = (el.id() + " " + el.className() + " "
+                + el.attr("aria-label")).toLowerCase(java.util.Locale.ROOT);
+        for (String marker : CONSENT_MARKERS) {
+            if (haystack.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Removes every match of the selector with NO guard. An element
@@ -168,26 +266,6 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
                 el.remove();
                 count++;
             }
-        }
-        return count;
-    }
-
-    /**
-     * Removes every match of the selector UNLESS the element carries
-     * the page's main content (guard, class javadoc): the wrapper
-     * stays; its obstructing children were removed by their own
-     * matching rules or stay when they are the content. Detached
-     * elements (an ancestor match already removed them) are skipped
-     * and not counted.
-     */
-    private int removeGuarded(Document doc, String selector) {
-        int count = 0;
-        for (Element el : doc.select(selector)) {
-            if (el.ownerDocument() == null || carriesMainContent(el)) {
-                continue;
-            }
-            el.remove();
-            count++;
         }
         return count;
     }

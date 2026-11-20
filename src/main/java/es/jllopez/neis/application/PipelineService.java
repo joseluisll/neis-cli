@@ -1489,7 +1489,29 @@ public class PipelineService {
             first = false;
             json.append('"').append(ContentStoreService.jsonEscape(rule)).append('"');
         }
-        return json.append("]}").toString();
+        json.append(']');
+        // US-06.13 (issue #137): the classified dialog encounters and
+        // the recorded consent policy ride on the clearing record —
+        // the capture provenance states what kind of overlays were
+        // dismissed and under which declared data-use stance.
+        if (!cleared.dialogs().isEmpty()) {
+            json.append(",\"dialogs\":[");
+            boolean firstDialog = true;
+            for (ClearedContent.DialogEncounter dialog : cleared.dialogs()) {
+                if (!firstDialog) {
+                    json.append(',');
+                }
+                firstDialog = false;
+                json.append("{\"type\":\"")
+                        .append(ContentStoreService.jsonEscape(dialog.type()))
+                        .append("\",\"count\":").append(dialog.count())
+                        .append(",\"action\":\"")
+                        .append(ContentStoreService.jsonEscape(dialog.action()))
+                        .append("\"}");
+            }
+            json.append(']');
+        }
+        return json.append("}").toString();
     }
 
     /**

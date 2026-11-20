@@ -30,6 +30,64 @@ class JsoupObstructionClearerTest {
         assertTrue(cleared.html().contains("Item"));
         assertEquals(1, cleared.removedCount());
         assertTrue(cleared.rulesApplied().contains("declared-overlays"));
+        // US-06.13: the declared overlay without a consent marker is
+        // classified as another dismissible MODAL.
+        assertEquals(1, cleared.dialogs().stream()
+                .filter(d -> "modal".equals(d.type()))
+                .mapToInt(ClearedContent.DialogEncounter::count).sum());
+        assertTrue(cleared.dialogs().stream()
+                .noneMatch(d -> "consent".equals(d.type())),
+                "a signup dialog is a modal, not a consent dialog");
+    }
+
+    @Test
+    void consentDialogsAreClassifiedAndDismissedPerPolicy() {
+        // US-06.13 (issue #137): a fixture page with a cookie-consent
+        // dialog and a data-use layer — both classified CONSENT,
+        // dismissed per the configured policy (default REJECT), and
+        // the underlying content survives for extraction.
+        String html = "<html><body>"
+                + "<div role='dialog' aria-label='Cookie consent' "
+                + "id='consent-layer'><p>This site uses cookies. "
+                + "Accept data use?</p></div>"
+                + "<div id='cookie-consent-banner' class='wt-cck--banner'>"
+                + "<p>We use cookies</p></div>"
+                + "<main><ul class='news-list'><li>Real item</li>"
+                + "<li>Second item</li></ul></main></body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of());
+
+        assertFalse(cleared.html().contains("This site uses cookies"),
+                "the consent dialog markup never reaches the capture");
+        assertFalse(cleared.html().contains("We use cookies"));
+        assertTrue(cleared.html().contains("Real item"),
+                "the underlying content survives for extraction");
+        assertTrue(cleared.html().contains("Second item"));
+        int consent = cleared.dialogs().stream()
+                .filter(d -> "consent".equals(d.type()))
+                .mapToInt(ClearedContent.DialogEncounter::count).sum();
+        assertEquals(2, consent,
+                "both the declared consent layer and the vocabulary "
+                        + "banner are classified as consent dialogs");
+        assertTrue(cleared.dialogs().get(0).action()
+                        .contains("REJECT"),
+                "the configured policy (default REJECT) is recorded in "
+                        + "the encounter action");
+    }
+
+    @Test
+    void acceptPolicyIsRecordedInTheEncounter() {
+        String html = "<html><body>"
+                + "<div id='cookie-consent-banner'><p>We use cookies</p></div>"
+                + "<main><ul class='news-list'><li>Item</li></ul></main>"
+                + "</body></html>";
+        ClearedContent cleared = new JsoupObstructionClearer(
+                new es.jllopez.neis.application.ConsentProperties("ACCEPT"))
+                .clear(html, List.of());
+        assertTrue(cleared.dialogs().get(0).action().contains("ACCEPT"),
+                "the ACCEPT stance is recorded, configuration not "
+                        + "hardcode — the dialog is dismissed either way "
+                        + "(the jsoup pipeline cannot click through)");
     }
 
     @Test

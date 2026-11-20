@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
  * explicit registration duplicates the scanned component).
  */
 @Configuration
-@EnableConfigurationProperties(ClearingProperties.class)
+@EnableConfigurationProperties({ClearingProperties.class,
+        ConsentProperties.class})
 public class ClearingServiceConfig {
 }
