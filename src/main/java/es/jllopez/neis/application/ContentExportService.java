@@ -108,12 +108,26 @@ public class ContentExportService {
                     + "folder; an existing archive is never silently "
                     + "overwritten (US-11.5)");
         }
-
-        // The involved captures' fetch records ride along (US-11.5:
-        // the unpacked tree is navigable with the content-tree
-        // conventions — the fetch record is one of them).
+        // Review hardening: the selectors are interpolated into entry
+        // and archive names — the same segment rules the store applies
+        // to task codes and file names apply here (no separators, no
+        // traversal). Reachable only with a tampered store, but a
+        // hostile id must never escape the export folder.
+        validateSegment(addressId, "address id");
         List<String> captures = records.stream()
                 .map(ContentRecord::captureId).distinct().toList();
+        captures.forEach(id -> validateSegment(id, "capture id"));
+        if (archiveName.contains("-EXEC-")) {
+            validateSegment(executionSegment(archiveName), "execution id");
+        }
+        if (records.stream().map(ContentRecord::addressId).distinct()
+                .count() > 1) {
+            throw new IllegalArgumentException(
+                    "The selection spans several addresses ("
+                            + records.stream().map(ContentRecord::addressId)
+                            .distinct().toList() + ") — export per address "
+                            + "(US-11.5)");
+        }
 
         long contentBytes = 0;
         int entries = 0;
@@ -148,6 +162,17 @@ public class ContentExportService {
                 entries++;
             }
         } catch (IOException e) {
+            // Best-effort cleanup (review note): a failed export never
+            // leaves a deceptive half-written archive at the
+            // deterministic name — the operator must not mistake it
+            // for a good one.
+            try {
+                Files.deleteIfExists(archive);
+            } catch (IOException cleanup) {
+                log.warn("Content export: could not remove the partial "
+                        + "archive {} — remove it by hand before "
+                        + "retrying (US-11.5)", archive, cleanup);
+            }
             throw new IllegalStateException("Cannot write the export "
                     + "archive " + archive + " (US-11.5)", e);
         }
@@ -184,5 +209,23 @@ public class ContentExportService {
                 : capture.getFileName().toString();
         return addressId + "/" + captureName + "/"
                 + normalized.getFileName();
+    }
+
+    /** The store's own segment rules (no separators, no traversal). */
+    private static void validateSegment(String segment, String what) {
+        if (segment == null || segment.isBlank()
+                || segment.contains("/") || segment.contains("\\")
+                || segment.contains("..") || segment.startsWith(".")) {
+            throw new IllegalArgumentException("Unsafe " + what
+                    + ": '" + segment + "' (US-11.5)");
+        }
+    }
+
+    /** The execution id embedded in the deterministic archive name. */
+    private static String executionSegment(String archiveName) {
+        int marker = archiveName.indexOf("-EXEC-");
+        return marker < 0 ? archiveName
+                : archiveName.substring(marker + 1, archiveName.length()
+                        - ".zip".length());
     }
 }

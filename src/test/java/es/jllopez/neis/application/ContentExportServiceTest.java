@@ -79,11 +79,12 @@ class ContentExportServiceTest {
     @Test
     void exportsAnAddressWholeTreeByDefaultFolder() throws Exception {
         ContentExportService service = serviceWithContent();
+        Path expected = Path.of(System.getProperty("java.io.tmpdir"))
+                .resolve("neis-content-ADDR-020.zip");
+        Files.deleteIfExists(expected); // a crashed prior run must not fail this test
         ContentExportService.ExportResult result =
                 service.exportAddress("ADDR-020", null);
-        assertEquals(Path.of(System.getProperty("java.io.tmpdir"))
-                        .resolve("neis-content-ADDR-020.zip"),
-                result.archive(),
+        assertEquals(expected, result.archive(),
                 "the default folder is java.io.tmpdir and the name is "
                         + "deterministic");
         assertTrue(Files.size(result.archive()) > 0);
