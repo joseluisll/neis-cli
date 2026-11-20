@@ -35,14 +35,23 @@ import java.util.List;
  *   connector ({@link PlaywrightRenderConnector}); an unclassified
  *   address falls back to HTTP (logged); an unknown type id fails
  *   loud — a stale taxonomy id must never silently downgrade to HTTP.</li>
+ *   <li>{@code cached} (US-06.14, issue #138) — serves the address's
+ *   latest stored scrape ({@link CachedScrapeConnector}): no network,
+ *   no fixture, honest CACHED provenance on the result; fail-closed
+ *   when nothing is stored.</li>
  * </ul>
  *
+ * <p>US-06.14's opt-in {@code neis.scrape.fallback-to-stored} (default
+ * false) lets a FAILED static/live fetch of the plain-listing path
+ * serve the stored content instead of failing the job — provenance
+ * marked, never silent.</p>
+ *
  * <p>Per-run override (WEBSCRAPE {@code connector} parameter,
- * US-12.6-style): {@code fixtures}, {@code http} or {@code rendered}
- * pins the strategy for that run regardless of the page type; an
- * unknown value fails the run — a typo must never fetch with the
- * wrong strategy. The default is static on purpose: live fetching is
- * an opt-in; a null or blank value resolves to the default; an
+ * US-12.6-style): {@code fixtures}, {@code http}, {@code rendered} or
+ * {@code cached} pins the strategy for that run regardless of the page
+ * type; an unknown value fails the run — a typo must never fetch with
+ * the wrong strategy. The default is static on purpose: live fetching
+ * is an opt-in; a null or blank value resolves to the default; an
  * unknown non-blank value fails the boot.</p>
  */
 @Primary
@@ -54,18 +63,39 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
     private final ContentScrapePort staticConnector;
     private final ObjectProvider<HttpScrapeConnector> httpConnector;
     private final ObjectProvider<PlaywrightRenderConnector> renderedConnector;
+    private final CachedScrapeConnector cachedConnector;
     private final WebpageTypeCatalogPort webpageTypes;
     private volatile boolean live;
+    private volatile boolean cached;
+    /**
+     * US-06.14: when true, a FAILED primary fetch (static or live —
+     * never a cached-mode fetch itself) falls back to the latest
+     * stored content instead of failing the job. Default false: the
+     * failure semantics are unchanged.
+     */
+    private final boolean fallbackToStored;
 
     public ScrapeConnectorRouter(StaticScrapeConnector staticConnector,
                                  ObjectProvider<HttpScrapeConnector> httpConnector,
                                  ObjectProvider<PlaywrightRenderConnector> renderedConnector,
+                                 CachedScrapeConnector cachedConnector,
                                  WebpageTypeCatalogPort webpageTypes,
-                                 @Value("${neis.scrape.connector:static}") String mode) {
+                                 @Value("${neis.scrape.connector:static}") String mode,
+                                 @Value("${neis.scrape.fallback-to-stored:false}")
+                                 boolean fallbackToStored) {
         this.staticConnector = staticConnector;
         this.httpConnector = httpConnector;
         this.renderedConnector = renderedConnector;
+        this.cachedConnector = cachedConnector;
         this.webpageTypes = webpageTypes;
+        this.fallbackToStored = fallbackToStored;
+        String normalized = validateMode(mode);
+        this.live = normalized.equals("live");
+        this.cached = normalized.equals("cached");
+    }
+
+    /** Boot + override validation, shared (US-06.14 added 'cached'). */
+    private static String validateMode(String mode) {
         String normalized = mode == null ? "" : mode.trim();
         if (normalized.isEmpty()) {
             normalized = "static"; // unset property resolves to the default
@@ -76,11 +106,14 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             case "live" -> log.info("SCRAPE connector: live per-type retrieval "
                     + "(neis.scrape.connector=live) — http or browser rendering "
                     + "by the address's webpage type");
+            case "cached" -> log.info("SCRAPE connector: cached — serves the "
+                    + "latest stored scrape (neis.scrape.connector=cached, "
+                    + "US-06.14); no network, no fixture");
             default -> throw new IllegalArgumentException(
                     "Unknown neis.scrape.connector mode '" + mode
-                            + "' (expected 'static' or 'live')");
+                            + "' (expected 'static', 'live' or 'cached')");
         }
-        this.live = normalized.equals("live");
+        return normalized;
     }
 
     /**
@@ -90,30 +123,29 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
      * for every subsequent scrape in this process.
      */
     public void updateMode(String mode) {
-        String normalized = mode == null ? "" : mode.trim();
-        if (normalized.isEmpty()) {
-            normalized = "static";
-        }
-        switch (normalized) {
-            case "static" -> log.info("SCRAPE connector override applied: static fixtures");
-            case "live" -> log.info("SCRAPE connector override applied: live per-type retrieval");
-            default -> throw new IllegalArgumentException(
-                    "Unknown neis.scrape.connector mode '" + mode
-                            + "' (expected 'static' or 'live')");
-        }
+        String normalized = validateMode(mode);
         this.live = normalized.equals("live");
+        this.cached = normalized.equals("cached");
+        log.info("SCRAPE connector override applied: {}", normalized);
     }
 
     @Override
     public ScrapeResult scrape(Address address) {
+        if (cached) {
+            return cachedConnector.scrape(address);
+        }
         if (!live) {
             return staticConnector.scrape(address);
         }
-        return forAddress(address).scrape(address);
+        return withStoredFallback(address,
+                () -> forAddress(address).scrape(address));
     }
 
     @Override
     public ScrapeResult scrape(Address address, int pageIndex) {
+        if (cached) {
+            return cachedConnector.scrape(address, pageIndex);
+        }
         if (!live) {
             return staticConnector.scrape(address, pageIndex);
         }
@@ -122,6 +154,13 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
 
     @Override
     public ScrapeResult scrapeUrl(String url) {
+        if (cached) {
+            throw new UnsupportedOperationException(
+                    "The cached connector cannot fetch arbitrary URLs: " + url
+                            + " — it serves the address's stored listing "
+                            + "(US-06.14); use a live/static mode for "
+                            + "pagination next-page fetches");
+        }
         // An arbitrary URL (US-12.4 pagination next-page) fetches over
         // HTTP: the rendered strategy is selected per ADDRESS type, and
         // a next-page URL of an SPA listing is the documented gap
@@ -140,10 +179,37 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             case "fixtures" -> staticConnector.scrape(address);
             case "http" -> httpConnector.getObject().scrape(address);
             case "rendered" -> renderedConnector.getObject().scrape(address);
+            case "cached" -> cachedConnector.scrape(address);
             default -> throw new IllegalArgumentException(
                     "Unknown connector override '" + connectorOverride
-                            + "' (expected 'fixtures', 'http' or 'rendered')");
+                            + "' (expected 'fixtures', 'http', 'rendered' or 'cached')");
         };
+    }
+
+    /**
+     * US-06.14's opt-in fallback (default false): when the primary
+     * fetch of the plain-listing path FAILS, the latest stored content
+     * serves instead of failing the job — the provenance note marks
+     * the reuse, so a served-but-stale page is never silent. Only the
+     * plain scrape path falls back: a failed PAGINATION page or filter
+     * application has no honest stored equivalent (the stored scrape
+     * is the unfiltered main listing). A cached-mode fetch never
+     * falls back (it IS the cached path; its own failures are loud).
+     */
+    private ScrapeResult withStoredFallback(Address address,
+                                            java.util.function.Supplier<ScrapeResult> primary) {
+        if (!fallbackToStored) {
+            return primary.get();
+        }
+        try {
+            return primary.get();
+        } catch (RuntimeException e) {
+            log.warn("SCRAPE {}: primary fetch failed ({}: {}) — falling "
+                            + "back to the latest stored content "
+                            + "(neis.scrape.fallback-to-stored=true, US-06.14)",
+                    address.id(), e.getClass().getSimpleName(), e.getMessage());
+            return cachedConnector.scrape(address);
+        }
     }
 
     @Override
@@ -187,7 +253,9 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
         // override never failed loud). The same values mean the same
         // thing in every mode: 'fixtures' is the offline capture;
         // 'http'/'rendered' force the live connector, exactly like the
-        // unfiltered scrape(address, override).
+        // unfiltered scrape(address, override); 'cached' serves the
+        // stored listing — WITH filters it fails loud (stored content
+        // predates the filter set; US-06.14).
         switch (override) {
             case "fixtures" -> {
                 return staticConnector.scrapeWithFilters(address, filters, null);
@@ -200,13 +268,20 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
                 return renderedConnector.getObject()
                         .scrapeWithFilters(address, filters, null);
             }
+            case "cached" -> {
+                return cachedConnector.scrapeWithFilters(address, filters, null);
+            }
             default -> {
                 if (!override.isEmpty()) {
                     throw new IllegalArgumentException(
                             "Unknown connector override '" + connectorOverride
-                                    + "' (expected 'fixtures', 'http' or 'rendered')");
+                                    + "' (expected 'fixtures', 'http', 'rendered' "
+                                    + "or 'cached')");
                 }
             }
+        }
+        if (cached) {
+            return cachedConnector.scrapeWithFilters(address, filters, null);
         }
         if (!live) {
             return staticConnector.scrapeWithFilters(address, filters, null);
@@ -299,6 +374,9 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
 
     @Override
     public List<FilterRequestOption> supportedFilterRequests(Address address) {
+        if (cached) {
+            return cachedConnector.supportedFilterRequests(address);
+        }
         if (!live) {
             return staticConnector.supportedFilterRequests(address);
         }

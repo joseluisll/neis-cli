@@ -30,6 +30,9 @@ final class PipelineReport {
 
         out.append("SCRAPE   : ").append(r.scrapeSizeBytes())
                 .append(" bytes -> ").append(r.scrapeArtifact()).append("\n");
+        if (r.scrapeNote() != null) {
+            out.append("           CACHED reuse: ").append(r.scrapeNote()).append("\n");
+        }
         out.append("SIMPLIFY : ").append(r.simplifiedSizeBytes())
                 .append(" bytes (cap 102400) -> ").append(r.simplifyArtifact()).append("\n");
 

@@ -21,6 +21,18 @@ public class InMemoryContentStorePort implements ContentStorePort {
     private final Map<String, Map<String, Capture>> captures = new ConcurrentHashMap<>();
     private final Map<String, ContentRecord> records = new ConcurrentHashMap<>();
 
+    /** Seeds content records directly (e.g. cached-connector tests). */
+    public InMemoryContentStorePort(List<ContentRecord> seededRecords) {
+        for (ContentRecord record : seededRecords) {
+            records.put(record.id(), record);
+        }
+    }
+
+    /** The default constructor: an empty store. */
+    public InMemoryContentStorePort() {
+        this(List.of());
+    }
+
     @Override
     public Capture saveCapture(Capture capture) {
         captures.computeIfAbsent(capture.addressId(), key -> new ConcurrentHashMap<>())

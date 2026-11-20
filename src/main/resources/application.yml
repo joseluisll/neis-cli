@@ -120,6 +120,20 @@ neis:
     connector: static
     # Per-request timeout of the live fetch.
     timeout-seconds: 20
+    # Cached connector (US-06.14, issue #138): serves the address's
+    # latest stored scrape (scrape.html) instead of fetching — no
+    # network, no fixture. The provenance (original scrape timestamp +
+    # content id) rides the result and is rendered on the run's
+    # outcome/report; an address with no stored content fails the
+    # fetch (fail-closed).
+    # US-06.15 (issue #142): 'cached-max-age' bounds how old the
+    # served content may be (ISO-8601 duration, e.g. PT72H) — unset
+    # means unlimited; exceeded content fails the fetch naming the age
+    # and the bound. 'fallback-to-stored' (default false) makes a
+    # FAILED static/live fetch serve the stored content instead of
+    # failing the job — strictly opt-in, provenance-marked.
+    cached-max-age:
+    fallback-to-stored: false
     # Safety cap of the live fetch's response body: the fetch streams
     # and aborts mid-transfer once the cap is exceeded (and refuses
     # before reading when Content-Length already exceeds it), so a

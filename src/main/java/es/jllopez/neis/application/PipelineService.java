@@ -225,6 +225,13 @@ public class PipelineService {
         ScrapeResult scrape = scrapeFilters == null || scrapeFilters.isEmpty()
                 ? scrapePort.scrape(address)
                 : scrapePort.scrapeWithFilters(address, scrapeFilters, null);
+        // US-06.14 (issue #138): a CACHED fetch names its reuse on the
+        // result — the report carries it and the repository write skips
+        // the sightings (US-14.12): the page was re-served, not captured.
+        String scrapeNote = scrape.sourceNote();
+        if (scrapeNote != null) {
+            log.info("SCRAPE {}: CACHED reuse — {}", address.id(), scrapeNote);
+        }
         // Obstruction clearing (US-06.7, issue #75): popups, cookie
         // banners, ads and the configured page-specific selectors are
         // removed BEFORE the HTML5 is stored or passed on — extraction
@@ -347,7 +354,8 @@ public class PipelineService {
         // review finding, 2026-11-14).
         newsEventStore.saveAll(flagged.id(), flagged.itemKind(), items,
                 executionId,
-                contentStore.contentRecordId(address, "WEBSCRAPE", "scrape.html"));
+                contentStore.contentRecordId(address, "WEBSCRAPE", "scrape.html"),
+                scrapeNote != null);
 
         // FILTER block (US-17): ONLY on addresses flagged FILTERING.
         // The AI first identifies the filter-zone selector (like the
@@ -382,7 +390,8 @@ public class PipelineService {
                 application == null ? null : application.request(),
                 application == null ? List.of() : application.items(),
                 application == null ? null : application.scrapeArtifact(),
-                application == null ? null : application.note());
+                application == null ? null : application.note(),
+                scrapeNote);
     }
 
     /**

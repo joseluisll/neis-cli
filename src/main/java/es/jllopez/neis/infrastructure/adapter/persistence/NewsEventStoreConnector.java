@@ -47,6 +47,27 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
     @Override
     public int saveAll(String addressId, String kind, List<NewsEventItem> items,
                        String executionId, String contentId) {
+        return saveAllInternal(addressId, kind, items, executionId, contentId,
+                false);
+    }
+
+    /**
+     * US-14.12 (issue #140): {@code cachedReuse} marks a run over
+     * ALREADY-PROCESSED content (the cached connector's fetch) — the
+     * items still upsert (changed extraction rules update rows in
+     * place), but NO sighting is recorded: the appearance history
+     * tracks real captures, never re-serves of the same page.
+     */
+    @Override
+    public int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                       String executionId, String contentId, boolean cachedReuse) {
+        return saveAllInternal(addressId, kind, items, executionId, contentId,
+                cachedReuse);
+    }
+
+    private int saveAllInternal(String addressId, String kind,
+                                List<NewsEventItem> items, String executionId,
+                                String contentId, boolean cachedReuse) {
         String now = Instant.now().toString();
         int stored = 0;
         for (NewsEventItem item : items) {
@@ -95,7 +116,12 @@ public class NewsEventStoreConnector implements NewsEventStorePort {
             stored++;
             // US-14.5: every capture that produced the item adds a
             // sighting — the appearance history, never a new record.
-            sightingJpa.save(sighting(id, addressId, executionId, contentId, now));
+            // US-14.12: a CACHED reuse of already-processed content
+            // records none — the page was not re-captured, it was
+            // re-served; the execution record itself is the trace.
+            if (!cachedReuse) {
+                sightingJpa.save(sighting(id, addressId, executionId, contentId, now));
+            }
         }
         return stored;
     }

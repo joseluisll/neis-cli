@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.domain.model.Address;
 import es.jllopez.neis.domain.model.ScrapeResult;
+import es.jllopez.neis.domain.port.ContentStorePort;
 import es.jllopez.neis.domain.port.WebpageTypeCatalogPort;
 import es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeCatalog;
 import es.jllopez.neis.infrastructure.adapter.catalog.WebpageTypeProperties;
@@ -31,7 +32,7 @@ class ScrapeConnectorRouterTest {
     void staticModeServesTheFixtures() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "static");
+                cachedNever(), catalog(), "static", false);
 
         ScrapeResult result = router.scrape(SPA_ANGULAR);
 
@@ -43,7 +44,7 @@ class ScrapeConnectorRouterTest {
     void liveModeRoutesHttpTypesToTheHttpConnector() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("static-page")),
-                emptyRendered(), catalog(), "live");
+                emptyRendered(), cachedNever(), catalog(), "live", false);
 
         assertEquals("static-page", router.scrape(STATIC).html());
     }
@@ -52,7 +53,7 @@ class ScrapeConnectorRouterTest {
     void liveModeRoutesRenderedTypesToThePlaywrightConnector() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
-                singleRendered(renderedStub("rendered-page")), catalog(), "live");
+                singleRendered(renderedStub("rendered-page")), cachedNever(), catalog(), "live", false);
 
         assertEquals("rendered-page", router.scrape(SPA_ANGULAR).html());
     }
@@ -61,7 +62,7 @@ class ScrapeConnectorRouterTest {
     void liveModeFallsBackToHttpForAnUnclassifiedAddress() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
-                emptyRendered(), catalog(), "live");
+                emptyRendered(), cachedNever(), catalog(), "live", false);
 
         assertEquals("http-page", router.scrape(UNCLASSIFIED).html());
     }
@@ -70,7 +71,7 @@ class ScrapeConnectorRouterTest {
     void liveModeFailsLoudOnAnUnknownWebpageType() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "live");
+                cachedNever(), catalog(), "live", false);
 
         assertThrows(IllegalStateException.class,
                 () -> router.scrape(UNCLASSIFIED.withWebpageType("spa-svelte")));
@@ -80,7 +81,7 @@ class ScrapeConnectorRouterTest {
     void perRunOverridePinsTheStrategyRegardlessOfType() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
-                singleRendered(renderedStub("rendered-page")), catalog(), "live");
+                singleRendered(renderedStub("rendered-page")), cachedNever(), catalog(), "live", false);
 
         assertEquals("rendered-page", router.scrape(STATIC, "rendered").html(),
                 "a static-type address fetches rendered when the run pins it");
@@ -95,7 +96,7 @@ class ScrapeConnectorRouterTest {
     void unknownPerRunOverrideFailsTheRun() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "live");
+                cachedNever(), catalog(), "live", false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> router.scrape(SPA_ANGULAR, "selenium"));
@@ -110,7 +111,7 @@ class ScrapeConnectorRouterTest {
         // on the mode.
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
-                singleRendered(renderedStub("rendered-page")), catalog(), "static");
+                singleRendered(renderedStub("rendered-page")), cachedNever(), catalog(), "static", false);
 
         assertEquals("http-page", router.scrape(SPA_ANGULAR, "http").html(),
                 "static mode honors the http override — no silent fixtures");
@@ -127,7 +128,7 @@ class ScrapeConnectorRouterTest {
         // in static mode as well, never silently serve the fixtures.
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "static");
+                cachedNever(), catalog(), "static", false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> router.scrape(SPA_ANGULAR, "selenium"));
@@ -139,7 +140,7 @@ class ScrapeConnectorRouterTest {
         // touches a live connector (the providers here throw if asked).
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "static");
+                cachedNever(), catalog(), "static", false);
 
         assertEquals("text/html; charset=UTF-8",
                 router.scrape(SPA_ANGULAR, null).contentType());
@@ -157,7 +158,7 @@ class ScrapeConnectorRouterTest {
     void defaultModeIsStatic() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), null);
+                cachedNever(), catalog(), null, false);
 
         assertEquals("text/html; charset=UTF-8", router.scrape(SPA_ANGULAR).contentType());
     }
@@ -166,7 +167,7 @@ class ScrapeConnectorRouterTest {
     void unknownModeFailsTheBoot() {
         assertThrows(IllegalArgumentException.class, () -> new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "http"));
+                cachedNever(), catalog(), "http", false));
     }
 
     // ===== US-06.6 review queue: the filtered path honors the
@@ -177,7 +178,7 @@ class ScrapeConnectorRouterTest {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(),
                 singleProvider(httpUrlStub("http://fetched/with/filters")),
-                singleRendered(renderedStub("rendered-page")), catalog(), "live");
+                singleRendered(renderedStub("rendered-page")), cachedNever(), catalog(), "live", false);
 
         ScrapeResult result = router.scrapeWithFilters(SPA_ANGULAR,
                 java.util.Map.of("programme", "EU4Health"), "http");
@@ -190,7 +191,7 @@ class ScrapeConnectorRouterTest {
     void filteredPathForcesTheRenderedStrategyWhenTheRunPinsIt() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(httpStub("http-page")),
-                singleRendered(renderedFilterStub("rendered-filtered")), catalog(), "live");
+                singleRendered(renderedFilterStub("rendered-filtered")), cachedNever(), catalog(), "live", false);
 
         assertEquals("rendered-filtered", router.scrapeWithFilters(STATIC,
                         java.util.Map.of("programme", "EU4Health"), "rendered").html(),
@@ -201,7 +202,7 @@ class ScrapeConnectorRouterTest {
     void unknownOverrideOnTheFilteredPathFailsTheRun() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "live");
+                cachedNever(), catalog(), "live", false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> router.scrapeWithFilters(SPA_ANGULAR,
@@ -254,7 +255,7 @@ class ScrapeConnectorRouterTest {
                 staticFilterStub(),
                 singleProvider(httpUrlStub("http://fetched/with/filters")),
                 singleRendered(renderedFilterStub("rendered-filtered")),
-                catalog(), "static");
+                cachedNever(), catalog(), "static", false);
 
         assertEquals("http://fetched/with/filters", router.scrapeWithFilters(SPA_ANGULAR,
                         java.util.Map.of("programme", "EU4Health"), "http").html(),
@@ -268,7 +269,7 @@ class ScrapeConnectorRouterTest {
     void staticModeFilteredPathFailsLoudOnAnUnknownOverride() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
-                catalog(), "static");
+                cachedNever(), catalog(), "static", false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> router.scrapeWithFilters(SPA_ANGULAR,
@@ -278,7 +279,7 @@ class ScrapeConnectorRouterTest {
     @Test
     void staticModeFilteredPathDefaultsToTheFixtures() {
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
-                staticFilterStub(), emptyProvider(), emptyRendered(), catalog(), "static");
+                staticFilterStub(), emptyProvider(), emptyRendered(), cachedNever(), catalog(), "static", false);
 
         assertEquals("static-filtered", router.scrapeWithFilters(SPA_ANGULAR,
                         java.util.Map.of("programme", "EU4Health"), null).html(),
@@ -309,7 +310,7 @@ class ScrapeConnectorRouterTest {
         };
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(recording),
-                emptyRendered(), catalog(), "live");
+                emptyRendered(), cachedNever(), catalog(), "live", false);
         Address httpAddress = UNCLASSIFIED.withWebpageType("static")
                 .withUrl("https://x.eu/list#section");
 
@@ -339,13 +340,176 @@ class ScrapeConnectorRouterTest {
         };
         ScrapeConnectorRouter router = new ScrapeConnectorRouter(
                 new StaticScrapeConnector(), singleProvider(recording),
-                emptyRendered(), catalog(), "live");
+                emptyRendered(), cachedNever(), catalog(), "live", false);
         Address httpAddress = UNCLASSIFIED.withWebpageType("static")
                 .withUrl("https://x.eu/list?programme=EU");
 
         assertThrows(IllegalArgumentException.class,
                 () -> router.scrapeWithFilters(httpAddress,
                         java.util.Map.of("programme", "EU4Health"), null));
+    }
+
+
+    /** US-06.14: an empty-store cached connector for routing tests. */
+    private static CachedScrapeConnector cachedNever() {
+        return new CachedScrapeConnector(new ContentStorePort() {
+            @Override
+            public es.jllopez.neis.domain.model.Capture saveCapture(
+                    es.jllopez.neis.domain.model.Capture capture) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public java.util.Optional<es.jllopez.neis.domain.model.Capture> findCapture(
+                    String addressId, String captureId) {
+                return java.util.Optional.empty();
+            }
+
+            @Override
+            public es.jllopez.neis.domain.model.ContentRecord saveContent(
+                    es.jllopez.neis.domain.model.ContentRecord record) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public java.util.List<es.jllopez.neis.domain.model.ContentRecord> findAll() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public java.util.List<es.jllopez.neis.domain.model.ContentRecord> findByAddress(
+                    String addressId) {
+                return java.util.List.of();
+            }
+
+            @Override
+            public java.util.List<es.jllopez.neis.domain.model.ContentRecord> findByExecution(
+                    String executionId) {
+                return java.util.List.of();
+            }
+
+            @Override
+            public java.util.Optional<es.jllopez.neis.domain.model.ContentRecord> findById(
+                    String id) {
+                return java.util.Optional.empty();
+            }
+        }, "");
+    }
+
+
+    @Test
+    void cachedModeServesTheStoredScrapeWithProvenance() {
+        // US-06.14: mode 'cached' routes the plain scrape to the
+        // cached connector — the served result carries the provenance
+        // note the outcomes and reports render.
+        String body = "<html>stored listing</html>";
+        java.nio.file.Path file;
+        try {
+            file = java.nio.file.Files.writeString(
+                    java.nio.file.Files.createTempFile("cached", ".html"), body);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        es.jllopez.neis.domain.model.ContentRecord record =
+                new es.jllopez.neis.domain.model.ContentRecord("CONT-x",
+                        "ADDR-001", "cap-x", "WEBSCRAPE", "listing-html",
+                        file.toString(), java.time.Instant.now(), null);
+        CachedScrapeConnector cached = new CachedScrapeConnector(
+                new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                        java.util.List.of(record)), "");
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                cached, catalog(), "cached", false);
+
+        ScrapeResult result = router.scrape(STATIC);
+        assertEquals(body, result.html(), "cached mode serves the stored page");
+        assertTrue(result.sourceNote() != null
+                        && result.sourceNote().startsWith("cached"),
+                "the result carries the CACHED provenance note");
+    }
+
+    @Test
+    void cachedOverridePinsTheCachedStrategyForTheRun() {
+        // US-06.14: the per-run override vocabulary gains 'cached' —
+        // honored on the plain path in ANY mode (static here).
+        es.jllopez.neis.domain.model.ContentRecord record =
+                new es.jllopez.neis.domain.model.ContentRecord("CONT-x",
+                        "ADDR-001", "cap-x", "WEBSCRAPE", "listing-html",
+                        "/nonexistent/scrape.html", java.time.Instant.now(), null);
+        CachedScrapeConnector cached = new CachedScrapeConnector(
+                new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                        java.util.List.of(record)), "");
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                cached, catalog(), "static", false);
+
+        // the stored FILE does not exist -> the cached fetch fails loud
+        // even though static mode would happily serve the fixture
+        assertThrows(IllegalStateException.class,
+                () -> router.scrape(STATIC, "cached"));
+    }
+
+    @Test
+    void fallbackToStoredServesStoredContentWhenThePrimaryFetchFails() {
+        // US-06.14: fallback-to-stored=true — a failing primary fetch
+        // serves the stored page, provenance-marked, never silent.
+        String body = "<html>fallback listing</html>";
+        java.nio.file.Path file;
+        try {
+            file = java.nio.file.Files.writeString(
+                    java.nio.file.Files.createTempFile("fallback", ".html"), body);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        es.jllopez.neis.domain.model.ContentRecord record =
+                new es.jllopez.neis.domain.model.ContentRecord("CONT-y",
+                        "ADDR-001", "cap-y", "WEBSCRAPE", "listing-html",
+                        file.toString(), java.time.Instant.now(), null);
+        CachedScrapeConnector cached = new CachedScrapeConnector(
+                new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                        java.util.List.of(record)), "");
+        // a LIVE fetch that fails (unclassified address -> http; the
+        // provider is empty -> the primary attempt throws)
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                cached, catalog(), "live", true);
+
+        ScrapeResult result = router.scrape(UNCLASSIFIED);
+        assertEquals(body, result.html(),
+                "the failed primary fetch fell back to the stored content");
+        assertTrue(result.sourceNote() != null
+                        && result.sourceNote().contains("cached"),
+                "the fallback is provenance-marked");
+    }
+
+    @Test
+    void fallbackDisabledPropagatesThePrimaryFailure() {
+        // default (false): a failing primary fetch fails the run —
+        // the US-06.14 fallback is strictly opt-in.
+        CachedScrapeConnector cached = new CachedScrapeConnector(
+                new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                        java.util.List.of()), "");
+        ScrapeConnectorRouter router = new ScrapeConnectorRouter(
+                new StaticScrapeConnector(), emptyProvider(), emptyRendered(),
+                cached, catalog(), "live", false);
+
+        assertThrows(RuntimeException.class, () -> router.scrape(UNCLASSIFIED));
+    }
+
+    @Test
+    void unknownModeFailsTheBootNamingAllThreeModes() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new ScrapeConnectorRouter(new StaticScrapeConnector(),
+                        emptyProvider(), emptyRendered(), cachedNever(),
+                        catalog(), "offline", false));
+        try {
+            new ScrapeConnectorRouter(new StaticScrapeConnector(),
+                    emptyProvider(), emptyRendered(), cachedNever(),
+                    catalog(), "offline", false);
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("'static', 'live' or 'cached'"),
+                    e.getMessage());
+        }
     }
 
     private static WebpageTypeCatalogPort catalog() {

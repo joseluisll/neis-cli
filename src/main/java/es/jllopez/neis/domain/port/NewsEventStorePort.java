@@ -44,6 +44,18 @@ public interface NewsEventStorePort {
     int saveAll(String addressId, String kind, List<NewsEventItem> items,
                 String executionId, String contentId);
 
+    /**
+     * US-14.12 (issue #140): the CACHED-reuse variant — same upsert,
+     * but a re-run over ALREADY-PROCESSED content records NO sighting
+     * (the appearance history tracks real captures, not re-serves of
+     * the same page). The connector and every double implement the
+     * flag; false behaves exactly like the 5-arg form.
+     */
+    default int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                        String executionId, String contentId, boolean cachedReuse) {
+        return saveAll(addressId, kind, items, executionId, contentId);
+    }
+
     /** The stored items of one address, newest first. Items carry
      * their US-14.2 provenance (executionId/contentId; null on rows
      * persisted before the linking landed). */

@@ -70,5 +70,35 @@ public record PipelineResult(
         String filterRequest,
         List<NewsEventItem> filteredItems,
         String filteredScrapeArtifact,
-        String filterApplicationNote) {
+        String filterApplicationNote,
+        /** US-06.14 (issue #138): the cached-reuse provenance note of
+         * the scrape (null for every fresh fetch) — rendered by the
+         * PRINT report, never a silent stale serve. */
+        String scrapeNote) {
+
+    /** The pre-US-06.14 shape: no scrape provenance note. */
+    public PipelineResult(Address address, String scrapeArtifact,
+                          String simplifyArtifact, int scrapeSizeBytes,
+                          int simplifiedSizeBytes, PaginationInfo pagination,
+                          PageAnalysis analysis, String selectedSelector,
+                          String selectorSource, List<NewsEventItem> items,
+                          Set<AddressCapability> capabilities,
+                          String capabilityEvidence, String pageUrlPattern,
+                          int pagesScraped, String correctedAddress,
+                          String filterZoneSelector,
+                          List<FilterDefinition> filters, String filterSource,
+                          String filterNote, String appliedFilterField,
+                          String appliedFilterValue, String filterRequest,
+                          List<NewsEventItem> filteredItems,
+                          String filteredScrapeArtifact,
+                          String filterApplicationNote) {
+        this(address, scrapeArtifact, simplifyArtifact, scrapeSizeBytes,
+                simplifiedSizeBytes, pagination, analysis, selectedSelector,
+                selectorSource, items, capabilities, capabilityEvidence,
+                pageUrlPattern, pagesScraped, correctedAddress,
+                filterZoneSelector, filters, filterSource, filterNote,
+                appliedFilterField, appliedFilterValue, filterRequest,
+                filteredItems, filteredScrapeArtifact, filterApplicationNote,
+                null);
+    }
 }

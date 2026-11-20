@@ -83,6 +83,43 @@ public class InMemoryNewsEventStorePort implements NewsEventStorePort {
         return stored;
     }
 
+    /**
+     * US-14.12 (mirrors the real connector): a CACHED reuse upserts
+     * the rows but records NO sighting — the appearance history
+     * tracks real captures, never re-serves of the same page.
+     */
+    @Override
+    public int saveAll(String addressId, String kind, List<NewsEventItem> items,
+                       String executionId, String contentId, boolean cachedReuse) {
+        if (!cachedReuse) {
+            return saveAll(addressId, kind, items, executionId, contentId);
+        }
+        provenanceCalls.add(new ProvenanceCall(executionId, contentId));
+        long stamp = ++lastWrite;
+        int stored = 0;
+        for (NewsEventItem item : items) {
+            String key = key(addressId, item);
+            String url = item.url() == null || item.url().isBlank()
+                    ? null : item.url();
+            List<String> missing = item.missingMandatory();
+            NewsEventItem row = new NewsEventItem(addressId,
+                    kind == null ? item.kind() : kind,
+                    item.title() == null ? "" : item.title(),
+                    item.description(), url,
+                    item.date(), item.picture(), item.location(),
+                    executionId, contentId,
+                    !missing.isEmpty(),
+                    missing.isEmpty() ? null : String.join(", ", missing),
+                    item.computedCanonicalId());
+            store.put(key, row);
+            firstCreatedAt.putIfAbsent(key, Instant.now());
+            // NO sighting: the US-14.12 cached-reuse semantics.
+            sequence.put(key, stamp);
+            stored++;
+        }
+        return stored;
+    }
+
     @Override
     public List<NewsEventItem> byAddress(String addressId) {
         return newestFirst(store.entrySet().stream()

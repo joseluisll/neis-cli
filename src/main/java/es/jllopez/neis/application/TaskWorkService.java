@@ -429,6 +429,11 @@ public class TaskWorkService {
         var scrape = filters == null || filters.isEmpty()
                 ? pipeline.scrapePort.scrape(address, connectorOverride)
                 : pipeline.scrapePort.scrapeWithFilters(address, filters, connectorOverride);
+        // US-06.14 (issue #138): a CACHED fetch carries its provenance
+        // on the result — the outcome line names the reuse and the
+        // original scrape, never a silent stale serve.
+        String cachedNote = scrape.sourceNote() == null ? ""
+                : "; CACHED reuse — " + scrape.sourceNote();
         // Obstruction clearing (US-06.7, issue #75): popups, banners,
         // ads and the configured selectors are removed BEFORE the
         // artifact is written or extraction runs; the removal record
@@ -469,7 +474,7 @@ public class TaskWorkService {
                 : "";
         if (selector.isEmpty()) {
             return "WEBSCRAPE: " + cleared.sizeBytes() + " bytes -> " + artifact
-                    + filtersNote + clearNote + selectorEmptyNote
+                    + filtersNote + clearNote + selectorEmptyNote + cachedNote
                     + "; paginated: "
                     + pagination.paginated() + " (" + pagination.evidence() + ")";
         }
@@ -595,7 +600,8 @@ public class TaskWorkService {
         // scrape.html content it came from.
         newsEventStore.saveAll(address.id(), address.itemKind(), items,
                 executionId,
-                pipeline.contentRecordId(address, "WEBSCRAPE", "scrape.html"));
+                pipeline.contentRecordId(address, "WEBSCRAPE", "scrape.html"),
+                scrape.sourceNote() != null);
         // 'cap M' states that extraction stopped at the cap — the count
         // is the recorded truth; whether MORE elements existed beyond the
         // cap is not observable through the extraction contract (review
@@ -605,7 +611,7 @@ public class TaskWorkService {
                 : "cap " + maxItems;
         String iterationNote = notes.isEmpty() ? "" : "; " + String.join("; ", notes);
         return "WEBSCRAPE: " + cleared.sizeBytes() + " bytes -> " + artifact
-                + filtersNote + clearNote
+                + filtersNote + clearNote + cachedNote
                 + "; items extracted: " + items.size() + " (" + capNote
                 + "; selector '" + selector.get() + "') -> " + itemsArtifact
                 + "; pages: " + pages + "; paginated: " + pagination.paginated()
