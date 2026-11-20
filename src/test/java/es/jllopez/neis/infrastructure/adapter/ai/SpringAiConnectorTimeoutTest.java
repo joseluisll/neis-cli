@@ -10,7 +10,6 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.time.Duration;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,14 +52,22 @@ class SpringAiConnectorTimeoutTest {
         };
     }
 
+    /** Flat-field construction helper: default + named overrides. */
+    private static AiTimeoutProperties properties(Duration dflt,
+            Duration classification, Duration selectorNews) {
+        return new AiTimeoutProperties(dflt, null, classification,
+                selectorNews, null, null, null, null, null, null, null,
+                null);
+    }
+
     private SpringAiConnector connector(AiTimeoutProperties properties) {
         return new SpringAiConnector(slowModel(), "test-model", properties);
     }
 
     @Test
     void slowOperationTimesOutWithItsConfiguredBound() {
-        SpringAiConnector connector = connector(new AiTimeoutProperties(
-                Map.of("classification", Duration.ofMillis(80))));
+        SpringAiConnector connector = connector(properties(
+                null, Duration.ofMillis(80), null));
 
         long start = System.nanoTime();
         AiCallTimedOutException e = assertThrows(AiCallTimedOutException.class,
@@ -77,9 +84,8 @@ class SpringAiConnectorTimeoutTest {
 
     @Test
     void operationWithMoreHeadroomCompletes() {
-        SpringAiConnector connector = connector(new AiTimeoutProperties(
-                Map.of("classification", Duration.ofMillis(80),
-                        "selector-news", Duration.ofSeconds(10))));
+        SpringAiConnector connector = connector(properties(
+                null, Duration.ofMillis(80), Duration.ofSeconds(10)));
 
         assertEquals("answer",
                 connector.complete(AiOperation.SELECTOR_NEWS, "prompt"));
@@ -87,8 +93,8 @@ class SpringAiConnectorTimeoutTest {
 
     @Test
     void genericCallsRunUnderTheDefaultTimeout() {
-        SpringAiConnector connector = connector(new AiTimeoutProperties(
-                Map.of("default", Duration.ofMillis(80))));
+        SpringAiConnector connector = connector(properties(
+                Duration.ofMillis(80), null, null));
 
         AiCallTimedOutException e = assertThrows(AiCallTimedOutException.class,
                 () -> connector.complete("prompt"));
@@ -99,7 +105,7 @@ class SpringAiConnectorTimeoutTest {
     void fastModelAnswersUnderAnyTimeout() {
         SpringAiConnector connector = new SpringAiConnector(
                 fastModel(), "test-model",
-                new AiTimeoutProperties(Map.of("default", Duration.ofSeconds(30))));
+                properties(Duration.ofSeconds(30), null, null));
 
         assertEquals("quick", connector.complete("prompt"));
         assertEquals("quick", connector.complete(

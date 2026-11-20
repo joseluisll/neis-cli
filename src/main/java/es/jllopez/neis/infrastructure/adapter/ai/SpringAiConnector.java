@@ -51,6 +51,10 @@ public class SpringAiConnector implements AiAssistantPort,
     private final es.jllopez.neis.application.AiTimeoutProperties aiTimeouts;
     private final java.util.concurrent.ExecutorService aiCallExecutor;
 
+    // @Autowired: two constructors exist (the test-visible model
+    // injection is package-private), so the autowire candidate must be
+    // explicit
+    @org.springframework.beans.factory.annotation.Autowired
     public SpringAiConnector(
             @Value("${neis.ai.provider:melious}") String provider,
             @Value("${neis.ai.base-url}") String baseUrl,
