@@ -269,37 +269,11 @@ public class NeisMcpTools {
      * address — its content id, original scrape timestamp and computed
      * age. Empty (neverScraped) for a never-scraped address.
      */
-    @McpTool(name = "neis_cache_status",
-            description = "Cache metadata of one address (US-06.14 family): "
-                    + "whether a cached fetch can serve it, the content id "
-                    + "and timestamp of the latest stored scrape, and the "
-                    + "content's age.",
-            annotations = @McpTool.McpAnnotations(
-                    readOnlyHint = true, destructiveHint = false,
-                    idempotentHint = true))
-    public CacheStatus cacheStatus(
-            @McpToolParam(description = "one address id (ADDR-...)") String addressId) {
-        Address address = catalog.byId(addressId); // unknown ids refuse here
-        return content.latestWebpageScrape(address)
-                .<CacheStatus>map(record -> new CacheStatus(address.id(),
-                        true, record.id(), record.createdAt(),
-                        record.createdAt() == null ? null
-                                : java.time.Duration.between(record.createdAt(),
-                                java.time.Instant.now()).toString(),
-                        null))
-                .orElseGet(() -> new CacheStatus(address.id(),
-                        false, null, null, null,
-                        "no stored content — fetch live once and the "
-                                + "cached mode serves it (US-06.14)"));
-    }
-
-    /** US-18.11: the per-address cache metadata payload. */
-    public record CacheStatus(String addressId, boolean cacheable,
-                              String contentId, java.time.Instant scrapedAt,
-                              String age, String note) {
-    }
-
     // ---- tool 7: job polling -------------------------------------------
+    // Note (US-18.4, issue #119): the catalog is EXACTLY the 10 owner-
+    // decided tools — the per-address cache metadata (US-18.11, #139)
+    // stays queryable over its REST surface
+    // (GET /api/addresses/{id}/cache), NOT as an MCP tool.
 
     /**
      * Tool 7/10. REST counterpart: {@code GET /api/jobs/{id}}.
