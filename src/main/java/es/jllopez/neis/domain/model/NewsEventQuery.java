@@ -147,24 +147,28 @@ public record NewsEventQuery(
      * (month 13, day 32, ...); part of the ONE domain date toolkit,
      * so the connector and the test double cannot drift. Only a full
      * 14-digit run counts — a shorter digit run (an 8-digit article
-     * id, say) is not a timestamp.
+     * id, say) is not a timestamp. The year window 1900-2199 keeps a
+     * coincidentally-valid 14-digit NON-timestamp id (an order or
+     * tracking number) from normalizing into a wrong date in the far
+     * past or future — a 1999-2199-ish run is what publication
+     * timestamps look like (review note, 2026-11-20).
      */
     public static String dateFromUrl(String url) {
         if (url == null || url.isBlank()) {
             return null;
         }
-        java.time.format.DateTimeFormatter strict =
-                java.time.format.DateTimeFormatter
-                        // 'uuuu' (proleptic year): STRICT resolution
-                        // rejects year-of-era without an era context.
-                        .ofPattern("uuuuMMddHHmmss")
-                        .withResolverStyle(
-                                java.time.format.ResolverStyle.STRICT);
         java.util.regex.Matcher m = URL_TIMESTAMP.matcher(url);
         while (m.find()) {
+            String run = m.group();
+            // The year window check runs BEFORE the parse: a run whose
+            // year cannot be a publication date is skipped entirely.
+            int year = Integer.parseInt(run.substring(0, 4));
+            if (year < 1900 || year > 2199) {
+                continue;
+            }
             try {
                 return java.time.LocalDateTime
-                        .parse(m.group(), strict)
+                        .parse(run, URL_TIMESTAMP_FORMAT)
                         .toLocalDate().toString();
             } catch (RuntimeException ignored) {
                 // a 14-digit run that is not a plausible date-time:
@@ -177,6 +181,16 @@ public record NewsEventQuery(
     /** Exactly 14 digits — the ABC-style URL-embedded timestamp shape. */
     private static final java.util.regex.Pattern URL_TIMESTAMP =
             java.util.regex.Pattern.compile("\\d{14}");
+
+    /** STRICT timestamp parse ('uuuu': proleptic year, the STRICT
+     * resolver rejects year-of-era without an era context) — immutable,
+     * created once. */
+    private static final java.time.format.DateTimeFormatter
+            URL_TIMESTAMP_FORMAT =
+            java.time.format.DateTimeFormatter
+                    .ofPattern("uuuuMMddHHmmss")
+                    .withResolverStyle(
+                            java.time.format.ResolverStyle.STRICT);
 
     private static LocalDate parse(String value) {
         if (value == null || value.isBlank()) {

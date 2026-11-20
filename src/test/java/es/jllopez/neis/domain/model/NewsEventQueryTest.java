@@ -72,6 +72,14 @@ class NewsEventQueryTest {
                 "implausible run skipped, the plausible one found");
         assertNull(NewsEventQuery.dateFromUrl(
                 "https://example.eu/article/123456789012345678"));
+        // The 1900-2199 year window: a coincidentally-valid 14-digit
+        // id outside publication-date years is not a date (review note).
+        assertNull(NewsEventQuery.dateFromUrl(
+                "https://example.eu/id/09991231235959"),
+                "year 0999 is outside the publication window");
+        assertNull(NewsEventQuery.dateFromUrl(
+                "https://example.eu/id/99991231235959"),
+                "year 9999 is outside the publication window");
         assertNull(NewsEventQuery.dateFromUrl("https://example.eu/no-digits"));
         assertNull(NewsEventQuery.dateFromUrl(null));
         assertNull(NewsEventQuery.dateFromUrl(""));
