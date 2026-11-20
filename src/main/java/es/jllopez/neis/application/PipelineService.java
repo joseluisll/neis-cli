@@ -557,6 +557,19 @@ public class PipelineService {
      * select/option parsing is the fallback when no AI is configured.
      * Called only on FILTERING-flagged addresses.
      */
+    /**
+     * The STORED working selector of the address (US-06.4 bootstrap,
+     * US-18.9 review finding 2): what the ANALYZE step discovered and
+     * persisted on a previous fetch — the standalone WEBSCRAPE step
+     * uses it when no preconfigured selector is configured, so a
+     * first fetch's discovery is reused instead of being dead state.
+     */
+    public java.util.Optional<String> storedSelector(String addressId) {
+        return selectorStore.load(addressId)
+                .map(es.jllopez.neis.domain.model.StoredSelectors::selector)
+                .filter(selector -> selector != null && !selector.isBlank());
+    }
+
     FilterOutcome extractFilters(Address address, String simplifiedHtml) {
         String zoneSelector = null;
         String zoneSource = null;

@@ -94,12 +94,27 @@ class TaskWorkServiceWebScrapeTest {
 
     private TaskWorkService service(PreconfiguredSelectors preconfigured,
                                     String configuredMaxItems) {
+        return service(preconfigured, configuredMaxItems, Optional.empty());
+    }
+
+    /** US-18.9 review finding 2: the STORED-selector variant — what a
+     * previous fetch's ANALYZE discovered. */
+    private TaskWorkService serviceWithStoredSelector(
+            PreconfiguredSelectors preconfigured, String storedSelector) {
+        return service(preconfigured, null, Optional.of(storedSelector));
+    }
+
+    private TaskWorkService service(PreconfiguredSelectors preconfigured,
+                                    String configuredMaxItems,
+                                    Optional<String> storedSelector) {
         PipelineService pipeline = new PipelineService(new StaticScrapeConnector(),
                 new JsoupSimplifyConnector(), new JsoupSelectorConnector(),
                 new SelectorStorePort() {
                     @Override
                     public Optional<StoredSelectors> load(String addressId) {
-                        return Optional.empty();
+                        return storedSelector.map(sel -> new StoredSelectors(
+                                addressId, "news", sel, null, java.util.List.of(),
+                                "test", "2026-11-20", "US-18.9 test"));
                     }
 
                     @Override
@@ -272,9 +287,28 @@ workDir.toString());
         String outcome = service(catalog(List.of())).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
 
-        assertTrue(outcome.contains("no preconfigured selector"), outcome);
+
+        assertTrue(outcome.contains("no preconfigured or stored selector"), outcome);
         assertFalse(Files.exists(firstFileMatching("items.json")),
                 "no items.json without a selector");
+    }
+
+    @Test
+    void storedSelectorAppliesWhenNoPreconfiguredSelectorExists() {
+        // US-18.9 review finding 2 (issue #128): the standalone
+        // WEBSCRAPE step consults the STORED working selector (what a
+        // previous fetch's ANALYZE discovered) when no preconfigured
+        // selector is configured — a first fetch's discovery is
+        // reused, never dead state.
+        String outcome = serviceWithStoredSelector(catalog(List.of()),
+                "ul.news-list li").execute("WEBSCRAPE",
+                catalog.byId("ADDR-001"));
+
+        assertTrue(outcome.contains("WEBSCRAPE:"), outcome);
+        assertFalse(outcome.contains("no preconfigured or stored selector"),
+                "the stored selector applies: " + outcome);
+        assertTrue(Files.exists(firstFileMatching("items.json")),
+                "the items are extracted with the stored selector");
     }
 
     @Test
@@ -863,7 +897,7 @@ workDir.toString());
         String outcome = service(catalog(List.of())).execute("WEBSCRAPE",
                 catalog.byId("ADDR-001"));
 
-        assertTrue(outcome.contains("no preconfigured selector"), outcome);
+        assertTrue(outcome.contains("no preconfigured or stored selector"), outcome);
         assertFalse(Files.exists(firstFileMatching("feed.xml")),
                 "no feed path for an unclassified address");
     }

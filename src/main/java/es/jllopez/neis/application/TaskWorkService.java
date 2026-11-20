@@ -472,12 +472,23 @@ public class TaskWorkService {
         Optional<String> selector = selectorOverrideTrimmed != null
                 ? Optional.of(selectorOverrideTrimmed)
                 : pipeline.preconfiguredSelectors.find(address.id(), address.itemKind());
+        // US-18.9 review finding 2 (issue #128): with no preconfigured
+        // selector, the STORED working selector (what a previous
+        // fetch's ANALYZE discovered and persisted) applies — a first
+        // fetch's discovery is reused, never dead state. The selector
+        // was validated when it was stored; the extraction-count
+        // checks below still guard the run.
+        if (selector.isEmpty() && selectorOverrideTrimmed == null) {
+            selector = pipeline.storedSelector(address.id());
+        }
         String selectorEmptyNote = selector.isEmpty()
-                ? "; no preconfigured selector for " + address.id()
+                ? "; no preconfigured or stored selector for " + address.id()
                         + " — extraction SKIPPED IN THIS RUN (US-06.4); "
-                        + "the ANALYZE step of this fetch discovers and "
-                        + "stores the selector, so the NEXT fetch extracts "
-                        + "the items with it (first-fetch bootstrap)" : "";
+                        + "in the fetch chain the PRINT step extracts with "
+                        + "the selector ANALYZE discovers and stores, so "
+                        + "the next fetch extracts with it; for a "
+                        + "standalone run, use ANALYZE first or configure "
+                        + "a preconfigured selector" : "";
         String clearNote = cleared.removedCount() > 0
                 ? "; cleared " + cleared.removedCount() + " obstructing element(s)"
                 : "";
