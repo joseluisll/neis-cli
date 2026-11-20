@@ -58,9 +58,16 @@ public class GlobalApiExceptionHandler {
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> unreadableBody(
             org.springframework.http.converter.HttpMessageNotReadableException e) {
+        // US-18.1 review finding 3: the raw Jackson cause carries
+        // internal type names — the 400 states the problem generically
+        // (the advice's own no-internals contract); the detail lives
+        // in the server log.
+        log.warn("Malformed request body rejected: {}",
+                e.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiError.of(HttpStatus.BAD_REQUEST,
-                        "Malformed request body: " + e.getMostSpecificCause().getMessage()));
+                        "Malformed request body — check the JSON syntax "
+                                + "and the documented field types"));
     }
 
     // ResponseStatusException (e.g. the AI endpoint's 503 refusal) is
