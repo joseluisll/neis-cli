@@ -59,6 +59,47 @@ class RemoteExportServiceTest {
     }
 
     @Test
+    void largeTreeStaysValidJsonUnderTheJobStoreBudget() throws Exception {
+        // US-18.8 review blocking finding: the remote-jobs result
+        // column is 4096 chars and the job model truncates beyond it —
+        // a blind cut would leave INVALID JSON. The builder enforces
+        // its own budget: a many-file export keeps the document
+        // parseable, marks the shortfall explicitly, and the download
+        // URL is always intact.
+        ContentStoreService store = new ContentStoreService(
+                new InMemoryContentStorePort(java.util.List.of()),
+                tmp.resolve("content-root-big").toString());
+        for (int i = 0; i < 120; i++) {
+            store.writeTaskOutput(ADDR, ADDR.url(), "WEBSCRAPE",
+                    "artifact", "artifact-" + i + ".txt",
+                    "content " + i, "EXEC-big");
+        }
+        RemoteExportService service = new RemoteExportService(
+                new ContentExportService(store), store, "");
+        String json = service.runExport("ADDR-030", null);
+        assertTrue(json.length() <= 4000,
+                "the result fits the job store's result column ("
+                        + json.length() + ")");
+        var parsed = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(json);
+        assertTrue(parsed.has("filesTruncated")
+                        && parsed.get("filesTruncated").asBoolean(),
+                "the shortfall is explicit");
+        assertTrue(parsed.get("filesOmitted").asInt() > 0);
+        assertEquals("/api/exports/" + parsed.get("token").asText(),
+                parsed.get("downloadUrl").asText(),
+                "the download URL is intact");
+        assertEquals(121, parsed.get("entries").asInt(),
+                "the entries count stays the true total (120 + fetch "
+                        + "record)");
+        assertFalse(json.contains("/content-root"),
+                "the server-local path is never exposed (file name only)");
+        // Cleanup: keep the shared tmpdir tidy.
+        var archive = service.archive(parsed.get("token").asText());
+        archive.ifPresent(p -> p.toFile().delete());
+    }
+
+    @Test
     void selectorRulesMatchTheRestContract() {
         ContentStoreService store = storeWithContent();
         RemoteExportService service = new RemoteExportService(

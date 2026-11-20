@@ -104,14 +104,26 @@ public class RemoteExportService {
             throw new IllegalStateException("Cannot create the export "
                     + "folder " + folder + " (US-18.8)", e);
         }
-        ContentExportService.ExportResult result = hasAddress
-                ? exports.exportAddress(addressId.trim(), folder)
-                : exports.exportExecution(executionId.trim(), folder);
-        String json = metadataJson(token, result);
-        log.info("[Export] {} ready: {} ({} entries, download "
-                + "/api/exports/{}, retention {}; US-18.8)", token,
-                result.archive(), result.entries(), token, retention);
-        return json;
+        try {
+            ContentExportService.ExportResult result = hasAddress
+                    ? exports.exportAddress(addressId.trim(), folder)
+                    : exports.exportExecution(executionId.trim(), folder);
+            String json = metadataJson(token, result);
+            log.info("[Export] {} ready: {} ({} entries, download "
+                            + "/api/exports/{}, retention {}; US-18.8)", token,
+                    result.archive(), result.entries(), token, retention);
+            return json;
+        } catch (RuntimeException failed) {
+            // A failed export must not leave the empty token folder
+            // behind until retention cleanup (review note).
+            try {
+                Files.deleteIfExists(folder);
+            } catch (IOException cleanup) {
+                log.warn("[Export] could not remove the failed export "
+                        + "folder {} (US-18.8)", folder, cleanup);
+            }
+            throw failed;
+        }
     }
 
     /**
@@ -203,6 +215,16 @@ public class RemoteExportService {
      * The job-result JSON: metadata + the documented download path
      * (relative to the server base — the same shape every caller
      * already knows from the REST surface).
+     *
+     * <p>Bounded by design (review blocking finding, issue #126): the
+     * remote-jobs result column is 4096 chars and the job model
+     * truncates beyond that — a blind cut would leave INVALID JSON.
+     * So the builder enforces its own budget: the file list is
+     * appended only while the projected document stays under it, and
+     * a {@code filesTruncated} marker (with the omitted count) makes
+     * any shortfall explicit. The critical fields (token,
+     * downloadUrl, counts) come FIRST and are always complete, and
+     * the server-local path is never exposed (file name only).</p>
      */
     private static String metadataJson(String token,
                                        ContentExportService.ExportResult result) {
@@ -215,19 +237,37 @@ public class RemoteExportService {
         }
         StringBuilder json = new StringBuilder("{\"token\":\"").append(token)
                 .append("\",\"downloadUrl\":\"/api/exports/").append(token)
-                .append("\",\"archive\":\"")
-                .append(escape(result.archive().toString()))
+                .append("\",\"archiveFile\":\"")
+                .append(escape(result.archive().getFileName().toString()))
                 .append("\",\"entries\":").append(result.entries())
                 .append(",\"contentBytes\":").append(result.contentBytes())
                 .append(",\"archiveBytes\":").append(result.archiveBytes())
                 .append(",\"files\":[");
+        // The budget leaves ample room under the job store's 4096-char
+        // result column: fields before 'files' are ~200 chars, each
+        // appended entry reserves its own length plus the closing
+        // marker's length.
+        int budget = 3200;
+        int omitted = 0;
+        boolean first = true;
         for (int i = 0; i < files.size(); i++) {
-            if (i > 0) {
+            String escaped = escape(files.get(i));
+            if (json.length() + escaped.length() + 60 > budget) {
+                omitted = files.size() - i;
+                break;
+            }
+            if (!first) {
                 json.append(',');
             }
-            json.append('"').append(escape(files.get(i))).append('"');
+            first = false;
+            json.append('"').append(escaped).append('"');
         }
-        return json.append("]}").toString();
+        json.append(']');
+        if (omitted > 0) {
+            json.append(",\"filesTruncated\":true,\"filesOmitted\":")
+                    .append(omitted);
+        }
+        return json.append("}").toString();
     }
 
     /** Minimal JSON string escaping (the store emitter rule). */
