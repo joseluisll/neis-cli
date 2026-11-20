@@ -72,7 +72,12 @@ public class ExecutionRestController {
     public List<TaskExecution> list(
             @RequestParam(name = "limit", defaultValue = "20") int limit) {
         List<TaskExecution> all = executions.list();
-        return all.subList(0, Math.min(Math.max(limit, 0), all.size()));
+        // US-18.1 review finding 1: the client cap is bounded by a
+        // server cap — an unbounded table view is never serializable
+        // by one request.
+        int capped = Math.min(Math.max(limit, 0),
+                Math.min(RestCaps.TABLE_CAP, all.size()));
+        return all.subList(0, capped);
     }
 
     @GetMapping("/{id}")

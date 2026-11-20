@@ -32,9 +32,16 @@ public class JobRestController {
     @GetMapping
     public List<RemoteJob> list(
             @RequestParam(name = "status", required = false) String status) {
-        if (status == null || status.isBlank()) {
-            return jobs.jobs(null);
-        }
+        List<RemoteJob> records =
+                status == null || status.isBlank()
+                        ? jobs.jobs(null)
+                        : safeJobs(status);
+        // US-18.1 review finding 1: the whole-table view is
+        // server-capped.
+        return records.subList(0, Math.min(RestCaps.TABLE_CAP, records.size()));
+    }
+
+    private List<RemoteJob> safeJobs(String status) {
         try {
             return jobs.jobs(JobStatus.valueOf(status.trim().toUpperCase()));
         } catch (IllegalArgumentException unknown) {

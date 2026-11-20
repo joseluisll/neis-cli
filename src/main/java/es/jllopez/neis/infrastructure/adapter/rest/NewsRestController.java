@@ -9,6 +9,8 @@ import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -43,8 +45,10 @@ public class NewsRestController {
             @RequestParam(name = "dateFrom", required = false) String dateFrom,
             @RequestParam(name = "dateTo", required = false) String dateTo,
             @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        // US-18.1 review finding 1: the client cap is bounded by a
+        // server cap.
         NewsEventQuery query = new NewsEventQuery(addressId, kind,
-                dateFrom, dateTo, limit);
+                dateFrom, dateTo, Math.min(Math.max(limit, 0), RestCaps.TABLE_CAP));
         if (text != null && !text.isBlank()) {
             return news.search(text.trim(), query);
         }

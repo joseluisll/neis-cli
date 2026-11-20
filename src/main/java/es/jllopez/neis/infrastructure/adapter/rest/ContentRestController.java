@@ -38,8 +38,11 @@ public class ContentRestController {
     @GetMapping
     public List<ContentRecord> list(
             @RequestParam(name = "addressId", required = false) String addressId) {
-        return addressId == null || addressId.isBlank()
-                ? content.listAll() : content.listByAddress(addressId.trim());
+        List<ContentRecord> records =
+                addressId == null || addressId.isBlank()
+                        ? content.listAll()
+                        : content.listByAddress(addressId.trim());
+        return records.subList(0, Math.min(RestCaps.TABLE_CAP, records.size()));
     }
 
     @GetMapping("/{id}")
@@ -49,11 +52,14 @@ public class ContentRestController {
     }
 
     /** The content root and the records grouped per address — the
-     * storage tree (US-11.4) in one payload. */
+     * storage tree (US-11.4) in one payload (server-capped, US-18.1
+     * review finding 1). */
     @GetMapping("/tree")
     public TreeView tree() {
         List<ContentRecord> records = content.listAll();
-        return new TreeView(content.root(), records);
+        List<ContentRecord> capped = records.subList(0,
+                Math.min(RestCaps.TABLE_CAP, records.size()));
+        return new TreeView(content.root(), capped);
     }
 
     public record TreeView(String root, List<ContentRecord> records) {
