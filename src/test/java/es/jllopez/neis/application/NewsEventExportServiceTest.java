@@ -56,6 +56,10 @@ class NewsEventExportServiceTest {
         assertTrue(json.contains("\"execution_id\" : \"exec-1\""));
         assertTrue(json.contains("\"content_id\" : \"CONT-2\""));
         assertTrue(json.contains("\"canonical_id\""));
+        // US-14.9: the export carries the normalized ISO date next to
+        // the raw one (the double computes it on save).
+        assertTrue(json.contains("\"date_normalized\""),
+                "the export exposes the machine-comparable date");
     }
 
     @Test
@@ -70,7 +74,8 @@ class NewsEventExportServiceTest {
 
         String csv = Files.readString(out, StandardCharsets.UTF_8);
         String[] lines = csv.split("\n", -1);
-        assertEquals("address_id,kind,title,description,date,url,picture,"
+        assertEquals("address_id,kind,title,description,date,date_normalized,"
+                        + "url,picture,"
                         + "location,incomplete,missing_fields,canonical_id,"
                         + "execution_id,content_id",
                 lines[0], "the fixed header row");

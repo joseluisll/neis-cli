@@ -50,9 +50,11 @@ public class NewsEventExportService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** CSV header — the fixed column order of every CSV export. */
+    /** CSV header — the fixed column order of every CSV export.
+     * date_normalized is the machine-comparable ISO date (US-14.9). */
     private static final String[] CSV_COLUMNS = {
-            "address_id", "kind", "title", "description", "date", "url",
+            "address_id", "kind", "title", "description", "date",
+            "date_normalized", "url",
             "picture", "location", "incomplete", "missing_fields",
             "canonical_id", "execution_id", "content_id"};
 
@@ -116,6 +118,9 @@ public class NewsEventExportService {
             record.put("title", item.title());
             record.put("description", item.description());
             record.put("date", item.date());
+            // US-14.9: the normalized ISO date travels with the export —
+            // the machine-comparable value, next to the audited raw text.
+            record.put("date_normalized", item.dateNormalized());
             record.put("url", item.url());
             record.put("picture", item.picture());
             record.put("location", item.location());
@@ -138,7 +143,8 @@ public class NewsEventExportService {
         for (NewsEventItem item : items) {
             String[] values = {
                     item.addressId(), item.kind(), item.title(),
-                    item.description(), item.date(), item.url(),
+                    item.description(), item.date(), item.dateNormalized(),
+                    item.url(),
                     item.picture(), item.location(),
                     String.valueOf(item.incomplete()), item.missingFields(),
                     item.canonicalId(), item.executionId(), item.contentId()};
