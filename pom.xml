@@ -51,8 +51,17 @@
              and EXIT exactly as before. server.sh flips the type to
              servlet together with neis.server.enabled=true. -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+        	<groupId>org.springframework.boot</groupId>
+        	<artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- US-18.5 (issue #120): the OpenAPI spec + Swagger UI for the
+             REST surface. Version 3.2.x is the Boot 4.1 release train
+             (maven-metadata: its parent is spring-boot-starter-parent
+             4.1.2). -->
+        <dependency>
+        	<groupId>org.springdoc</groupId>
+        	<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        	<version>3.2.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.shell</groupId>
