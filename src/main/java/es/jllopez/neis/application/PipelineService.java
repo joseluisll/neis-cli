@@ -1493,7 +1493,11 @@ public class PipelineService {
         // US-06.13 (issue #137): the classified dialog encounters and
         // the recorded consent policy ride on the clearing record —
         // the capture provenance states what kind of overlays were
-        // dismissed and under which declared data-use stance.
+        // dismissed and under which declared data-use stance. Shape:
+        // {"removed":N,"rules":[...],"dialogs":[{"type":T,"count":C,
+        // "action":A},...]} — the dialogs key is absent when the page
+        // carried no classified overlays (the pre-US-06.13 shape is
+        // byte-identical).
         if (!cleared.dialogs().isEmpty()) {
             json.append(",\"dialogs\":[");
             boolean firstDialog = true;

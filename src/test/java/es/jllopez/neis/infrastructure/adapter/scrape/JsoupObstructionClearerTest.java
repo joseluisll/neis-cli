@@ -20,6 +20,32 @@ class JsoupObstructionClearerTest {
     private final JsoupObstructionClearer clearer = new JsoupObstructionClearer();
 
     @Test
+    void nestedOverlaysCountAsLogicalRemovalsNotSelectHits() {
+        // US-06.13 review finding (instrumented probe): a nested
+        // overlay whose ancestor an earlier iteration removed is a
+        // silent no-op to remove() — the removal record must state
+        // LOGICAL removals (the removeMatches rule), never select()
+        // hits. Two nested pairs + one solo overlay: 3 logical
+        // removals, not 5.
+        String html = "<html><body><main><ul class='news-list'>"
+                + "<li>Item</li></ul></main>"
+                + "<div role='dialog' id='outer1'><div role='alertdialog' "
+                + "id='inner1'>inner</div></div>"
+                + "<dialog open id='outer2'><div role='dialog' "
+                + "id='inner2'>inner</div></dialog>"
+                + "<div role='dialog' id='solo'>solo</div></body></html>";
+
+        ClearedContent cleared = clearer.clear(html, List.of());
+
+        assertEquals(3, cleared.removedCount(),
+                "nested descendants are no-ops — logical removals only");
+        int classified = cleared.dialogs().stream()
+                .mapToInt(ClearedContent.DialogEncounter::count).sum();
+        assertEquals(3, classified,
+                "the dialog counts state logical removals too");
+    }
+
+    @Test
     void removesADeclaredModalDialog() {
         String html = "<html><body><main><ul class='news-list'><li>Item</li></ul></main>"
                 + "<div role='dialog' id='signup'><p>Subscribe!</p></div></body></html>";

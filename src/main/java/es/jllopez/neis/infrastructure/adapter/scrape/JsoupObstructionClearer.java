@@ -154,12 +154,17 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
         // 1. Declared overlays (dialog/roles), guarded. Each removed
         //    overlay is CLASSIFIED: a consent marker on the element
         //    (cookie/consent/gdpr) makes it a CONSENT dialog, otherwise
-        //    it is another dismissible modal.
-        var declared = doc.select(DECLARED_OVERLAYS).stream()
-                .filter(el -> el.ownerDocument() != null)
-                .filter(el -> !carriesMainContent(el))
-                .toList();
-        for (Element el : declared) {
+        //    it is another dismissible modal. The detached check runs
+        //    at REMOVAL time inside the loop (exactly the old
+        //    removeGuarded semantics, review round-2 finding): a
+        //    nested overlay whose ancestor an earlier iteration
+        //    removed is a silent no-op to remove() and must not be
+        //    counted — the removal record states LOGICAL removals,
+        //    not jsoup select() hits.
+        for (Element el : doc.select(DECLARED_OVERLAYS)) {
+            if (el.ownerDocument() == null || carriesMainContent(el)) {
+                continue;
+            }
             el.remove();
             removed++;
             if (isConsentOverlay(el)) {
@@ -168,7 +173,7 @@ public class JsoupObstructionClearer implements ObstructionClearingPort {
                 modalCount++;
             }
         }
-        if (!declared.isEmpty()) {
+        if (consentCount + modalCount > 0) {
             rulesApplied.add("declared-overlays");
         }
 
