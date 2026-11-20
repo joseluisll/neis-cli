@@ -108,6 +108,38 @@ class NewsEventItemTest {
     }
 
     @Test
+    void trackingParameterVariantsDoNotSplitTheRecord() {
+        // Issue #145 (owner decision 2026-11-21): the FIXED tracking
+        // set (utm_* + fbclid/gclid) is folded out of the canonical
+        // KEY — two promo slots of one article with different
+        // utm_campaign values hash to ONE canonical id. The fold is
+        // key-only: the stored url is never rewritten. Pagination and
+        // non-tracking params are DATA and still split the record.
+        var plain = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story", "2026-11-14");
+        var utm = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story?utm_campaign=portada&utm_source=web",
+                "2026-11-14");
+        var mixedCase = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story?UTM_CONTENT=x&fbclid=abc", "2026-11-14");
+        assertEquals(plain.computedCanonicalId(), utm.computedCanonicalId(),
+                "utm variants fold into one record");
+        assertEquals(plain.computedCanonicalId(), mixedCase.computedCanonicalId(),
+                "the fold matches names case-insensitively; fbclid folds too");
+        assertEquals("https://example.eu/story?utm_campaign=portada&utm_source=web",
+                utm.url(), "the STORED url is untouched");
+
+        var paged = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story?page=2", "2026-11-14");
+        assertTrue(!plain.computedCanonicalId().equals(paged.computedCanonicalId()),
+                "non-tracking params (page=) are data and split the record");
+        var pagePlusUtm = new NewsEventItem("ADDR-1", "news", "T", "d",
+                "https://example.eu/story?page=2&utm_term=x", "2026-11-14");
+        assertEquals(paged.computedCanonicalId(), pagePlusUtm.computedCanonicalId(),
+                "the fold strips utm beside data params without touching them");
+    }
+
+    @Test
     void canonicalIdIsStableAcrossRecomputation() {
         var item = new NewsEventItem("ADDR-1", "news", "Story", "d",
                 "https://example.eu/s", "2026-11-14");

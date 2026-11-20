@@ -173,17 +173,53 @@ public record NewsEventItem(
     }
 
     /** URL normalization for identity: trimmed, fragment stripped, a
-     * trailing slash dropped (the same story under /x and /x/). */
+     * trailing slash dropped (the same story under /x and /x/), and —
+     * owner decision on #145 (2026-11-21) — the FIXED tracking-param
+     * set (utm_* + fbclid/gclid) folded out: two promo slots of the
+     * same article carrying different utm_campaign values are ONE
+     * logical record, not two. The fold touches the KEY ONLY — the
+     * stored url field is never rewritten. Pagination and every other
+     * query parameter are DATA (US-17) and survive the fold. */
     private static String canonicalUrl(String url) {
         String trimmed = url.trim();
         int fragment = trimmed.indexOf('#');
         if (fragment >= 0) {
             trimmed = trimmed.substring(0, fragment);
         }
+        trimmed = stripTrackingParams(trimmed);
         while (trimmed.endsWith("/") && trimmed.length() > 1) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    /** The #145 fold: rebuilds the query string without the fixed
+     * tracking parameters (names matched case-insensitively); a URL
+     * whose query was ALL tracking returns just the path. */
+    private static String stripTrackingParams(String url) {
+        int query = url.indexOf('?');
+        if (query < 0) {
+            return url;
+        }
+        String path = url.substring(0, query);
+        StringBuilder kept = new StringBuilder();
+        for (String param : url.substring(query + 1).split("&")) {
+            if (param.isBlank()) {
+                continue;
+            }
+            String name = param.contains("=")
+                    ? param.substring(0, param.indexOf('=')) : param;
+            String lower = name.toLowerCase(Locale.ROOT);
+            boolean tracking = lower.startsWith("utm_")
+                    || lower.equals("fbclid") || lower.equals("gclid");
+            if (!tracking) {
+                if (kept.length() > 0) {
+                    kept.append('&');
+                }
+                kept.append(param);
+            }
+        }
+        return kept.length() == 0 ? path : path + "?" + kept;
     }
 
     /** Title normalization for the similarity baseline: trimmed,
