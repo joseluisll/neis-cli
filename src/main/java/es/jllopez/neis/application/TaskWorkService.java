@@ -443,8 +443,8 @@ public class TaskWorkService {
         // artifact is written or extraction runs; the removal record
         // lands on the capture metadata (US-11.4).
         var cleared = pipeline.clearObstructions(address, scrape.html());
-        Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        Path artifact = pipeline.writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrape.sourceNote());
         // US-06.9: the pruned element tree + catalog + change digest
         // (page 1; pagination pages are analyzed below per page).
         pipeline.analyzeDom(address, cleared.html(), executionId);
@@ -715,8 +715,8 @@ public class TaskWorkService {
         // so a SIMPLIFY/ANALYZE/FILTER run never restores obstructions
         // into the artifact the capture metadata describes.
         var cleared = pipeline.clearObstructions(address, scrape.html());
-        pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        pipeline.writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrape.sourceNote());
         String tier = variant == null || variant.isBlank()
                 ? es.jllopez.neis.domain.model.SimplifyVariant.FULL
                 : variant.trim();
@@ -733,8 +733,8 @@ public class TaskWorkService {
                            String connectorOverride) {
         var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
-        pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        pipeline.writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrape.sourceNote());
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
         pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
@@ -771,8 +771,8 @@ public class TaskWorkService {
         var ai = pipeline.aiAssistant();
         var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
-        pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        pipeline.writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrape.sourceNote());
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
         pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);
@@ -812,8 +812,8 @@ public class TaskWorkService {
                           String connectorOverride) {
         var scrape = pipeline.scrapePort.scrape(address, connectorOverride);
         var cleared = pipeline.clearObstructions(address, scrape.html());
-        pipeline.writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        pipeline.writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrape.sourceNote());
         var simplified = pipeline.simplifyPort.simplify(cleared.html());
         pipeline.writeSimplifiedArtifact(address, "SIMPLIFY", "simplified-html",
                 "simplified.html", simplified.html(), executionId);

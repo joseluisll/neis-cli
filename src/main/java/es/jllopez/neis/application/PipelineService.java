@@ -253,8 +253,8 @@ public class PipelineService {
         // and SIMPLIFY see the main content, and the removal record
         // lands on the capture metadata (US-11.4).
         ClearedContent cleared = clearObstructions(address, scrape.html());
-        Path scrapeArtifact = writeArtifact(address, "WEBSCRAPE", "listing-html",
-                "scrape.html", cleared.html(), executionId);
+        Path scrapeArtifact = writeScrapeArtifact(address, "scrape.html",
+                cleared.html(), executionId, scrapeNote);
         // US-06.9: the pruned element tree + catalog + change digest.
         analyzeDom(address, cleared.html(), executionId);
         captureWithFilters(address, address.url(), scrapeFilters,
@@ -1316,6 +1316,34 @@ public class PipelineService {
                        String fileName, String content, String executionId) {
         return contentStore.writeTaskOutput(address, address.url(), taskCode,
                 kind, fileName, content, executionId);
+    }
+
+    /**
+     * Writes the WEBSCRAPE listing artifact — UNLESS this run is a
+     * CACHED serve (review BLOCKING finding on the cached-mode
+     * cluster): the served content CAME from that very file, so
+     * re-writing it would refresh the record's createdAt — falsifying
+     * the provenance (the "original scrape" would drift to the
+     * previous cached serve) AND resetting the US-06.15 staleness
+     * clock, letting an arbitrarily stale page pass the bound forever
+     * in steady-state reprocessing. A cached serve leaves the cache
+     * source untouched and resolves its path for the outcome.
+     */
+    Path writeScrapeArtifact(Address address, String fileName,
+                             String clearedHtml, String executionId,
+                             String sourceNote) {
+        if (sourceNote != null) {
+            log.info("SCRAPE {}: cached serve — scrape.html not re-stamped "
+                    + "(the cache source keeps its original scrape time, "
+                    + "US-06.15)", address.id());
+            return Path.of(contentStore.latestWebpageScrape(address)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "The cached source vanished mid-run for "
+                                    + address.id() + " (US-06.14)"))
+                    .path());
+        }
+        return writeArtifact(address, "WEBSCRAPE", "listing-html", fileName,
+                clearedHtml, executionId);
     }
 
     /** The deterministic content-record id of a task output (US-14.2

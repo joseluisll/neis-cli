@@ -28,6 +28,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -227,6 +228,22 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
         // stores the items WITHOUT sightings — the page was re-served,
         // not captured.
         String note = "cached; original scrape 2026-11-01T00:00:00Z (CONT-x)";
+        // the cached serve reads scrape.html from the store and (per the
+        // review BLOCKING fix) must NOT re-stamp it: seed the source
+        // record the guard resolves.
+        Path sourceFile = workDir.resolve("cached-scrape.html");
+        try {
+            Files.writeString(sourceFile, "<html>cached listing</html>");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        var seededStore = new es.jllopez.neis.testsupport.InMemoryContentStorePort(
+                java.util.List.of(new es.jllopez.neis.domain.model.ContentRecord(
+                        "CONT-x", "ADDR-001", "cap-x", "WEBSCRAPE",
+                        "listing-html", sourceFile.toString(),
+                        java.time.Instant.parse("2026-11-01T00:00:00Z"), null)));
+        ContentStoreService cachedContentStore = new ContentStoreService(
+                seededStore, workDir.toString());
         ContentScrapePort cachedPort = new ContentScrapePort() {
             @Override
             public ScrapeResult scrape(Address address) {
@@ -243,7 +260,7 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
                 aiProvider(aiAnswering("news",
                         "{\"selector\":\"ul li\",\"reasoning\":\"\"}")),
                 catalog, new UrlSyntaxValidator(), preconfigured(),
-                newsEventStore(), contentStore(), clearingConnector(),
+                newsEventStore(), cachedContentStore, clearingConnector(),
                 clearingSelectors(),
                 new es.jllopez.neis.infrastructure.adapter.scrape.JsoupDomAnalyzer(),
                 null, workDir.toString());
@@ -252,6 +269,14 @@ private PipelineService service(ObjectProvider<AiAssistantPort> ai) {
 
         assertEquals(note, result.scrapeNote(),
                 "the result carries the CACHED provenance");
+        // the review BLOCKING fix: the cached serve does NOT re-stamp
+        // scrape.html — the source record keeps its ORIGINAL scrape
+        // time (the staleness bound and the provenance stay honest)
+        assertEquals(java.time.Instant.parse("2026-11-01T00:00:00Z"),
+                cachedContentStore.latestWebpageScrape(
+                        SeedAddresses.verified().get(0)).orElseThrow()
+                        .createdAt(),
+                "the cached serve left the cache source untouched");
         // the sighting skip: the items were stored, but the cached
         // reuse recorded NO sighting for any of them
         assertTrue(newsEventStoreInst.all().size() > 0, "items stored");
