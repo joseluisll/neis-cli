@@ -135,7 +135,12 @@ public class ScrapeConnectorRouter implements ContentScrapePort {
             return cachedConnector.scrape(address);
         }
         if (!live) {
-            return staticConnector.scrape(address);
+            // US-06.14: the fallback covers the static branch too — a
+            // failed fixture fetch falls back to the stored content
+            // when the flag is set (the review's no-op-in-default-mode
+            // finding: the docs always promised static AND live).
+            return withStoredFallback(address,
+                    () -> staticConnector.scrape(address));
         }
         return withStoredFallback(address,
                 () -> forAddress(address).scrape(address));

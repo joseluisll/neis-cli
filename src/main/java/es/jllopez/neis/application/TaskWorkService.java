@@ -246,8 +246,10 @@ public class TaskWorkService {
                 // code; with no AI configured the step fails loud
                 // (the selector-identification machinery has its own
                 // heuristic fallbacks, but an AI TASK that ran without
-                // an AI would silently be something else).
-                requireNoParameters(taskCode, parameters);
+                // an AI would silently be something else). US-06.14: the
+                // optional 'connector' pins the scrape strategy, like
+                // every other re-scraping step.
+                requireNoParameters(taskCode, parameters, "connector");
                 yield aiTask(address, executionId, parameters.get("connector"));
             }
             case "FILTER" -> {

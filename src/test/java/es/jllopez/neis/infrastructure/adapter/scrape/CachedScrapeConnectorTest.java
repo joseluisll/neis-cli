@@ -219,4 +219,51 @@ class CachedScrapeConnectorTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("positive");
     }
+
+    @Test
+    void aBadMaxAgeOrModeFailsTheSpringContextAtBoot() {
+        // US-06.15: the parse failure must fail the BOOT, not just the
+        // fetch — pinned through the real context wiring.
+        org.springframework.boot.test.context.runner.ApplicationContextRunner runner =
+                new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                        .withUserConfiguration(CachedScrapeConnector.class,
+                                StoreConfig.class);
+        runner.run(context ->
+                assertThat(context).hasNotFailed());
+        runner.withPropertyValues("neis.scrape.cached-max-age=72h")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    // the cause chain carries the validated message —
+                    // walk it (the constructor throw is wrapped)
+                    Throwable cause = context.getStartupFailure();
+                    String chain = "";
+                    while (cause != null) {
+                        chain += cause.getMessage() + " | ";
+                        cause = cause.getCause();
+                    }
+                    assertThat(chain).contains("US-06.15");
+                });
+        runner.withPropertyValues("neis.scrape.cached-max-age=PT0S")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    /** Store bean for the boot-context pin. */
+    static class StoreConfig {
+        @org.springframework.context.annotation.Bean
+        ContentStorePort store() {
+            return new es.jllopez.neis.testsupport.InMemoryContentStorePort();
+        }
+    }
+
+    @Test
+    void aLegacyRecordWithoutATimestampFailsLoudUnderABound() {
+        ContentRecord legacy = storedScrape("CONT-legacy", "scrape.html", null);
+        CachedScrapeConnector connector = new CachedScrapeConnector(
+                new StubStore(legacy), "PT72H");
+
+        assertThatThrownBy(() -> connector.scrape(ADDRESS))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no scrape timestamp")
+                .hasMessageContaining("US-06.15");
+    }
 }

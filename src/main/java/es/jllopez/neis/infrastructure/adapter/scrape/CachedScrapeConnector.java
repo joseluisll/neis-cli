@@ -95,8 +95,19 @@ public class CachedScrapeConnector
     public ScrapeResult scrape(Address address) {
         ContentRecord source = latestScrape(address);
         Instant scrapedAt = source.createdAt();
-        if (maxAge != null && scrapedAt != null
-                && scrapedAt.plus(maxAge).isBefore(Instant.now())) {
+        // US-06.15 fail-closed edge (review finding): a legacy record
+        // with no timestamp has UNKNOWN age — with a bound configured
+        // that must fail loud, never pass as unlimited.
+        if (maxAge != null && scrapedAt == null) {
+            throw new IllegalStateException(
+                    "The cached source of " + address.id() + " ("
+                            + source.id() + ") carries no scrape timestamp, "
+                            + "so its age cannot be checked against the "
+                            + "configured bound " + maxAge
+                            + " (neis.scrape.cached-max-age, US-06.15) — "
+                            + "fetch live once to repopulate it");
+        }
+        if (maxAge != null && scrapedAt.plus(maxAge).isBefore(Instant.now())) {
             Duration age = Duration.between(scrapedAt, Instant.now());
             throw new IllegalStateException(
                     "Stored content of " + address.id() + " is too old for a "

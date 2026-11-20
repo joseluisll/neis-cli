@@ -77,12 +77,14 @@ public class AddressRestController {
             payload.put("addressId", address.id());
             var source = contentStore.latestWebpageScrape(address);
             payload.put("cacheable", source.isPresent());
+            // createdAt can be null on legacy records (review finding):
+            // nulls are normal response data — never an NPE (500)
             payload.put("contentId", source.map(r -> r.id()).orElse(null));
-            payload.put("scrapedAt", source.map(r -> r.createdAt().toString())
-                    .orElse(null));
-            payload.put("age", source.map(r -> java.time.Duration
-                    .between(r.createdAt(), java.time.Instant.now()).toString())
-                    .orElse(null));
+            payload.put("scrapedAt", source.map(r -> r.createdAt() == null
+                    ? null : r.createdAt().toString()).orElse(null));
+            payload.put("age", source.map(r -> r.createdAt() == null ? null
+                    : java.time.Duration.between(r.createdAt(),
+                            java.time.Instant.now()).toString()).orElse(null));
             return payload;
         });
     }
