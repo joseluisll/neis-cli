@@ -298,9 +298,14 @@ public class PipelineService {
         addressCatalog.updateCapabilities(address.id(), capabilities.flags());
 
         // PRINT input: selector-based extraction of the discovered items.
-        List<NewsEventItem> items = new ArrayList<>(extractionPort.extract(simplified.html(),
-                selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
-                flagged.url()));
+        // US-06.16 (issue #148): the strict same-host filter drops the
+        // external-partner/sister-brand items at extraction — once, on
+        // the application path, for every retrieval strategy.
+        var extraction = SameHostFilter.apply(flagged, extractionPort.extract(
+                simplified.html(), selection.selector(), flagged.itemKind(),
+                flagged.id(), maxItems, flagged.url()));
+        List<NewsEventItem> items = new ArrayList<>(extraction.kept());
+        int externalDropped = extraction.dropped();
 
         // Pagination-iteration block (US-12.4 slice): ONLY on addresses
         // flagged PAGINATION, and only when the AI derived a page URL
@@ -337,9 +342,12 @@ public class PipelineService {
                 writeSimplifiedArtifact(flagged, "SIMPLIFY", "simplified-html",
                         "simplified-page" + (page + 1) + ".html", pageSimplified.html(), executionId);
                 int before = items.size();
-                for (NewsEventItem item : extractionPort.extract(pageSimplified.html(),
-                        selection.selector(), flagged.itemKind(), flagged.id(), maxItems,
-                        flagged.url())) {
+                var pageExtraction = SameHostFilter.apply(flagged,
+                        extractionPort.extract(pageSimplified.html(),
+                                selection.selector(), flagged.itemKind(), flagged.id(),
+                                maxItems, flagged.url()));
+                externalDropped += pageExtraction.dropped();
+                for (NewsEventItem item : pageExtraction.kept()) {
                     if (isNew(items, item)) {
                         items.add(item);
                     }
@@ -406,7 +414,9 @@ public class PipelineService {
                 application == null ? List.of() : application.items(),
                 application == null ? null : application.scrapeArtifact(),
                 application == null ? null : application.note(),
-                scrapeNote);
+                scrapeNote,
+                externalDropped + (application == null
+                        ? 0 : application.externalDropped()));
     }
 
     /**
@@ -871,11 +881,13 @@ public class PipelineService {
         SimplifiedContent filteredSimplified = simplifyPort.simplify(filteredCleared.html());
         writeSimplifiedArtifact(address, "FILTER", "filtered-html",
                 "simplified-filtered.html", filteredSimplified.html(), executionId);
-        List<NewsEventItem> filteredItems = new ArrayList<>(extractionPort.extract(
+        var filteredExtraction = SameHostFilter.apply(address, extractionPort.extract(
                 filteredSimplified.html(), selection.selector(), address.itemKind(),
                 address.id(), MAX_ITEMS, address.url()));
+        List<NewsEventItem> filteredItems = new ArrayList<>(filteredExtraction.kept());
         return new FilterApplication(field, value, request,
-                filteredArtifact.toString(), filteredItems, source, null);
+                filteredArtifact.toString(), filteredItems, source, null,
+                filteredExtraction.dropped());
     }
 
     /** Case-insensitive containment helper for the coherence guard. */
@@ -1662,10 +1674,11 @@ public class PipelineService {
      * be applied. */
     record FilterApplication(String field, String value, String request,
                              String scrapeArtifact, List<NewsEventItem> items,
-                             String source, String note) {
+                             String source, String note,
+                             int externalDropped) {
         static FilterApplication skipped(String note) {
             return new FilterApplication(null, null, null, null, List.of(),
-                    "skipped", note);
+                    "skipped", note, 0);
         }
     }
 }

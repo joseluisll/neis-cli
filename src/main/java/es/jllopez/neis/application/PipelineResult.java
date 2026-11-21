@@ -74,7 +74,10 @@ public record PipelineResult(
         /** US-06.14 (issue #138): the cached-reuse provenance note of
          * the scrape (null for every fresh fetch) — rendered by the
          * PRINT report, never a silent stale serve. */
-        String scrapeNote) {
+        String scrapeNote,
+        /** US-06.16 (issue #148): external-host items dropped by the
+         * strict same-host extraction filter (capture-time, this run). */
+        int externalDropped) {
 
     /** The pre-US-06.14 shape: no scrape provenance note. */
     public PipelineResult(Address address, String scrapeArtifact,
@@ -99,6 +102,33 @@ public record PipelineResult(
                 filterZoneSelector, filters, filterSource, filterNote,
                 appliedFilterField, appliedFilterValue, filterRequest,
                 filteredItems, filteredScrapeArtifact, filterApplicationNote,
-                null);
+                null, 0);
+    }
+
+    /** The pre-US-06.16 shape: no same-host drop count. */
+    public PipelineResult(Address address, String scrapeArtifact,
+                          String simplifyArtifact, int scrapeSizeBytes,
+                          int simplifiedSizeBytes, PaginationInfo pagination,
+                          PageAnalysis analysis, String selectedSelector,
+                          String selectorSource, List<NewsEventItem> items,
+                          Set<AddressCapability> capabilities,
+                          String capabilityEvidence, String pageUrlPattern,
+                          int pagesScraped, String correctedAddress,
+                          String filterZoneSelector,
+                          List<FilterDefinition> filters, String filterSource,
+                          String filterNote, String appliedFilterField,
+                          String appliedFilterValue, String filterRequest,
+                          List<NewsEventItem> filteredItems,
+                          String filteredScrapeArtifact,
+                          String filterApplicationNote,
+                          String scrapeNote) {
+        this(address, scrapeArtifact, simplifyArtifact, scrapeSizeBytes,
+                simplifiedSizeBytes, pagination, analysis, selectedSelector,
+                selectorSource, items, capabilities, capabilityEvidence,
+                pageUrlPattern, pagesScraped, correctedAddress,
+                filterZoneSelector, filters, filterSource, filterNote,
+                appliedFilterField, appliedFilterValue, filterRequest,
+                filteredItems, filteredScrapeArtifact, filterApplicationNote,
+                scrapeNote, 0);
     }
 }

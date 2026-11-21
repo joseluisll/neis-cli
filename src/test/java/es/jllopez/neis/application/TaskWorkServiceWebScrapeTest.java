@@ -79,11 +79,11 @@ class TaskWorkServiceWebScrapeTest {
               <title>News feed</title>
               <item><title>Feed item one</title>
                 <description>First item description</description>
-                <link>https://example.eu/feed/1</link>
+                <link>https://commission.europa.eu/feed/1</link>
                 <pubDate>Tue, 10 Nov 2026 10:00:00 GMT</pubDate></item>
               <item><title>Feed item two</title>
                 <description>Second item description</description>
-                <link>https://example.eu/feed/2</link>
+                <link>https://commission.europa.eu/feed/2</link>
                 <pubDate>Wed, 11 Nov 2026 10:00:00 GMT</pubDate></item>
             </channel></rss>
             """;
@@ -737,7 +737,7 @@ workDir.toString());
         var stored = newsEventStore.byAddress("ADDR-001");
         assertEquals(2, stored.size());
         assertEquals("Feed item one", stored.get(0).title());
-        assertEquals("https://example.eu/feed/1", stored.get(0).url());
+        assertEquals("https://commission.europa.eu/feed/1", stored.get(0).url());
         assertEquals("2026-11-10", stored.get(0).date(), "pubDate mapped to ISO");
         assertEquals("EXEC-feed-1", stored.get(0).executionId());
         // The feed document is the provenance content: items.json and
@@ -762,14 +762,14 @@ workDir.toString());
                   <title>Atom news</title>
                   <entry>
                     <title>Atom item one</title>
-                    <link rel="alternate" href="https://example.eu/atom/1"/>
+                    <link rel="alternate" href="https://commission.europa.eu/atom/1"/>
                     <published>2026-11-11T08:00:00Z</published>
                     <updated>2026-11-12T09:30:00Z</updated>
                     <summary>First atom summary</summary>
                   </entry>
                   <entry>
                     <title>Atom item two</title>
-                    <link href="https://example.eu/atom/2"/>
+                    <link href="https://commission.europa.eu/atom/2"/>
                     <updated>2026-11-13T10:00:00Z</updated>
                     <content type="html">Second atom content block</content>
                   </entry>
@@ -785,12 +785,12 @@ workDir.toString());
         var stored = newsEventStore.byAddress("ADDR-001");
         assertEquals(2, stored.size());
         assertEquals("Atom item one", stored.get(0).title());
-        assertEquals("https://example.eu/atom/1", stored.get(0).url());
+        assertEquals("https://commission.europa.eu/atom/1", stored.get(0).url());
         assertEquals("2026-11-11", stored.get(0).date(),
                 "published wins over the newer updated");
         assertEquals("First atom summary", stored.get(0).description());
         assertEquals("Atom item two", stored.get(1).title());
-        assertEquals("https://example.eu/atom/2", stored.get(1).url(),
+        assertEquals("https://commission.europa.eu/atom/2", stored.get(1).url(),
                 "a plain href link normalizes the same");
         assertEquals("2026-11-13", stored.get(1).date(),
                 "updated is the fallback when published is absent");
@@ -861,7 +861,7 @@ workDir.toString());
                   <title>News feed</title>
                   <item><title>Aministra\u00e7\u00e3o p\u00fablica aprova plano</title>
                     <description>Conte\u00fado com acentua\u00e7\u00e3o.</description>
-                    <link>https://example.eu/feed/1</link>
+                    <link>https://commission.europa.eu/feed/1</link>
                     <pubDate>Tue, 10 Nov 2026 10:00:00 GMT</pubDate></item>
                 </channel></rss>
                 """;

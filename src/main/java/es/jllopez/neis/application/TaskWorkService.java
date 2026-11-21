@@ -404,8 +404,13 @@ public class TaskWorkService {
         String xml = feedSource.toDocumentText(feedBytes);
         Path artifact = pipeline.writeArtifact(address, "WEBSCRAPE", "feed-xml",
                 "feed.xml", xml, executionId);
-        List<NewsEventItem> items = feedSource.parse(feedBytes, address.id(),
+        List<NewsEventItem> parsed = feedSource.parse(feedBytes, address.id(),
                 address.itemKind(), maxItems, address.url());
+        // US-06.16 (issue #148): the FEED path inherits the same-host
+        // rule — a feed entry whose link host differs from the address
+        // host is dropped at parse time, exactly like the HTML paths.
+        var extraction = SameHostFilter.apply(address, parsed);
+        List<NewsEventItem> items = extraction.kept();
         if (items.isEmpty()) {
             throw new IllegalArgumentException("Feed " + address.url()
                     + " yielded no entries — WEBSCRAPE over " + address.id()
@@ -421,6 +426,7 @@ public class TaskWorkService {
                 pipeline.contentRecordId(address, "WEBSCRAPE", "feed.xml"));
         String capNote = maxItems == Integer.MAX_VALUE ? "no cap" : "cap " + maxItems;
         return "WEBSCRAPE (feed): " + items.size() + " item(s) -> " + itemsArtifact
+                + externalDroppedNote(extraction.dropped())
                 + "; feed document -> " + artifact + "; " + capNote;
     }
 
@@ -508,9 +514,14 @@ public class TaskWorkService {
                     + (selectorOverrideTrimmed != null ? " (override)" : ""));
         }
 
-        List<NewsEventItem> items = new ArrayList<>(pipeline.extractionPort.extract(
+        // US-06.16 (issue #148): the strict same-host filter drops the
+        // external items at extraction — the standalone step shares the
+        // ONE application-path rule with the pipeline and the FEED parse.
+        var extraction = SameHostFilter.apply(address, pipeline.extractionPort.extract(
                 cleared.html(), selector.get(), address.itemKind(), address.id(),
                 maxItems, address.url()));
+        List<NewsEventItem> items = new ArrayList<>(extraction.kept());
+        int externalDropped = extraction.dropped();
         // US-12.3: a selector is only valid if it selects at least one
         // element in the live content — an empty match aborts the run
         // with a clear error instead of silently extracting nothing.
@@ -586,9 +597,12 @@ public class TaskWorkService {
             // page wins); the capture digest follows page 1's tree.
             pipeline.analyzeDom(address, pageCleared.html(), executionId, pages);
             int before = items.size();
-            for (NewsEventItem item : pipeline.extractionPort.extract(pageCleared.html(),
-                    selector.get(), address.itemKind(), address.id(),
-                    maxItems - items.size(), nextUrl)) {
+            var pageExtraction = SameHostFilter.apply(address,
+                    pipeline.extractionPort.extract(pageCleared.html(),
+                            selector.get(), address.itemKind(), address.id(),
+                            maxItems - items.size(), nextUrl));
+            externalDropped += pageExtraction.dropped();
+            for (NewsEventItem item : pageExtraction.kept()) {
                 if (isNew(items, item)) {
                     items.add(item);
                 }
@@ -634,8 +648,16 @@ public class TaskWorkService {
                 + filtersNote + clearNote + cachedNote
                 + "; items extracted: " + items.size() + " (" + capNote
                 + "; selector '" + selector.get() + "') -> " + itemsArtifact
+                + externalDroppedNote(externalDropped)
                 + "; pages: " + pages + "; paginated: " + pagination.paginated()
                 + " (" + pagination.evidence() + ")" + iterationNote;
+    }
+
+    /** US-06.16: the run-outcome fragment for the same-host drops;
+     * empty when nothing was dropped. */
+    private static String externalDroppedNote(int dropped) {
+        return dropped == 0 ? ""
+                : "; " + dropped + " external item(s) dropped (host mismatch)";
     }
 
     /** Compact filter summary for the outcome line: k=v, k2=v2. */

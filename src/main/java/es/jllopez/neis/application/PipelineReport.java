@@ -33,6 +33,10 @@ final class PipelineReport {
         if (r.scrapeNote() != null) {
             out.append("           CACHED reuse: ").append(r.scrapeNote()).append("\n");
         }
+        if (r.externalDropped() > 0) {
+            out.append("           ").append(r.externalDropped())
+                    .append(" external item(s) dropped (host mismatch, US-06.16)\n");
+        }
         out.append("SIMPLIFY : ").append(r.simplifiedSizeBytes())
                 .append(" bytes (cap 102400) -> ").append(r.simplifyArtifact()).append("\n");
 
