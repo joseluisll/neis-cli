@@ -629,11 +629,16 @@ public class PipelineService {
         }
 
         // 1b. Stored filter CATALOGUE (owner decision 2026-11-12): when
-        // the stored zone still matches AND a catalogue was captured for
-        // it, the definitions are reused directly — the FILTER step
-        // works without the AI.
-        if (zoneSource != null && stored.isPresent()
-                && !stored.get().filters().isEmpty()) {
+        // a catalogue was captured for this address it is reused
+        // directly — the FILTER step works without the AI.
+        // US-06.19 (issue #150): the reuse no longer REQUIRES the
+        // filter-zone selector to still match — for rendered listings
+        // the catalogue is captured from the pre-clearing DOM (the
+        // facet panel often lives inside an overlay the clearing rules
+        // rightly remove, so the zone cannot re-match on the cleared
+        // page). The zone selector, when present and matching, still
+        // scopes any later extraction below.
+        if (stored.isPresent() && !stored.get().filters().isEmpty()) {
             log.info("[AI] {}: filter catalogue from store - AI skipped ({} field(s))",
                     address.id(), stored.get().filters().size());
             return new FilterOutcome(stored.get().filters(), "stored",
@@ -663,19 +668,32 @@ public class PipelineService {
                     persistCatalogue(address, stored, zoneSelector, filters);
                     return new FilterOutcome(filters, "ai", zoneSelectorF, zoneSourceF, note);
                 }
-                log.warn("[AI] {}: AI found no filter fields - generic select parsing used",
+                log.warn("[AI] {}: AI found no filter fields - generic parsing used",
                         address.id());
                 List<FilterDefinition> fallbackFilters =
-                        exposedFilterDetector.parseSelects(scopeHtml);
+                        exposedFilterDetector.parse(scopeHtml);
+                // US-06.19 (issue #150): an empty catalogue on a
+                // FILTERING-flagged address is never silent — the note
+                // names the state so the run outcome and report carry it.
+                if (fallbackFilters.isEmpty()) {
+                    note = (note == null ? "" : note + "; ")
+                            + "flagged FILTERING but no filter criteria "
+                            + "available — the page exposes none to the "
+                            + "generic parser and none are preconfigured";
+                }
                 persistCatalogue(address, stored, zoneSelector, fallbackFilters);
                 return new FilterOutcome(fallbackFilters, "fallback",
-                        zoneSelectorF, zoneSourceF,
-                        note == null ? "AI found no filter fields — generic select parsing used"
-                                : note + "; generic select parsing used");
+                        zoneSelectorF, zoneSourceF, note);
             } catch (RuntimeException e) {
                 log.warn("[AI] {}: AI filter call failed: {}", address.id(), e.getMessage());
                 List<FilterDefinition> fallbackFilters =
-                        exposedFilterDetector.parseSelects(scopeHtml);
+                        exposedFilterDetector.parse(scopeHtml);
+                if (fallbackFilters.isEmpty()) {
+                    note = (note == null ? "" : note + "; ")
+                            + "flagged FILTERING but no filter criteria "
+                            + "available — the page exposes none to the "
+                            + "generic parser and none are preconfigured";
+                }
                 persistCatalogue(address, stored, zoneSelector, fallbackFilters);
                 return new FilterOutcome(fallbackFilters,
                         "fallback", zoneSelectorF, zoneSourceF,
@@ -684,11 +702,16 @@ public class PipelineService {
             }
         }
         List<FilterDefinition> fallbackFilters =
-                exposedFilterDetector.parseSelects(scopeHtml);
+                exposedFilterDetector.parse(scopeHtml);
+        if (fallbackFilters.isEmpty()) {
+            note = (note == null ? "" : note + "; ")
+                    + "flagged FILTERING but no filter criteria available — "
+                    + "the page exposes none to the generic parser and none "
+                    + "are preconfigured";
+        }
         persistCatalogue(address, stored, zoneSelector, fallbackFilters);
         return new FilterOutcome(fallbackFilters,
-                "fallback", zoneSelectorF, zoneSourceF,
-                note == null ? "AI not configured — generic select parsing used" : note);
+                "fallback", zoneSelectorF, zoneSourceF, note);
     }
 
     /**
@@ -714,6 +737,44 @@ public class PipelineService {
                     filters, base.discoveredBy(), base.discoveredAt(), base.notes()));
             log.info("[AI] {}: filter catalogue stored ({} field(s))",
                     address.id(), filters.size());
+        }
+    }
+
+    /**
+     * The WEBSCRAPE-time capture of the filter catalogue (US-06.19,
+     * issue #150): the generic detector runs over the RAW scrape HTML —
+     * BEFORE the obstruction clearing, because client-rendered facet
+     * panels often live inside overlay/dialog containers the (correct)
+     * clearing rules remove, and the criteria must be read while the
+     * page is whole. A PRECONFIGURED filter set (US-06.6 configuration)
+     * is recorded as the address's definitions when neither source
+     * yields anything — one source of truth: every consumer reads the
+     * selector store. Skipped silently when the store already holds a
+     * catalogue (never overwritten with a different one mid-flight).
+     */
+    void captureFilterCatalogue(Address address, String rawHtml,
+                                java.util.Map<String, String> preconfigured) {
+        Optional<StoredSelectors> stored = selectorStore.load(address.id());
+        if (stored.isPresent() && !stored.get().filters().isEmpty()) {
+            return;
+        }
+        List<FilterDefinition> found = exposedFilterDetector.parse(rawHtml);
+        if (!found.isEmpty()) {
+            log.info("[FILTER] {}: filter catalogue captured from the raw "
+                            + "capture DOM, pre-clearing ({} field(s))",
+                    address.id(), found.size());
+            persistCatalogue(address, stored, null, found);
+            return;
+        }
+        if (preconfigured != null && !preconfigured.isEmpty()) {
+            List<FilterDefinition> defs = preconfigured.entrySet().stream()
+                    .map(e -> new FilterDefinition(e.getKey(),
+                            List.of(e.getValue())))
+                    .toList();
+            log.info("[FILTER] {}: preconfigured filter set recorded as the "
+                            + "address's filter definitions ({} field(s))",
+                    address.id(), defs.size());
+            persistCatalogue(address, stored, null, defs);
         }
     }
 

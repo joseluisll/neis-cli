@@ -104,10 +104,10 @@ selector store, logs) and `core/results/`.
 | **Address** | A registered listing source (`ADDR-NNN`), with a kind (`URL_NEWS` / `URL_EVENTS`), a webpage type, and a verification status. Only **verified** addresses are eligible for tasks (US-04.3). |
 | **Task type** | `WEBSCRAPE`, `SIMPLIFY`, `ANALYZE`, `AI`, `FILTER`, `PRINT`, `CHAIN` — what the executor and scheduler accept (`execution types` lists them). |
 | **Chain** | An ordered list of 1..10 tasks with per-task parameters, run sequentially per address (US-08). |
-| **Capability flags** | What ANALYZE learned about the page (PAGINATION, FILTERING) — a task that needs a capability only runs when it is flagged; otherwise it is skipped with a note (US-17.2). |
+| **Capability flags** | What ANALYZE learned about the page (PAGINATION, FILTERING) — a task that needs a capability only runs when it is flagged; otherwise it is skipped with a note (US-17.2). A FILTERING flag without applicable criteria is never silent: the run outcome states it (US-06.19). |
 | **Capture / content** | Each run stores a capture; every task's output lands in the address's content tree and in `content_records` (US-11). |
 | **Execution** | A record of one run (id `EXEC-*`), its outcome and provenance (US-05.3). |
-| **Selector store** | The news/events CSS selectors identified for an address (AI, preconfigured, or user override), persisted so later runs skip the AI (US-12). |
+| **Selector store** | The news/events CSS selectors identified for an address (AI, preconfigured, or user override), persisted so later runs skip the AI (US-12). It also carries the address's **filter catalogue** — the criteria the listing offers (selects, checkbox facets, free-text inputs), captured from the raw page before obstruction clearing and reused by every later FILTER step without AI (US-06.19). |
 
 ## 5. Managing addresses
 

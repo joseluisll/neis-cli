@@ -446,6 +446,18 @@ public class TaskWorkService {
         // original scrape, never a silent stale serve.
         String cachedNote = scrape.sourceNote() == null ? ""
                 : "; CACHED reuse — " + scrape.sourceNote();
+        // US-06.19 (issue #150): the filter catalogue is captured from
+        // the RAW scrape HTML BEFORE the obstruction clearing —
+        // client-rendered facet panels often live inside overlay/dialog
+        // containers the (correct) clearing rules remove, so the
+        // criteria must be read while the page is whole. The definitions
+        // persist in the selector store (one source of truth), so the
+        // FILTER step and every later run reuse them without AI. A
+        // preconfigured set (US-06.6 configuration) is recorded when the
+        // page exposes nothing itself.
+        pipeline.captureFilterCatalogue(address, scrape.html(),
+                preconfiguredFilters.find(address.id())
+                        .orElse(java.util.Map.of()));
         // Obstruction clearing (US-06.7, issue #75): popups, banners,
         // ads and the configured selectors are removed BEFORE the
         // artifact is written or extraction runs; the removal record
@@ -883,6 +895,11 @@ public class TaskWorkService {
             } else {
                 summary.append("; not applied (").append(application.note()).append(")");
             }
+        } else {
+            // US-06.19 (issue #150): a FILTERING-flagged address with no
+            // applicable criteria is never silent — the run outcome names
+            // the state (the report mirrors the task summaries).
+            summary.append("; NO APPLICABLE CRITERIA — ").append(outcome.note());
         }
         return summary.toString();
     }
