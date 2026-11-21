@@ -145,4 +145,52 @@ class NewsCommandsTest {
         assertTrue(out.contains("<no stored news/events match"), out);
         assertTrue(out.contains("completeness complete"), out);
     }
+
+    @Test
+    void bulkPruneDryRunListsMatchesAndWritesNothing() {
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "Budget cut", "desc",
+                "https://x.eu/budget", "2026-11-01")), "exec-1", "CONT-1");
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "New call", "desc",
+                "https://x.eu/call", "2026-11-02")), "exec-1", "CONT-1");
+
+        String out = commands.pruneBulk("ADDR-001", null, null, null,
+                null, "all", null, "cleanup", false);
+
+        assertTrue(out.startsWith("DRY RUN"), out);
+        assertTrue(out.contains("2 record(s) match"), out);
+        assertTrue(out.contains("Budget cut"), out);
+        // nothing written
+        assertEquals(2, store.count());
+    }
+
+    @Test
+    void bulkPruneConfirmWithoutReasonIsRefused() {
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "Budget cut", "desc",
+                "https://x.eu/budget", "2026-11-01")), "exec-1", "CONT-1");
+
+        String out = commands.pruneBulk("ADDR-001", null, null, null,
+                null, "all", null, null, true);
+
+        assertTrue(out.contains("reason"), out);
+        assertEquals(1, store.count());
+    }
+
+    @Test
+    void bulkPruneConfirmedPrunesTheSelection() {
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "Budget cut", "desc",
+                "https://x.eu/budget", "2026-11-01")), "exec-1", "CONT-1");
+        store.saveAll("ADDR-001", "news", List.of(new NewsEventItem(
+                "ADDR-001", "news", "New call", "desc",
+                "https://x.eu/call", "2026-11-02")), "exec-1", "CONT-1");
+
+        String out = commands.pruneBulk(null, null, null, null,
+                "budget", "all", null, "dupes", true);
+
+        assertTrue(out.contains("Pruned 1 record(s), 1 row(s)"), out);
+        assertEquals(1, store.count());
+    }
 }

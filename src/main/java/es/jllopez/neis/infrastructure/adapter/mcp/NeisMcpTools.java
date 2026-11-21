@@ -28,9 +28,11 @@ import java.util.NoSuchElementException;
 
 /**
  * The MCP driving adapter (US-18.3/#118 + US-18.4/#119): a CURATED,
- * USER-ORIENTED tool set — workflow-level granularity, EXACTLY 10
- * tools, NO AI functionality (owner decisions 2026-11-19; the full
- * operation surface stays on REST, #116). Every tool delegates to the
+ * USER-ORIENTED tool set — workflow-level granularity, NO AI
+ * functionality (owner decisions 2026-11-19; the full
+ * operation surface stays on REST, #116). Started at exactly 10 tools;
+ * US-14.13 (#146, owner-specified in the requirement body) added the
+ * two prune tools — now 12. Every tool delegates to the
  * SAME application use cases as the CLI/REST adapters — no logic
  * duplication across driving adapters — and returns TYPED records so
  * clients get structured output schemas (US-18.3 review finding).
@@ -421,6 +423,109 @@ public class NeisMcpTools {
 
     public record ContentExportResult(String jobId, String operation,
                                       String status, String next) {}
+
+    // ---- tools 11-12: prune (US-14.13, issue #146) ----------------------
+
+    /**
+     * Tools 11-12/12. REST counterpart: {@code POST /api/news/prune}
+     * (single) and {@code POST /api/news/prune-bulk} (bulk) — the same
+     * US-14.10 soft-delete semantics as the CLI 'news prune'.
+     */
+    @McpTool(name = "neis_prune_item",
+            description = "Soft-delete ONE stored news/event item (US-14.10/14.13): "
+                    + "excluded from list, search and export; the reason is "
+                    + "recorded; re-extraction never resurrects it; provenance "
+                    + "history stays readable via neis_get_news_item.",
+            annotations = @McpTool.McpAnnotations(
+                    readOnlyHint = false, destructiveHint = true))
+    public Map<String, Object> pruneItem(
+            @McpToolParam(description = "the item's canonical id (canonicalId "
+                    + "field of a neis_list_news item)") String canonicalId,
+            @McpToolParam(description = "why the item is a false positive "
+                    + "(recorded)", required = false) String reason) {
+        if (blankToNull(canonicalId) == null) {
+            throw new IllegalArgumentException(
+                    "canonicalId is required — the canonicalId field of a "
+                            + "neis_list_news item");
+        }
+        String id = canonicalId.trim();
+        NewsEventItem item = news.item(id).orElseThrow(() ->
+                new NoSuchElementException("Unknown item (canonical id): " + id));
+        int rows = news.prune(id, reason);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("pruned", rows);
+        out.put("canonicalId", id);
+        out.put("title", item.title());
+        out.put("reason", reason);
+        return out;
+    }
+
+    /**
+     * Tool 12/12. Dry-run first: WITHOUT confirmed=true the tool
+     * returns the matching records and writes NOTHING — the caller
+     * reviews the preview and re-invokes with confirmed=true. A
+     * zero-match confirmed prune is a no-op success.
+     */
+    @McpTool(name = "neis_prune_news_bulk",
+            description = "Bulk soft-delete of stored news/events (US-14.13) by "
+                    + "the listing's filter fields (address, kind, date range, "
+                    + "terms), a completeness flag and/or explicit canonical-id "
+                    + "list. DRY-RUN FIRST: without confirmed=true it returns "
+                    + "the matching records and writes nothing; re-invoke with "
+                    + "confirmed=true (and the same reason) to prune.",
+            annotations = @McpTool.McpAnnotations(
+                    readOnlyHint = false, destructiveHint = true))
+    public Map<String, Object> pruneNewsBulk(
+            @McpToolParam(description = "filter: one address id",
+                    required = false) String addressId,
+            @McpToolParam(description = "filter: 'news' or 'event'",
+                    required = false) String kind,
+            @McpToolParam(description = "filter: range start (ISO or the "
+                    + "extractor's date form)", required = false)
+            String dateFrom,
+            @McpToolParam(description = "filter: range end", required = false)
+            String dateTo,
+            @McpToolParam(description = "free-text terms over title, "
+                    + "description and location", required = false)
+            String terms,
+            @McpToolParam(description = "completeness filter: all (default), "
+                    + "complete or incomplete", required = false)
+            String completeness,
+            @McpToolParam(description = "explicit canonical ids to prune "
+                    + "(whole canonical groups)", required = false)
+            List<String> canonicalIds,
+            @McpToolParam(description = "why the selection is pruned — "
+                    + "recorded on every affected row (required for "
+                    + "confirmed=true)", required = false) String reason,
+            @McpToolParam(description = "false/absent = dry run (preview "
+                    + "only); true = execute the prune", required = false)
+            Boolean confirmed) {
+        var selection = new es.jllopez.neis.domain.model.BulkPruneSelection(
+                blankToNull(addressId), blankToNull(kind),
+                blankToNull(dateFrom), blankToNull(dateTo),
+                blankToNull(terms), completeness, canonicalIds,
+                blankToNull(reason));
+        boolean execute = Boolean.TRUE.equals(confirmed);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("confirmed", execute);
+        if (!execute) {
+            var preview = news.bulkPrunePreview(selection);
+            out.put("dryRun", true);
+            out.put("matchedRecords", preview.matchedRecords());
+            out.put("items", preview.items());
+            out.put("unknownCanonicalIds", preview.unknownCanonicalIds());
+            out.put("message", "Dry run — nothing pruned; re-invoke with "
+                    + "confirmed=true and the same selection to prune "
+                    + "these records");
+            return out;
+        }
+        var outcome = news.bulkPrune(selection);
+        out.put("dryRun", false);
+        out.put("prunedRecords", outcome.prunedRecords());
+        out.put("prunedRows", outcome.prunedRows());
+        out.put("unknownCanonicalIds", outcome.unknownCanonicalIds());
+        return out;
+    }
 
     // ---- helpers --------------------------------------------------------
 

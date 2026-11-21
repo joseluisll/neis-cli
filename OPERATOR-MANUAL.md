@@ -257,7 +257,24 @@ neis 'news provenance'
 # Deterministic export (same data + filters ⇒ same file)
 neis 'news export --format json --address ADDR-006 --out /tmp/hadea-news.json'
 neis 'news export --format csv --from 2026-10-01 --to 2026-11-01 --out /tmp/october.csv'
+
+# Prune a false positive (soft delete — excluded from list/search/export,
+# provenance stays readable, re-extraction never resurrects; US-14.10)
+neis 'news prune --id cn-1a2b3c4d5e6f7a8b --reason "quiz widget, not a news item"'
+
+# Bulk prune (US-14.13): the news list filters select; DRY RUN by default —
+# the command prints the matching records and writes nothing until --confirm
+neis 'news prune-bulk --address ADDR-010 --kind news --incomplete incomplete'
+neis 'news prune-bulk --ids cn-1a2b3c4d5e6f7a8b,cn-9f8e7d6c5b4a3f2e --reason "duplicate rows from the tracking-param defect" --confirm'
 ```
+
+`news prune-bulk` is soft like the single prune: every affected row
+records the reason, whole canonical groups go together (all rows
+sharing the id, across addresses), and a selection matching nothing is
+a no-op success. The same operation is exposed over REST
+(`POST /api/news/prune`, `POST /api/news/prune-bulk` with a
+`confirmed` flag) and MCP (`neis_prune_item`,
+`neis_prune_news_bulk`).
 
 Date filters accept ISO (`2026-07-16`) or the extractor's own form
 (`Jul 16, 2026`); a typo in a bound is rejected, not ignored.

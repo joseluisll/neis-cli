@@ -1,5 +1,6 @@
 package es.jllopez.neis.application;
 
+import es.jllopez.neis.domain.model.BulkPruneSelection;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.NewsEventQuery;
 import es.jllopez.neis.domain.model.NewsEventSighting;
@@ -123,6 +124,145 @@ public class NewsEventService {
      * from list/search/export, provenance remains readable. */
     public int prune(String canonicalId, String reason) {
         return newsEventStore.prune(canonicalId, reason);
+    }
+
+    /**
+     * The dry-run view of a bulk prune (US-14.13, issue #146): the
+     * records the selection currently matches, WITHOUT writing
+     * anything. The match reuses the listing's query path (the same
+     * {@code search} the REST twin and the {@code news list} command
+     * run), never a client-side filter over {@link #all()}.
+     */
+    public BulkPrunePreview bulkPrunePreview(BulkPruneSelection selection) {
+        ResolvedSelection resolved = resolveSelection(selection);
+        return new BulkPrunePreview(
+                List.copyOf(resolved.matches()), resolved.unknownIds());
+    }
+
+    /**
+     * The CONFIRMED bulk prune (US-14.13): soft-deletes every record
+     * the selection matches, as whole canonical groups (US-14.10
+     * semantics — the reason rides every affected row, provenance
+     * stays readable, re-extraction never resurrects). Zero matches
+     * are a no-op success; an empty selection or a blank reason at
+     * confirm time is refused.
+     */
+    public BulkPruneOutcome bulkPrune(BulkPruneSelection selection) {
+        if (selection.reason() == null) {
+            throw new IllegalArgumentException(
+                    "A bulk prune needs a reason — it is recorded on "
+                            + "every pruned row");
+        }
+        if (selection.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Empty bulk-prune selection — give at least one "
+                            + "criterion (address, kind, date range, terms, "
+                            + "completeness or explicit canonical ids)");
+        }
+        ResolvedSelection resolved = resolveSelection(selection);
+        int records = 0;
+        int rows = 0;
+        for (NewsEventItem item : resolved.matches()) {
+            int pruned = newsEventStore.prune(item.canonicalId(),
+                    selection.reason());
+            if (pruned > 0) {
+                records++;
+                rows += pruned;
+            }
+        }
+        return new BulkPruneOutcome(records, rows, resolved.unknownIds());
+    }
+
+    /** The container of one selection resolution: the matched records
+     * (newest first, canonical groups deduplicated) plus the explicit
+     * ids that resolved to nothing. */
+    private record ResolvedSelection(List<NewsEventItem> matches,
+            List<String> unknownIds) {}
+
+    /**
+     * The confirmed-prune result: how many logical records (canonical
+     * groups) and how many physical rows the prune touched.
+     */
+    public record BulkPruneOutcome(int prunedRecords, int prunedRows,
+            List<String> unknownCanonicalIds) {}
+
+    /**
+     * The dry-run result: the matched records (newest first) and the
+     * selection they came from, so every surface renders the same
+     * preview. Never carries a write.
+     */
+    public record BulkPrunePreview(List<NewsEventItem> items,
+            List<String> unknownCanonicalIds) {
+
+        public int matchedRecords() {
+            return items.size();
+        }
+    }
+
+    /**
+     * The UNION of both selection modes, newest first: the query-mode
+     * matches (through the listing's search path, completeness
+     * filtered on top) plus every explicit canonical id that resolves.
+     * Explicit ids already inside the query matches collapse into one
+     * record — one canonical id, one logical record.
+     */
+    private ResolvedSelection resolveSelection(BulkPruneSelection sel) {
+        List<NewsEventItem> matches = new ArrayList<>();
+        if (sel.hasQueryCriteria()) {
+            validateBounds(sel);
+            var query = new NewsEventQuery(sel.addressId(), sel.kind(),
+                    sel.dateFrom(), sel.dateTo(), Integer.MAX_VALUE);
+            if (sel.terms() != null) {
+                matches.addAll(newsEventStore.search(sel.terms(), query));
+            } else {
+                matches.addAll(newsEventStore.search(query));
+            }
+            filterByCompleteness(matches, sel.completeness());
+        }
+        List<String> unknown = new ArrayList<>();
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        for (NewsEventItem item : matches) {
+            seen.add(item.canonicalId());
+        }
+        for (String id : sel.canonicalIds()) {
+            var record = newsEventStore.byCanonicalId(id);
+            if (record.isEmpty()) {
+                unknown.add(id);
+            } else if (!seen.contains(id)) {
+                matches.add(record.get());
+                seen.add(id);
+            }
+        }
+        return new ResolvedSelection(matches, List.copyOf(unknown));
+    }
+
+    private static void validateBounds(BulkPruneSelection sel) {
+        // a typo in a range bound must not silently deactivate the
+        // filter (the US-14.3 review rule the CLI list command already
+        // applies) — same lenient parser, same refusal
+        for (String[] bound : new String[][] {{"dateFrom", sel.dateFrom()},
+                {"dateTo", sel.dateTo()}}) {
+            if (bound[1] != null
+                    && NewsEventQuery.parseLenient(bound[1]) == null) {
+                throw new IllegalArgumentException("Invalid " + bound[0]
+                        + " '" + bound[1] + "' — use ISO (yyyy-MM-dd) or "
+                        + "the extractor's form (e.g. 'Jul 16, 2026')");
+            }
+        }
+    }
+
+    private static void filterByCompleteness(List<NewsEventItem> items,
+            String completeness) {
+        boolean filterActive = !"all".equals(completeness);
+        boolean wantIncomplete = "incomplete".equals(completeness);
+        if (!filterActive) {
+            return;
+        }
+        if (!wantIncomplete && !"complete".equals(completeness)) {
+            throw new IllegalArgumentException("Invalid completeness '"
+                    + completeness + "' — use all, complete or incomplete");
+        }
+        items.removeIf(item -> wantIncomplete != item.incomplete());
     }
 
     /** The stored correction trace of a logical record (US-14.10). */

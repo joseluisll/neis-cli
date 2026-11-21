@@ -109,4 +109,89 @@ public class NewsRestController {
             java.nio.file.Files.deleteIfExists(temp);
         }
     }
+
+    /** The single-item prune request (US-14.13): the canonical id and
+     * the recorded reason — the CLI 'news prune' semantics. */
+    public record PruneRequest(String itemId, String reason) {}
+
+    /**
+     * The single-item prune over REST (US-14.13): a soft delete of one
+     * logical record (every row sharing the canonical id), reason
+     * recorded, provenance stays readable, re-extraction never
+     * resurrects. The id arrives in the request BODY, so an unknown id
+     * is a caller error → 400 (never a path-404).
+     */
+    @PostMapping("/prune")
+    public java.util.Map<String, Object> prune(
+            @org.springframework.web.bind.annotation.RequestBody
+            PruneRequest request) {
+        if (request == null || request.itemId() == null
+                || request.itemId().isBlank()) {
+            throw new IllegalArgumentException(
+                    "itemId is required — the canonical id (cn-…, from "
+                            + "GET /api/news)");
+        }
+        String id = request.itemId().trim();
+        if (news.item(id).isEmpty()) {
+            throw new IllegalArgumentException("Unknown item id '" + id
+                    + "' — canonical ids look like 'cn-xxxxxxxx' (see "
+                    + "GET /api/news)");
+        }
+        int rows = news.prune(id, request.reason());
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("pruned", rows);
+        out.put("itemId", id);
+        out.put("reason", request.reason());
+        return out;
+    }
+
+    /** The bulk-prune request (US-14.13): the SAME filter fields the
+     * listing accepts (address, kind, date range, terms), a
+     * completeness flag, an explicit canonical-id list, the recorded
+     * reason and the confirmation flag. */
+    public record BulkPruneRequest(String addressId, String kind,
+            String dateFrom, String dateTo, String terms,
+            String completeness, java.util.List<String> canonicalIds,
+            String reason, Boolean confirmed) {}
+
+    /**
+     * The bulk prune over REST (US-14.13): dry-run by default —
+     * confirmed:false (or absent) returns the matching records and
+     * writes NOTHING; confirmed:true soft-deletes every matched record
+     * as a whole canonical group. A zero-match selection is a no-op
+     * success, not an error.
+     */
+    @PostMapping("/prune-bulk")
+    public java.util.Map<String, Object> pruneBulk(
+            @org.springframework.web.bind.annotation.RequestBody
+            BulkPruneRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "A request body is required (use {} for an "
+                            + "explicit-canonical-ids-only selection)");
+        }
+        boolean confirmed = Boolean.TRUE.equals(request.confirmed());
+        var selection = new es.jllopez.neis.domain.model.BulkPruneSelection(
+                request.addressId(), request.kind(), request.dateFrom(),
+                request.dateTo(), request.terms(), request.completeness(),
+                request.canonicalIds(), request.reason());
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("confirmed", confirmed);
+        if (!confirmed) {
+            var preview = news.bulkPrunePreview(selection);
+            out.put("dryRun", true);
+            out.put("matchedRecords", preview.matchedRecords());
+            out.put("items", preview.items());
+            out.put("unknownCanonicalIds", preview.unknownCanonicalIds());
+            out.put("message", "Dry run — nothing pruned; re-send with "
+                    + "\"confirmed\": true to prune these records");
+            return out;
+        }
+        var outcome = news.bulkPrune(selection);
+        out.put("dryRun", false);
+        out.put("prunedRecords", outcome.prunedRecords());
+        out.put("prunedRows", outcome.prunedRows());
+        out.put("unknownCanonicalIds", outcome.unknownCanonicalIds());
+        return out;
+    }
 }

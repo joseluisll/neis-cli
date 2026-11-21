@@ -1,8 +1,10 @@
 # NEIS MCP tool catalog (US-18.5, issue #120)
 
-The MCP server exposes EXACTLY the 10 owner-decided tools below
-(catalog decision 2026-11-19, issue #119). The full operation surface
-remains available over REST; MCP is the agent-facing subset.
+The MCP server exposes EXACTLY the 12 owner-decided tools below
+(catalog decision 2026-11-19, issue #119; US-14.13, issue #146, added
+the two prune tools to the owner-specified requirement). The full
+operation surface remains available over REST; MCP is the agent-facing
+subset.
 
 **No AI functionality is reachable through any tool** (owner decision
 2026-11-19): there is no `ai-ask`, no AI-assisted registration, no
@@ -80,6 +82,33 @@ Query the stored news/events repository: filter by address, kind (news/event), p
   - `dateTo` (optional): string — filter: range end
   - `query` (optional): string — free-text terms over title, description and location
   - `limit` (optional): integer — max items (default 20)
+
+## `neis_prune_item`
+
+Soft-delete ONE stored news/event item (US-14.10/14.13): excluded from list, search and export; the reason is recorded; re-extraction never resurrects it; the provenance history stays readable via `neis_get_news_item`.
+
+- MCP hints: `destructiveHint`=true, `idempotentHint`=false, `readOnlyHint`=false
+- REST counterpart(s): `POST /api/news/prune` · CLI: `news prune`
+- Parameters:
+  - `canonicalId` **required**: string — the item's canonical id (canonicalId field of a neis_list_news item)
+  - `reason` optional: string — why the item is a false positive (recorded)
+
+## `neis_prune_news_bulk`
+
+Bulk soft-delete of stored news/events (US-14.13) by the listing's filter fields (address, kind, date range, terms), a completeness flag and/or an explicit canonical-id list. DRY-RUN FIRST: without `confirmed`=true it returns the matching records and writes nothing; re-invoke with `confirmed`=true (and the same reason) to prune. Zero matches are a no-op success; unknown canonical ids are reported back, never silently dropped.
+
+- MCP hints: `destructiveHint`=true, `idempotentHint`=false, `readOnlyHint`=false
+- REST counterpart(s): `POST /api/news/prune-bulk` · CLI: `news prune-bulk`
+- Parameters:
+  - `addressId` optional: string — filter: one address id
+  - `kind` optional: string — filter: 'news' or 'event'
+  - `dateFrom` optional: string — filter: range start (ISO or the extractor's date form)
+  - `dateTo` optional: string — filter: range end
+  - `terms` optional: string — free-text terms over title, description and location
+  - `completeness` optional: string — completeness filter: all (default), complete or incomplete
+  - `canonicalIds` optional: list\<string\> — explicit canonical ids to prune (whole canonical groups)
+  - `reason` optional: string — why the selection is pruned — recorded on every affected row (required for confirmed=true)
+  - `confirmed` optional: boolean — false/absent = dry run (preview only); true = execute the prune
 
 ## `neis_remove_address`
 

@@ -540,4 +540,102 @@ public class NewsCommands {
                 + "stays readable ('news sightings')" + (reason == null || reason.isBlank() ? ""
                 : "; reason recorded: " + reason.trim());
     }
+
+    /**
+     * Bulk prune (US-14.13, issue #146): selection-driven soft delete
+     * with the listing's filter semantics. DRY-RUN FIRST: without
+     * --confirm the command prints the matching records and writes
+     * NOTHING; re-run with --confirm (and the same selection) to
+     * prune. Zero matches are a no-op success.
+     */
+    @Command(name = {"news", "prune-bulk"}, group = "News",
+            description = "Bulk-prune stored news/events (US-14.13) by the 'news list' "
+                    + "filters (address, kind, date range, terms, completeness) "
+                    + "and/or explicit canonical ids. Dry-run first: add --confirm "
+                    + "to execute; every pruned row records the reason")
+    public String pruneBulk(
+            @Option(shortName = 'a', longName = "address",
+                    description = "Address id (omit for every address)") String addressId,
+            @Option(shortName = 'k', longName = "kind",
+                    description = "Item kind: news or event (omit for both)") String kind,
+            @Option(longName = "from",
+                    description = "Items dated on/after this date — ISO (yyyy-MM-dd) or "
+                            + "the extractor's form ('Jul 16, 2026')") String dateFrom,
+            @Option(longName = "to",
+                    description = "Items dated on/before this date (same accepted "
+                            + "forms as --from)") String dateTo,
+            @Option(longName = "terms",
+                    description = "Free-text terms over title, description and "
+                            + "location (same semantics as 'news search')") String terms,
+            @Option(longName = "incomplete", defaultValue = "all",
+                    description = "Completeness filter (US-14.4): all, complete or "
+                            + "incomplete") String incomplete,
+            @Option(longName = "ids",
+                    description = "Comma-separated canonical ids (cn-…) to prune as "
+                            + "whole canonical groups") String ids,
+            @Option(shortName = 'r', longName = "reason",
+                    description = "Why the selection is pruned — recorded on every "
+                            + "affected row (required with --confirm)") String reason,
+            @Option(longName = "confirm", defaultValue = "false",
+                    description = "Execute the prune (omit for the dry run)")
+            boolean confirm) {
+        List<String> canonicalIds = new ArrayList<>();
+        if (ids != null && !ids.isBlank()) {
+            for (String id : ids.split(",")) {
+                if (!id.isBlank()) {
+                    canonicalIds.add(id.trim());
+                }
+            }
+        }
+        var selection = new es.jllopez.neis.domain.model.BulkPruneSelection(
+                addressId, kind, dateFrom, dateTo, terms, incomplete,
+                canonicalIds, reason);
+        if (!confirm) {
+            var preview = newsEvents.bulkPrunePreview(selection);
+            StringBuilder out = new StringBuilder("DRY RUN — ")
+                    .append(preview.matchedRecords())
+                    .append(" record(s) match; nothing pruned. Re-run with "
+                            + "--confirm to prune them.\n");
+            int shown = 0;
+            for (NewsEventItem item : preview.items()) {
+                if (shown++ == 50) {
+                    out.append("  … and ").append(preview.matchedRecords() - 50)
+                            .append(" more\n");
+                    break;
+                }
+                out.append("  ").append(item.canonicalId())
+                        .append("  [").append(item.addressId()).append("/")
+                        .append(item.kind()).append("]")
+                        .append(item.date() == null ? "" : " " + item.date())
+                        .append("  ")
+                        .append(item.title() == null ? "(no title)"
+                                : item.title())
+                        .append("\n");
+            }
+            if (!preview.unknownCanonicalIds().isEmpty()) {
+                out.append("  Unknown ids (ignored): ")
+                        .append(String.join(", ", preview.unknownCanonicalIds()))
+                        .append("\n");
+            }
+            return out.toString().trim();
+        }
+        try {
+            var outcome = newsEvents.bulkPrune(selection);
+            StringBuilder out = new StringBuilder("Pruned ")
+                    .append(outcome.prunedRecords()).append(" record(s), ")
+                    .append(outcome.prunedRows()).append(" row(s) — excluded "
+                            + "from list, search and export; provenance stays "
+                            + "readable");
+            if (reason != null && !reason.isBlank()) {
+                out.append("; reason recorded: ").append(reason.trim());
+            }
+            if (!outcome.unknownCanonicalIds().isEmpty()) {
+                out.append("\nUnknown ids (ignored): ").append(
+                        String.join(", ", outcome.unknownCanonicalIds()));
+            }
+            return out.toString();
+        } catch (IllegalArgumentException refused) {
+            return refused.getMessage();
+        }
+    }
 }
