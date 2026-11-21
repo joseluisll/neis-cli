@@ -2,6 +2,7 @@ package es.jllopez.neis.infrastructure.adapter.scrape;
 
 import es.jllopez.neis.application.PipelineService;
 import es.jllopez.neis.domain.model.ElementCatalog;
+import es.jllopez.neis.domain.model.FilterDefinition;
 import es.jllopez.neis.domain.model.NewsEventItem;
 import es.jllopez.neis.domain.model.PrunedElement;
 import org.junit.jupiter.api.Test;
@@ -353,5 +354,105 @@ class JsoupDomAnalyzerTest {
         assertFalse(all.contains("case variant"));
         assertFalse(all.contains("visibility variant"));
         assertTrue(all.contains("Visible"));
+    }
+
+    // ---- US-06.19 (issue #150): checkbox facet groups by section ----
+
+    @Test
+    void checkboxFacetsGroupByTheirSectionHeading() {
+        // The client-rendered facet-panel shape: per-section containers
+        // whose heading precedes the checkbox rows (a row carrying a
+        // checkbox is never its own group's heading).
+        String html = """
+                <div class="panel">
+                  <div class="fieldset">
+                    <div class="header"><span>Status</span></div>
+                    <div class="content">
+                      <div class="row"><input type="checkbox" id="checkbox-status-upcoming">
+                        <label for="checkbox-status-upcoming">Upcoming</label></div>
+                      <div class="row"><input type="checkbox" id="checkbox-status-ongoing">
+                        <label for="checkbox-status-ongoing">Ongoing</label></div>
+                      <div class="row"><input type="checkbox" id="checkbox-status-past">
+                        <label for="checkbox-status-past">Past</label></div>
+                    </div>
+                  </div>
+                  <div class="fieldset">
+                    <div class="header"><span>Programme</span></div>
+                    <div class="content">
+                      <div class="row"><input type="checkbox" id="checkbox-programme-horizon">
+                        <label for="checkbox-programme-horizon">Horizon Europe</label></div>
+                    </div>
+                  </div>
+                </div>
+                """;
+        List<FilterDefinition> groups = analyzer.checkboxFacetGroups(html);
+        assertEquals(2, groups.size());
+        assertEquals("Status", groups.get(0).name());
+        assertEquals(List.of("Upcoming", "Ongoing", "Past"), groups.get(0).values());
+        assertEquals("Programme", groups.get(1).name());
+        assertEquals(List.of("Horizon Europe"), groups.get(1).values());
+    }
+
+    @Test
+    void multiWordFacetIdsStayOneGroupWhenTheSectionHeadingNamesThem() {
+        // ids with multi-word values (checkbox-programme-horizon-europe)
+        // must NOT split per hyphen segment — the section heading names
+        // the whole group.
+        String html = """
+                <div class="panel">
+                  <div class="fieldset">
+                    <div class="header"><span>Programme</span></div>
+                    <div class="content">
+                      <div class="row"><input type="checkbox" id="checkbox-programme-horizon-europe">
+                        <label for="checkbox-programme-horizon-europe">Horizon Europe (HORIZON)</label></div>
+                      <div class="row"><input type="checkbox" id="checkbox-programme-rfcs">
+                        <label for="checkbox-programme-rfcs">Research Fund for Coal and Steel (RFCS)</label></div>
+                      <div class="row"><input type="checkbox" id="checkbox-programme-erasmus">
+                        <label for="checkbox-programme-erasmus">Erasmus+ Programme (ERASMUS)</label></div>
+                    </div>
+                  </div>
+                </div>
+                """;
+        List<FilterDefinition> groups = analyzer.checkboxFacetGroups(html);
+        assertEquals(1, groups.size());
+        assertEquals("Programme", groups.get(0).name());
+        assertEquals(3, groups.get(0).values().size());
+    }
+
+    @Test
+    void radioGroupsJoinTheSectionAndFallBackToTheirName() {
+        String html = """
+                <form>
+                  <input type="radio" name="sort" id="sort-asc">
+                  <label for="sort-asc">Ascending</label>
+                  <input type="radio" name="sort" id="sort-desc">
+                  <label for="sort-desc">Descending</label>
+                </form>
+                """;
+        List<FilterDefinition> groups = analyzer.checkboxFacetGroups(html);
+        assertEquals(1, groups.size());
+        // no section heading exists — the radio group's own name is the
+        // generic fallback
+        assertEquals("Sort", groups.get(0).name());
+        assertEquals(List.of("Ascending", "Descending"), groups.get(0).values());
+    }
+
+    @Test
+    void unlabeledCheckboxesAreSkipped() {
+        String html = """
+                <div class="panel">
+                  <div class="fieldset">
+                    <div class="header"><span>Facets</span></div>
+                    <div class="content">
+                      <div class="row"><input type="checkbox" id="cb-anon"></div>
+                      <div class="row"><input type="checkbox" id="cb-named-x">
+                        <label for="cb-named-x">Named</label></div>
+                    </div>
+                  </div>
+                </div>
+                """;
+        List<FilterDefinition> groups = analyzer.checkboxFacetGroups(html);
+        assertEquals(1, groups.size());
+        assertEquals(List.of("Named"), groups.get(0).values());
     }
 }

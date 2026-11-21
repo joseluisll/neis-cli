@@ -758,7 +758,17 @@ public class PipelineService {
         if (stored.isPresent() && !stored.get().filters().isEmpty()) {
             return;
         }
-        List<FilterDefinition> found = exposedFilterDetector.parse(rawHtml);
+        // checkbox/radio facet groups need DOM traversal (their group
+        // name is the facet section's heading) — infrastructure work;
+        // the regex-parseable shapes (selects, free-text inputs) stay
+        // on the domain detector. Order: facets, selects, free text.
+        java.util.List<FilterDefinition> found = new java.util.ArrayList<>(
+                domAnalysisPort.checkboxFacetGroups(rawHtml));
+        for (FilterDefinition d : exposedFilterDetector.parse(rawHtml)) {
+            if (found.stream().noneMatch(f -> f.name().equals(d.name()))) {
+                found.add(d);
+            }
+        }
         if (!found.isEmpty()) {
             log.info("[FILTER] {}: filter catalogue captured from the raw "
                             + "capture DOM, pre-clearing ({} field(s))",

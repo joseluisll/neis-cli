@@ -48,22 +48,31 @@ class FilterCatalogueCaptureTest {
     Path workDir;
 
     /** The rendered facet panel of a client-rendered listing: the
-     * checkbox groups live INSIDE a role=dialog overlay — exactly the
-     * shape whose definitions the clearing rules remove afterwards. */
+     * checkbox groups live INSIDE a role=dialog overlay (removed by the
+     * clearing rules) and each facet section carries its own heading —
+     * the shape whose definitions the grouping walk names. */
     private static final String RENDERED_FACETS = """
             <html><body>
             <div role="dialog" aria-label="dialogOverlay" class="eui-overlay">
-              <form>
-                <input type="checkbox" id="checkbox-status-upcoming">
-                <label for="checkbox-status-upcoming">Upcoming</label>
-                <input type="checkbox" id="checkbox-status-ongoing">
-                <label for="checkbox-status-ongoing">Ongoing</label>
-                <input type="checkbox" id="checkbox-status-past">
-                <label for="checkbox-status-past">Past</label>
-                <input type="checkbox" id="checkbox-programme-horizon">
-                <label for="checkbox-programme-horizon">Horizon Europe</label>
-                <input type="search" id="q" placeholder="Quick search">
-              </form>
+              <div class="fieldset">
+                <div class="header"><span>Status</span></div>
+                <div class="content">
+                  <div class="row"><input type="checkbox" id="checkbox-status-upcoming">
+                    <label for="checkbox-status-upcoming">Upcoming</label></div>
+                  <div class="row"><input type="checkbox" id="checkbox-status-ongoing">
+                    <label for="checkbox-status-ongoing">Ongoing</label></div>
+                  <div class="row"><input type="checkbox" id="checkbox-status-past">
+                    <label for="checkbox-status-past">Past</label></div>
+                </div>
+              </div>
+              <div class="fieldset">
+                <div class="header"><span>Programme</span></div>
+                <div class="content">
+                  <div class="row"><input type="checkbox" id="checkbox-programme-horizon">
+                    <label for="checkbox-programme-horizon">Horizon Europe</label></div>
+                </div>
+              </div>
+              <form><input type="search" id="q" placeholder="Quick search"></form>
             </div>
             <ul class="listing"><li>an item</li></ul>
             </body></html>

@@ -26,4 +26,21 @@ public interface DomAnalysisPort {
      *         digest and the placeholder map of hashed long URLs
      */
     ElementCatalog analyze(String html);
+
+    /**
+     * The CHECKBOX/RADIO facet groups of the captured page (US-06.19,
+     * issue #150) — the filter-panel shape of client-rendered listings,
+     * which the regex parser of the exposed-filter detector cannot
+     * group: the GROUP name is the facet section's heading (the nearest
+     * preceding container heading in the DOM walk), the values are the
+     * controls' labels. Page-agnostic DOM traversal, no site knowledge.
+     * DOM parsing is infrastructure work (jsoup), hence here and not on
+     * the domain detector.
+     *
+     * @param html the RAW captured HTML5 (pre-clearing: facet panels
+     *             often live inside overlays the clearing rules remove)
+     * @return one FilterDefinition per facet group, document order
+     */
+    java.util.List<es.jllopez.neis.domain.model.FilterDefinition>
+            checkboxFacetGroups(String html);
 }

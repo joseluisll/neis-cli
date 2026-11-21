@@ -63,44 +63,10 @@ class ExposedFilterDetectorTest {
     }
 
     // ---- US-06.19 (issue #150): checkbox facet groups + free text ----
-
-    @Test
-    void parsesCheckboxFacetGroupsBySharedIdPrefix() {
-        // The generic client-rendered facet-panel shape: checkbox
-        // inputs whose ids share a <group>-<value> pattern, named by
-        // label-for. No site knowledge — standard HTML5 semantics.
-        String html = "<form>"
-                + "<input type=\"checkbox\" id=\"checkbox-status-upcoming\" "
-                + "  aria-label=\"Input Unchecked\" class=\"eui-input-checkbox\">"
-                + "<label for=\"checkbox-status-upcoming\">Upcoming</label>"
-                + "<input type=\"checkbox\" id=\"checkbox-status-ongoing\">"
-                + "<label for=\"checkbox-status-ongoing\">Ongoing</label>"
-                + "<input type=\"checkbox\" id=\"checkbox-status-past\">"
-                + "<label for=\"checkbox-status-past\">Past</label>"
-                + "<input type=\"checkbox\" id=\"checkbox-programme-horizon\">"
-                + "<label for=\"checkbox-programme-horizon\">Horizon Europe</label>"
-                + "</form>";
-        List<FilterDefinition> filters = detector.parse(html);
-        assertEquals(2, filters.size());
-        assertEquals("Status", filters.get(0).name());
-        assertEquals(List.of("Upcoming", "Ongoing", "Past"), filters.get(0).values());
-        assertEquals("Programme", filters.get(1).name());
-        assertEquals(List.of("Horizon Europe"), filters.get(1).values());
-    }
-
-    @Test
-    void radioGroupsGroupByNameAttribute() {
-        String html = "<form>"
-                + "<input type=\"radio\" name=\"sort\" id=\"sort-asc\">"
-                + "<label for=\"sort-asc\">Ascending</label>"
-                + "<input type=\"radio\" name=\"sort\" id=\"sort-desc\">"
-                + "<label for=\"sort-desc\">Descending</label>"
-                + "</form>";
-        List<FilterDefinition> filters = detector.parse(html);
-        assertEquals(1, filters.size());
-        assertEquals("Sort", filters.get(0).name());
-        assertEquals(List.of("Ascending", "Descending"), filters.get(0).values());
-    }
+    // The CHECKBOX/RADIO facet groups moved to the DOM analysis port
+    // (their group name is the facet section's heading — DOM traversal,
+    // infrastructure): see JsoupDomAnalyzerTest. The detector keeps the
+    // regex-parseable shapes (selects + labeled free-text inputs).
 
     @Test
     void labeledTextInputsAreFreeTextDefinitions() {
@@ -116,29 +82,14 @@ class ExposedFilterDetectorTest {
     }
 
     @Test
-    void unlabeledCheckboxesAreSkipped() {
-        String html = "<form>"
-                + "<input type=\"checkbox\" id=\"cb-anon\">"
-                + "<input type=\"checkbox\" id=\"cb-named-x\">"
-                + "<label for=\"cb-named-x\">Named</label>"
-                + "</form>";
-        List<FilterDefinition> filters = detector.parse(html);
-        assertEquals(1, filters.size());
-        assertEquals(List.of("Named"), filters.get(0).values());
-    }
-
-    @Test
-    void parseCombinesSelectsCheckboxGroupsAndTextInputs() {
+    void parseCombinesSelectsAndTextInputs() {
         String html = "<form>"
                 + "<select name=\"year\"><option>2025</option><option>2026</option></select>"
-                + "<input type=\"checkbox\" id=\"facet-kind-news\">"
-                + "<label for=\"facet-kind-news\">News article</label>"
                 + "<input type=\"text\" id=\"terms\" aria-label=\"Keywords\">"
                 + "</form>";
         List<FilterDefinition> filters = detector.parse(html);
-        assertEquals(3, filters.size());
+        assertEquals(2, filters.size());
         assertEquals("year", filters.get(0).name());
-        assertEquals("Kind", filters.get(1).name());
-        assertEquals("Keywords", filters.get(2).name());
+        assertEquals("Keywords", filters.get(1).name());
     }
 }

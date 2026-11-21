@@ -67,181 +67,6 @@ public class ExposedFilterDetector {
             "\\bplaceholder=\"([^\"]*)\"");
 
     /**
-     * Leading id particles that carry no field meaning — a machine
-     * generated facet id reads {@code checkbox-<group>-<value>}, so the
-     * GROUP name is what remains after the value segment and these
-     * particles are stripped (generic HTML5 idioms, no site knowledge).
-     */
-    private static final String[] ID_PARTICLES =
-            {"checkbox", "chk", "filter", "input", "radio", "f", "c"};
-
-    /**
-     * Parses EVERY generic exposed filter shape of the page (US-06.19,
-     * issue #150): {@code <select>} dropdowns, CHECKBOX/RADIO groups
-     * (the facet-panel shape of client-rendered listings — grouped by
-     * their shared id prefix, named by what remains, values from their
-     * labels) and labeled free-text inputs (empty values list, per the
-     * FilterDefinition convention). Page-agnostic HTML5 semantics only.
-     */
-    public List<FilterDefinition> parse(String html) {
-        if (html == null || html.isBlank()) {
-            return new ArrayList<>();
-        }
-        List<FilterDefinition> filters = new ArrayList<>(parseSelects(html));
-        filters.addAll(parseCheckboxGroups(html));
-        filters.addAll(parseTextInputs(html));
-        return filters;
-    }
-
-    /**
-     * The checkbox/radio facet groups of the page: every labeled
-     * checkbox (or radio) joins the group its id prefix names
-     * ({@code checkbox-status-upcoming} → "Status"); radios group by
-     * their {@code name} attribute (the standard HTML form semantics).
-     * A checkbox with no usable label is skipped — it names nothing.
-     */
-    private List<FilterDefinition> parseCheckboxGroups(String html) {
-        // first-appearance order of the groups
-        java.util.LinkedHashMap<String, GroupBuilder> groups = new java.util.LinkedHashMap<>();
-        Matcher inputs = INPUT_TAG.matcher(html);
-        while (inputs.find()) {
-            String tag = inputs.group();
-            String type = attrValue(tag, TYPE_ATTR);
-            boolean checkbox = "checkbox".equalsIgnoreCase(type);
-            boolean radio = "radio".equalsIgnoreCase(type);
-            if (!checkbox && !radio) {
-                continue;
-            }
-            String id = attrValue(tag, ID_ATTR);
-            String name = attrValue(tag, NAME_ATTR);
-            String label = labelForId(html, id);
-            if (label == null) {
-                label = attrValue(tag, ARIA_LABEL);
-            }
-            if (label == null) {
-                label = attrValue(tag, VALUE_ATTR);
-            }
-            if (label == null || label.isBlank() || label.length() > 60) {
-                continue;
-            }
-            String groupKey;
-            String groupName;
-            if (radio && name != null && !name.isBlank()) {
-                groupKey = "name:" + name.toLowerCase(java.util.Locale.ROOT);
-                groupName = humanize(name);
-            } else if (id != null && id.contains("-")) {
-                String prefix = id.substring(0, id.lastIndexOf('-'));
-                groupKey = "id:" + prefix.toLowerCase(java.util.Locale.ROOT);
-                groupName = humanize(prefix);
-            } else {
-                groupKey = "id:";
-                groupName = "(checkbox group)";
-            }
-            groups.computeIfAbsent(groupKey,
-                    k -> new GroupBuilder(groupName)).add(label);
-        }
-        List<FilterDefinition> filters = new ArrayList<>();
-        for (GroupBuilder g : groups.values()) {
-            filters.add(new FilterDefinition(g.name, g.values));
-        }
-        return filters;
-    }
-
-    /**
-     * The labeled free-text filter inputs ({@code text}/{@code search}
-     * or a type-less input — never password/hidden/submit shapes): the
-     * name comes from the label, aria-label or placeholder; the values
-     * list stays EMPTY (the FilterDefinition convention for free text).
-     */
-    private List<FilterDefinition> parseTextInputs(String html) {
-        List<FilterDefinition> filters = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        Matcher inputs = INPUT_TAG.matcher(html);
-        while (inputs.find()) {
-            String tag = inputs.group();
-            String type = attrValue(tag, TYPE_ATTR);
-            boolean text = type == null || type.isBlank()
-                    || "text".equalsIgnoreCase(type)
-                    || "search".equalsIgnoreCase(type);
-            if (!text) {
-                continue;
-            }
-            String id = attrValue(tag, ID_ATTR);
-            String name = labelForId(html, id);
-            if (name == null) {
-                name = attrValue(tag, ARIA_LABEL);
-            }
-            if (name == null) {
-                name = attrValue(tag, PLACEHOLDER_ATTR);
-            }
-            if (name == null || name.isBlank() || name.length() > 60) {
-                continue;
-            }
-            if (seen.add(name.toLowerCase(java.util.Locale.ROOT))) {
-                filters.add(new FilterDefinition(name, List.of()));
-            }
-        }
-        return filters;
-    }
-
-    /** The value of one single-quoted-attribute regex over a tag. */
-    private static String attrValue(String tag, Pattern pattern) {
-        Matcher m = pattern.matcher(tag);
-        return m.find() ? m.group(1) : null;
-    }
-
-    /**
-     * The human-readable group name of a machine generated facet id
-     * prefix: the last segment survives the generic particles ("checkbox-
-     * status" → "Status"); a prefix with nothing left keeps the whole
-     * prefix. Never carries site-specific vocabulary — the particles
-     * above are HTML form idioms.
-     */
-    private static String humanize(String prefix) {
-        String[] segments = prefix.toLowerCase(java.util.Locale.ROOT)
-                .split("[-_]");
-        String name = null;
-        for (int i = segments.length - 1; i >= 0; i--) {
-            if (!isParticle(segments[i])) {
-                name = segments[i];
-                break;
-            }
-        }
-        if (name == null) {
-            name = String.join(" ", segments);
-        }
-        if (name.isBlank()) {
-            return "(checkbox group)";
-        }
-        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
-    }
-
-    private static boolean isParticle(String segment) {
-        for (String p : ID_PARTICLES) {
-            if (p.equals(segment)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Mutable group under construction (name + ordered unique values). */
-    private static final class GroupBuilder {
-        final String name;
-        final List<String> values = new ArrayList<>();
-
-        GroupBuilder(String name) {
-            this.name = name;
-        }
-
-        void add(String value) {
-            if (!values.contains(value)) {
-                values.add(value);
-            }
-        }
-    }
-
-    /**
      * True when the page shows the standard shape of an exposed filter
      * UI: form(s) containing select dropdowns.
      */
@@ -256,6 +81,24 @@ public class ExposedFilterDetector {
      * Parses every {@code <select>} of the page into a
      * {@link FilterDefinition} (generic HTML5 parsing, no site knowledge).
      */
+    /**
+     * Parses the REGEX-parseable exposed filter shapes (US-06.19,
+     * issue #150): {@code <select>} dropdowns and labeled free-text
+     * inputs (empty values list, per the FilterDefinition convention).
+     * The CHECKBOX/RADIO facet groups need DOM traversal (their group
+     * name is the facet section's heading) and live on the DOM analysis
+     * port (infrastructure) — the use case merges both. Page-agnostic
+     * HTML5 semantics only.
+     */
+    public List<FilterDefinition> parse(String html) {
+        if (html == null || html.isBlank()) {
+            return new ArrayList<>();
+        }
+        List<FilterDefinition> filters = new ArrayList<>(parseSelects(html));
+        filters.addAll(parseTextInputs(html));
+        return filters;
+    }
+
     public List<FilterDefinition> parseSelects(String html) {
         List<FilterDefinition> filters = new ArrayList<>();
         if (html == null || html.isBlank()) {
@@ -294,6 +137,58 @@ public class ExposedFilterDetector {
             filters.add(new FilterDefinition(
                     name == null || name.isBlank() ? "(unnamed select)" : name,
                     values));
+        }
+        return filters;
+    }
+
+    /**
+     * The labeled free-text filter inputs ({@code text}/{@code search}
+     * or a type-less input — never password/hidden/submit shapes): the
+     * name comes from the exact {@code label for}, the aria-label or
+     * the placeholder; the values list stays EMPTY (the
+     * FilterDefinition convention for free text). The nearest-label
+     * fallback of the selects is NOT applied here — facet panels pack
+     * many controls tightly and it would misname an input with the
+     * previous group's label.
+     */
+    public List<FilterDefinition> parseTextInputs(String html) {
+        List<FilterDefinition> filters = new ArrayList<>();
+        if (html == null || html.isBlank()) {
+            return filters;
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        Matcher inputs = INPUT_TAG.matcher(html);
+        while (inputs.find()) {
+            String tag = inputs.group();
+            Matcher type = TYPE_ATTR.matcher(tag);
+            String typeValue = type.find() ? type.group(1) : null;
+            boolean text = typeValue == null || typeValue.isBlank()
+                    || "text".equalsIgnoreCase(typeValue)
+                    || "search".equalsIgnoreCase(typeValue);
+            if (!text) {
+                continue;
+            }
+            Matcher idAttr = ID_ATTR.matcher(tag);
+            String id = idAttr.find() ? idAttr.group(1) : null;
+            String name = labelForId(html, id);
+            if (name == null) {
+                Matcher aria = ARIA_LABEL.matcher(tag);
+                if (aria.find()) {
+                    name = aria.group(1);
+                }
+            }
+            if (name == null) {
+                Matcher placeholder = PLACEHOLDER_ATTR.matcher(tag);
+                if (placeholder.find()) {
+                    name = placeholder.group(1);
+                }
+            }
+            if (name == null || name.isBlank() || name.length() > 60) {
+                continue;
+            }
+            if (seen.add(name.toLowerCase(java.util.Locale.ROOT))) {
+                filters.add(new FilterDefinition(name, List.of()));
+            }
         }
         return filters;
     }

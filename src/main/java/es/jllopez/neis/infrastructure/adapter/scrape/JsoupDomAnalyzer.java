@@ -349,4 +349,104 @@ public class JsoupDomAnalyzer implements DomAnalysisPort {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
+
+    /**
+     * The checkbox/radio facet groups of the page (US-06.19, issue
+     * #150), by DOM traversal: every labeled checkbox (or radio) joins
+     * the group its nearest preceding container heading names — the
+     * walk climbs from the control and, at each level, scans the
+     * preceding siblings for the closest one whose text is short and
+     * that carries NO checkbox itself (a row of the same panel is not
+     * its group's heading; the panel's header is). Values are the
+     * controls' labels ({@code label for}; a control with no label is
+     * skipped — it names nothing). Radios group by their {@code name}
+     * attribute first (the standard HTML form semantics).
+     */
+    @Override
+    public java.util.List<es.jllopez.neis.domain.model.FilterDefinition>
+            checkboxFacetGroups(String html) {
+        java.util.List<es.jllopez.neis.domain.model.FilterDefinition> filters =
+                new java.util.ArrayList<>();
+        if (html == null || html.isBlank()) {
+            return filters;
+        }
+        Document doc = Jsoup.parse(html);
+        // label-for map first: one pass, exact matches only
+        java.util.Map<String, String> labels = new java.util.HashMap<>();
+        for (Element label : doc.select("label[for]")) {
+            String text = label.text().trim();
+            if (!text.isEmpty() && text.length() <= 60) {
+                labels.putIfAbsent(label.attr("for"), text);
+            }
+        }
+        java.util.Map<String, java.util.List<String>> groupValues =
+                new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> groupNames = new java.util.HashMap<>();
+        for (Element input : doc.select("input[type=checkbox], input[type=radio]")) {
+            String type = input.attr("type").toLowerCase(java.util.Locale.ROOT);
+            String id = input.id();
+            String label = labels.get(id);
+            if (label == null) {
+                String aria = input.attr("aria-label");
+                if (!aria.isBlank() && aria.length() <= 60
+                        && !"Input Unchecked".equalsIgnoreCase(aria)) {
+                    label = aria.trim();
+                }
+            }
+            if (label == null) {
+                continue;
+            }
+            String key;
+            String name;
+            String heading = sectionHeading(input);
+            if ("radio".equals(type) && !input.attr("name").isBlank()) {
+                String nameAttr = input.attr("name");
+                key = "name:" + nameAttr.toLowerCase(java.util.Locale.ROOT);
+                name = groupNames.computeIfAbsent(key,
+                        k -> heading != null ? heading : capitalize(nameAttr));
+            } else {
+                key = "section:" + heading;
+                name = groupNames.computeIfAbsent(key,
+                        k -> heading != null ? heading : "(checkbox group)");
+            }
+            groupValues.computeIfAbsent(key, k -> new java.util.ArrayList<>());
+            if (!groupValues.get(key).contains(label)) {
+                groupValues.get(key).add(label);
+            }
+        }
+        for (var entry : groupValues.entrySet()) {
+            filters.add(new es.jllopez.neis.domain.model.FilterDefinition(
+                    groupNames.get(entry.getKey()), entry.getValue()));
+        }
+        return filters;
+    }
+
+    /**
+     * The nearest preceding container heading of a control: climbing
+     * the ancestors, the closest preceding sibling whose text is short
+     * and that carries no checkbox itself (a sibling holding checkboxes
+     * is a ROW of the same facet panel, never its group's heading).
+     */
+    private static String sectionHeading(Element input) {
+        Element node = input;
+        while (node != null) {
+            for (Element s = node.previousElementSibling(); s != null;
+                    s = s.previousElementSibling()) {
+                if (!s.select("input[type=checkbox], input[type=radio]").isEmpty()) {
+                    continue;
+                }
+                String text = s.text().trim();
+                if (text.length() >= 2 && text.length() <= 40) {
+                    return text;
+                }
+            }
+            node = node.parent();
+        }
+        return null;
+    }
+
+    private static String capitalize(String s) {
+        return s == null || s.isBlank() ? s
+                : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
 }
